@@ -1,4 +1,10 @@
 //! Data validation gate and stream sequence gap detection.
+//!
+//! NOTE ON RAW DATA FIDELITY:
+//! These validation gates are optional and intended for downstream validation
+//! (e.g. validating crypto spot or equity prices that must be strictly positive).
+//! In accordance with the Bronze Layer Immutability invariant, these validators MUST NEVER be
+//! inserted as destructive rejection gates at the ingestion lakehouse level.
 
 use crate::core::types::AggregatorCandle;
 
@@ -9,6 +15,7 @@ pub enum SanityError {
     NegativeVolume,
     CorruptTimestamp,
     AbnormalOutlier,
+    NanPrice,
 }
 
 pub struct SanityGate {
@@ -28,10 +35,20 @@ impl SanityGate {
         }
     }
 
-    /// Verifies core mathematical invariants of a candlestick.
+    /// Verifies core mathematical invariants of a spot candlestick (enforcing positive prices).
     pub fn validate(&self, candle: &AggregatorCandle) -> Result<(), SanityError> {
         if candle.open <= 0.0 || candle.close <= 0.0 || candle.high <= 0.0 || candle.low <= 0.0 {
             return Err(SanityError::NonPositivePrice);
+        }
+
+        self.validate_general(candle)
+    }
+
+    /// Verifies geometric OHLC invariants for general financial instruments
+    /// (permits negative prices for commodities like WTI futures or negative bond yields).
+    pub fn validate_general(&self, candle: &AggregatorCandle) -> Result<(), SanityError> {
+        if candle.open.is_nan() || candle.close.is_nan() || candle.high.is_nan() || candle.low.is_nan() {
+            return Err(SanityError::NanPrice);
         }
 
         if candle.high < candle.low || candle.high < candle.open || candle.high < candle.close {

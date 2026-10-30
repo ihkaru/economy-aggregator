@@ -51,6 +51,14 @@ fn test_sanity_gate_negative_price() {
 }
 
 #[test]
+fn test_sanity_gate_negative_price_allowed_in_general_mode() {
+    let gate = SanityGate::new();
+    // Real-world scenario: WTI crude futures during negative oil price event (open 1.0, high 2.5, low -40.32, close -37.63)
+    let negative_candle = sample_candle(1.0, 2.5, -40.32, -37.63);
+    assert!(gate.validate_general(&negative_candle).is_ok());
+}
+
+#[test]
 fn test_gap_detection() {
     let mut gate = SanityGate::new();
     assert_eq!(gate.track_sequence(Some(100)), None);
