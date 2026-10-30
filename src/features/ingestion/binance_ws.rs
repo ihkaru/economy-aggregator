@@ -98,6 +98,7 @@ impl BinanceKlineEvent {
             vwap: None,
             trade_count: Some(k.trade_count),
             price_type: "last".to_string(),
+            raw_metadata: None,
         })
     }
 }

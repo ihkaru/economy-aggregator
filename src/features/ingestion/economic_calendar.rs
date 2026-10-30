@@ -65,6 +65,8 @@ impl RawCalendarItem {
             previous: self.previous,
             revised_previous: self.revised_previous,
             released_at_utc: if self.actual.is_some() { Some(scheduled_utc) } else { None },
+            source_url: self.source_url.clone(),
+            raw_payload: None,
         })
     }
 }

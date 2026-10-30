@@ -167,4 +167,5 @@ fn test_economic_calendar_payload_parsing() {
     assert_eq!(record.previous, Some(0.2));
     assert_eq!(record.revised_previous, Some(0.3));
     assert!(record.released_at_utc.is_some());
+    assert_eq!(record.source_url, Some("https://bea.gov".to_string()));
 }

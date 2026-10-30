@@ -37,6 +37,7 @@ fn create_sample_candle(symbol: &str) -> AggregatorCandle {
         vwap: Some(50050.0),
         trade_count: Some(25),
         price_type: "last".to_string(),
+        raw_metadata: None,
     }
 }
 

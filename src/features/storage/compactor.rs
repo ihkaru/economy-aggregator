@@ -243,6 +243,12 @@ impl LakeCompactor {
                 vwap: if vwap_array.is_null(i) { None } else { Some(vwap_array.value(i)) },
                 trade_count: if trade_count_array.is_null(i) { None } else { Some(trade_count_array.value(i)) },
                 price_type: extract_str(18, i),
+                raw_metadata: if batch.num_columns() > 19 && !batch.column(19).is_null(i) {
+                    let s = extract_str(19, i);
+                    if s.is_empty() { None } else { Some(s) }
+                } else {
+                    None
+                },
             });
         }
 

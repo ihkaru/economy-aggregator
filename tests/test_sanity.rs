@@ -25,6 +25,7 @@ fn sample_candle(open: f64, high: f64, low: f64, close: f64) -> AggregatorCandle
         vwap: None,
         trade_count: None,
         price_type: "last".to_string(),
+        raw_metadata: None,
     }
 }
 

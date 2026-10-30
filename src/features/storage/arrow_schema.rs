@@ -29,6 +29,7 @@ pub fn candle_arrow_schema() -> Arc<Schema> {
         Field::new("vwap", DataType::Float64, true),
         Field::new("trade_count", DataType::UInt32, true),
         Field::new("price_type", DataType::Utf8, false),
+        Field::new("raw_metadata", DataType::Utf8, true),
     ]))
 }
 
@@ -57,6 +58,7 @@ pub fn candles_to_record_batch(
     let mut vwaps = Vec::with_capacity(len);
     let mut trade_counts = Vec::with_capacity(len);
     let mut price_types = Vec::with_capacity(len);
+    let mut raw_metadatas = Vec::with_capacity(len);
 
     for c in candles {
         timestamps.push(c.timestamp_utc.timestamp_nanos_opt().unwrap_or(0));
@@ -78,6 +80,7 @@ pub fn candles_to_record_batch(
         vwaps.push(c.vwap);
         trade_counts.push(c.trade_count);
         price_types.push(c.price_type.as_str());
+        raw_metadatas.push(c.raw_metadata.as_deref());
     }
 
     let columns: Vec<ArrayRef> = vec![
@@ -100,6 +103,7 @@ pub fn candles_to_record_batch(
         Arc::new(Float64Array::from(vwaps)),
         Arc::new(UInt32Array::from(trade_counts)),
         Arc::new(StringArray::from(price_types)),
+        Arc::new(StringArray::from(raw_metadatas)),
     ];
 
     RecordBatch::try_new(schema, columns)

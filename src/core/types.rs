@@ -128,6 +128,7 @@ pub struct AggregatorCandle {
     pub vwap: Option<f64>,
     pub trade_count: Option<u32>,
     pub price_type: String, // "last", "mark", "index"
+    pub raw_metadata: Option<String>, // Optional vendor-specific extra metadata (0 bytes in Parquet when None)
 }
 
 impl AggregatorCandle {
@@ -162,4 +163,6 @@ pub struct EconomicEventRecord {
     pub previous: Option<f64>,
     pub revised_previous: Option<f64>,
     pub released_at_utc: Option<DateTime<Utc>>,
+    pub source_url: Option<String>,
+    pub raw_payload: Option<String>,
 }

@@ -118,6 +118,7 @@ impl BinanceRestFetcher {
                 vwap: None,
                 trade_count,
                 price_type: "last".to_string(),
+                raw_metadata: None,
             });
         }
 

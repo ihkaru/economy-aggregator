@@ -40,6 +40,7 @@ fn create_sample_candle(
         vwap: Some(103.5),
         trade_count: Some(50),
         price_type: "last".to_string(),
+        raw_metadata: None,
     }
 }
 
