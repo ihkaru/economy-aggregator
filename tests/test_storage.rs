@@ -88,7 +88,8 @@ fn test_lake_writer_deduplication_settled_precedence() {
     let provisional = create_sample_candle("BTC/USDT", false, "binance");
     let settled = create_sample_candle("BTC/USDT", true, "binance");
 
-    let deduped = writer.deduplicate(&[provisional, settled]);
+    let batch = vec![provisional, settled];
+    let deduped = writer.deduplicate(&batch);
     assert_eq!(deduped.len(), 1);
     assert!(deduped[0].is_settled);
 }
