@@ -1,8 +1,8 @@
 # 9. Architecture Decisions
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `0a4caf6`
-> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
+> - **Verified Commit**: `e773941`
+> - **Verified Timestamp**: `2026-10-30T20:02:43+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -17,6 +17,7 @@
 | **ADR-05** | Arsitektur Penyelarasan Kalender Multi-Bursa & Normalisasi Valuasi FX | Diterima | 2026-10-30 |
 | **ADR-06** | Mesin Analitika Portofolio & Risiko Vektorisasi Berbasis Rust Asli | Diterima | 2026-10-30 |
 | **ADR-07** | Kebijakan Zero-Synthetic Data dan Deteksi Anomali Statistik Non-Hardcode | Diterima | 2026-10-30 |
+| **ADR-08** | Mitigasi Struktural Multi-Aset (Corporate Actions, Bitemporal PIT Macro, Futures Roll) | Diterima | 2026-10-30 |
 
 ---
 
@@ -110,3 +111,21 @@
   Hasil backtest memiliki integritas kuantitatif tinggi setara standar hedge fund institusional tanpa distorsi volatilitas palsu. Algoritma pembersihan tahan terhadap regresi dan tidak memerlukan tambal-sulam saat menambahkan instrumen baru.
 * **Risiko yang Muncul:**  
   `RISK-08` (Diperlukannya pengunduhan data pasar empiris riil untuk instrumen ETF obligasi sebelum backtest dapat dieksekusi).
+
+---
+
+### ADR-08: Mitigasi Struktural Multi-Aset (Corporate Actions, Bitemporal PIT Macro, Futures Roll)
+* **Status:** Diterima
+* **Konteks:**  
+  Setiap kelas aset keuangan memiliki anomali struktural unik:
+  1. *Equities*: Stock split dan dividen tunai menimbulkan lonjakan/penurunan harga artifisial semalam (-75% pada split 1:4).
+  2. *Macro*: Revisi statistik berkala (GDP, CPI, NFP) menimbulkan *Look-Ahead Bias* berbahaya jika backtest membaca angka final yang belum ada saat kejadian.
+  3. *Commodities & Forex*: Pergantian kontrak berjangka (*futures roll*) menimbulkan lonjakan harga semu akibat contango/backwardation, dan sesi Minggu malam pada Valas 24/5 menimbulkan artefak missing dates.
+* **Keputusan:**  
+  1. Mengimplementasikan `CorporateActionAdjuster` untuk menghitung faktor penyesuaian kumulatif ke belakang (*backward adjustment*) pada saham dan ETF.
+  2. Mengimplementasikan `PointInTimeEngine` dengan model bitemporal untuk mengunci kueri data makro strictly `as_of` tanggal simulasi.
+  3. Mengimplementasikan `FuturesRollEngine` (Panama Ratio & Additive Difference) dan `ForexSessionNormalizer` untuk menyelaraskan continuous series komoditas dan grid 5D valas.
+* **Konsekuensi Positif:**  
+  Mencegah bias metodologis fatal dalam riset kuantitatif, backtesting portofolio, dan pemrosesan sinyal otomatis.
+* **Risiko yang Muncul:**  
+  `RISK-09`, `RISK-10`, `RISK-11` (Kebutuhan metadata historis corporate actions dan log rilis vintage makro yang lengkap).

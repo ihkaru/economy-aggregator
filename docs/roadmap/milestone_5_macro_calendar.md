@@ -12,8 +12,8 @@
   Implement authenticated client for FRED API (`api.stlouisfed.org/fred/series/observations`).
 - [ ] **PHASE-117: FRED Key Indicator Seed Catalog**  
   Register core series: CPI (`CPIAUCSL`), Fed Funds Rate (`FEDFUNDS`), GDP (`GDP`), 10Y Yield (`DGS10`).
-- [ ] **PHASE-118: Data Vintages & Revision History Extractor**  
-  Extract `realtime_start` and `realtime_end` to track how economic statistics are revised over time.
+- [x] **PHASE-118: Data Vintages & Revision History Extractor**  
+  Extract `realtime_start` and `realtime_end` to track how economic statistics are revised over time (Point-in-Time Bitemporal Engine).
 - [x] **PHASE-119: FinanceCalendar API Client**  
   Implement client for keyless economic calendar JSON endpoints (`biquote.io/api/calendar`) for forward-looking event releases.
 - [ ] **PHASE-120: ForexFactory Economic Calendar Scraper Adapter**  

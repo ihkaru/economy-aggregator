@@ -1,8 +1,8 @@
 # 11. Risks and Technical Debt
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `0a4caf6`
-> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
+> - **Verified Commit**: `e773941`
+> - **Verified Timestamp**: `2026-10-30T20:02:43+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -18,6 +18,9 @@
 | **RISK-06** | Asinkronitas kalender libur bursa global (NYSE libur MLK, IDX libur Lebaran, Kripto 24/7). | Matriks cross-asset memiliki tanggal bolong / missing gaps yang menggagalkan join. | Menerapkan `TradingCalendarAligner` dengan kebijakan deterministik Forward-Fill untuk menyinkronkan timeline panel. |
 | **RISK-07** | Distorsi valuasi multi-mata uang (aset USD dianalisis tanpa penyesuaian IDR investor). | Return aset luar negeri bias terhadap pergerakan riil daya beli investor domestik. | Menyediakan `FxNormalizer` untuk mentransformasi valuasi aset asing ke mata uang basis (IDR) berbasis runtun waktu kurs harian. |
 | **RISK-08** | Distorsi dan bias artifisial akibat kurva obligasi sintetis flat yield (Zero Volatility bias). | Sharpe ratio dan drawdown portofolio terdistorsi secara palsu. | Menetapkan Invarian Zero-Synthetic Data: analisis portofolio wajib menggunakan 100% instrumen pasar empiris riil (seperti ETF Obligasi Total Return: TLT, IEF, LQD) dengan sensitivitas durasi-konveksitas nyata. |
+| **RISK-09** | Distorsi harga akibat stock split dan dividen tunai saham (false crash & return bias). | Backtest memicu sinyal jual palsu dan salah hitung drawdown pada tanggal ex-date. | Menerapkan `CorporateActionAdjuster` backward-adjustment kumulatif untuk menyelaraskan runtun harga historis ke Total Return Index (TRI). |
+| **RISK-10** | Look-Ahead Bias pada rilis indikator makroekonomi (GDP, CPI, NFP) akibat revisi berkala. | Model prediktif overfitting karena membaca angka revisi masa depan yang belum ada di masa lalu. | Menerapkan `PointInTimeEngine` dengan model bitemporal untuk mengunci pembacaan data strictly as-of tanggal simulasi. |
+| **RISK-11** | Step jump artifisial akibat pergantian kontrak berjangka komoditas (Contango/Backwardation). | False breakout dan volatilitas palsu pada tanggal kedaluwarsa kontrak. | Menerapkan `FuturesRollEngine` dengan metode rasio Panama dan selisih aditif backward-adjusted. |
 
 ## 11.2 Technical Debt Ledger
 

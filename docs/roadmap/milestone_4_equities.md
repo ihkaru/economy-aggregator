@@ -22,13 +22,13 @@
   Implement automated crumb extraction to avoid 401/403 HTTP blocks on Yahoo Finance.
 - [ ] **PHASE-092: Global Equity Symbology Registry**  
   Support US Equities (`AAPL`), Indonesian Equities (`BBCA.JK`), Tokyo (`7203.T`), London (`SHEL.L`).
-- [ ] **PHASE-093: Stock Split Detection & Multiplier Calculation**  
+- [x] **PHASE-093: Stock Split Detection & Multiplier Calculation**  
   Extract split events (e.g. 1:10 split ratio) and calculate historical price adjustment factors.
-- [ ] **PHASE-094: Cash Dividend Event Ingestion**  
+- [x] **PHASE-094: Cash Dividend Event Ingestion**  
   Store dividend payout records in `data/lake/meta/dividends/`.
 - [ ] **PHASE-095: Adjusted Close (`adj_close`) Column Integration**  
   Store both raw `close` and split/dividend-adjusted `adj_close` in `AggregatorCandle`.
-- [ ] **PHASE-096: Backward Split-Adjustment Algorithm**  
+- [x] **PHASE-096: Backward Split-Adjustment Algorithm**  
   Calculate cumulative backward adjustment factor for seamless historical backtesting charts.
 - [ ] **PHASE-097: NYSE & NASDAQ Market Hours State Machine**  
   Track market state: Pre-market (04:00-09:30), Regular (09:30-16:00), Post-market (16:00-20:00 EST).

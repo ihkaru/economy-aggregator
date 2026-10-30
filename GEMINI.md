@@ -31,8 +31,11 @@ src/
     │   └── writer.rs         # Writer data Parquet ZSTD & deduplikator
     └── analytics/            # Slice Analitika Portofolio & Risiko
         ├── mod.rs
+        ├── bitemporal.rs     # Point-in-Time (PIT) Macro Vintage Engine (Zero Lookahead)
         ├── calendar_aligner.rs # Forward-fill sinkronisasi kalender multi-bursa
         ├── config.rs         # PortfolioSpec & AssetSpec deklaratif
+        ├── corporate_actions.rs # Split & Cash Dividend Backward Adjuster (Total Return)
+        ├── futures_roll.rs   # Panama / Additive Futures Roll & 24/5 FX Session Normalizer
         ├── fx_normalizer.rs  # Normalisasi valuasi multi-currency ke IDR
         ├── outlier.rs        # Hampel Filter (Rolling MAD) non-parametrik
         ├── portfolio.rs      # Engine CAGR, Volatilitas, Max DD, Sharpe, Korelasi
@@ -61,6 +64,12 @@ src/
      di mana $M_t = \text{median}(x_{t-k..t+k})$ dan $\text{MAD}_t = \text{median}(|x_i - M_t|)$ dengan jendela rolling simetris ($k=7$, batas $3.5\sigma$).
 7. **Konfigurasi Portofolio Deklaratif:**
    - Seluruh alokasi aset, bobot, dan instrumen wajib dirumuskan melalui struktur spesifikasi deklaratif (`PortfolioSpec` & `AssetSpec`), bukan melalui injeksi variabel prosedural di dalam loop kalkulasi.
+8. **Penanganan Corporate Actions Saham (Stock Splits & Cash Dividends):**
+   - Setiap peristiwa pemecahan saham (*stock split*) dan dividen tunai disesuaikan ke belakang (*backward adjustment*) secara matematis untuk menjamin kontinuitas runtun harga historis tanpa *false crash* atau distorsi pengembalian investasi.
+9. **Model Bitemporal Point-in-Time (PIT) untuk Data Makroekonomi:**
+   - Seluruh rilis statistik ekonomi makro (GDP, CPI, NFP) disimpan dengan mencatat tanggal rilis (*release timestamp*) dan versi vintage. Kueri simulasi hanya boleh membaca data yang telah diketahui publik pada titik waktu simulasi (*as-of date*) guna mencegah *Look-Ahead Bias*.
+10. **Penataan Runtun Komoditas Berkelanjutan & Sesi Valas 24/5:**
+   - Mengeliminasi lonjakan harga artifisial akibat kedaluwarsa kontrak berjangka (*futures roll*) menggunakan metode rasio Panama atau selisih aditif, serta menyelaraskan sesi pembukaan Valas Minggu malam ke sesi Senin pagi.
 
 ---
 

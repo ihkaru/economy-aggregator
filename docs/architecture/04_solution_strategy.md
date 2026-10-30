@@ -1,8 +1,8 @@
 # 4. Solution Strategy
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `0a4caf6`
-> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
+> - **Verified Commit**: `e773941`
+> - **Verified Timestamp**: `2026-10-30T20:02:43+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -50,3 +50,15 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
 ### 9. Deteksi Anomali Non-Parametrik Berbasis Statistik (Hampel Filter & Rolling MAD)
 - **Masalah:** Filter berbasis ambang batas statis (hardcoded) seperti `price < 5000.0` atau `symbol == "USD_IDR"` rapuh, tidak skalabel, dan melanggar prinsip kebersihan kode arsitektur jangka panjang.
 - **Solusi:** Mengimplementasikan `HampelFilter` berbasis Median Absolute Deviation (MAD) dengan jendela simetris bergerak ($k=7$) dan ambang $3.5\sigma$ yang secara otomatis mendeteksi dan membersihkan outlier tanpa asumsi nilai absolut maupun nama simbol.
+
+### 10. Penyesuaian Corporate Action Saham (Split & Dividend Backward Adjustment)
+- **Masalah:** Pemecahan saham (misal 1:4) dan pembayaran dividen tunai menimbulkan lonjakan atau kejatuhan harga artifisial semalam (-75%), merusak perhitungan drawdown dan kontinuitas return.
+- **Solusi:** Mengimplementasikan `CorporateActionAdjuster` yang menghitung faktor penyesuaian kumulatif ke belakang (*backward adjustment*) sehingga grafik dan analisis historis mencerminkan Total Return Index (TRI) investor yang sesungguhnya.
+
+### 11. Bitemporal Point-in-Time (PIT) untuk Data Makroekonomi
+- **Masalah:** Angka makro (GDP, CPI, NFP) sering direvisi 1–12 bulan setelah rilis awal. Melatih atau menguji model dengan data revisi final memicu *Look-Ahead Bias* berbahaya karena investor di masa lalu hanya memiliki data estimasi awal.
+- **Solusi:** Mengadopsi model bitemporal `PointInTimeEngine` yang melacak `reference_period`, `release_timestamp_utc`, dan versi vintage. Kueri simulasi hanya boleh membaca data yang telah resmi beredar pada tanggal simulasi (*as-of date*).
+
+### 12. Penataan Runtun Komoditas Berkelanjutan (Futures Roll) & Sesi Valas 24/5
+- **Masalah:** Kontrak berjangka komoditas yang berganti setiap bulan/kuartal menimbulkan gap lonjakan harga (*contango/backwardation*), sedangkan pasar valas Minggu malam menimbulkan bar kosong atau desinkronisasi timestamp.
+- **Solusi:** Mengimplementasikan `FuturesRollEngine` dengan metode rasio Panama dan selisih aditif (aman untuk komoditas bernilai negatif seperti WTI 2020), serta `ForexSessionNormalizer` yang menyatukan tick Minggu malam ke sesi perdagangan Senin.

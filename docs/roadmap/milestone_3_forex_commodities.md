@@ -38,12 +38,12 @@
   Ingest Gold (`XAU/USD`) and Silver (`XAG/USD`) with ounce-based volume parsing.
 - [ ] **PHASE-070: Energy Commodities Ingestion (Crude Oil)**  
   Ingest WTI Crude Oil (`USOIL` / `CL`) and Brent Crude (`UKOIL`).
-- [ ] **PHASE-071: Forex Market Session Boundaries**  
+- [x] **PHASE-071: Forex Market Session Boundaries**  
   Implement Asian (Tokyo), European (London), and US (New York) session time filters.
 - [ ] **PHASE-072: Weekend Market Close Detection**  
   Gracefully pause FX listeners during Friday 17:00 NY to Sunday 17:00 NY close.
-- [ ] **PHASE-073: Sunday Market Open Gap Handler**  
-  Detect and flag Sunday open price gaps against Friday close without false error alerts.
+- [x] **PHASE-073: Sunday Market Open Gap Handler**  
+  Detect and flag Sunday open price gaps against Friday close without false error alerts (Sunday-to-Monday Normalizer).
 - [ ] **PHASE-074: Fractional Pip (Pipette) Precision Support**  
   Maintain 5-decimal precision (e.g. `1.08452`) and JPY 3-decimal precision (`154.231`).
 - [ ] **PHASE-075: Multi-Month Historical FX Bulk Loader**  
@@ -56,8 +56,8 @@
   Reject corrupted broker ticks where $Price_{bid} > Price_{ask}$ (crossed market error).
 - [ ] **PHASE-079: High-Spread News Spike Tagging**  
   Flag candles where spread expands by $> 5\times$ normal baseline (common during CPI/NFP).
-- [ ] **PHASE-080: Commodity Expiration Calendar Support**  
-  Track continuous commodity contract roll dates (front-month to next-month).
+- [x] **PHASE-080: Commodity Expiration Calendar Support**  
+  Track continuous commodity contract roll dates (front-month to next-month) via Panama & Additive Roll Engine.
 - [ ] **PHASE-081: Stooq Polish & Global Market Fallback Client**  
   Implement Stooq CSV historical downloader as a zero-cost secondary historical fallback.
 - [ ] **PHASE-082: FX Lakehouse Partition Pruning Verification**  
