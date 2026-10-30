@@ -125,14 +125,9 @@ impl YahooFinanceFetcher {
             let v = volumes.get(i).copied().flatten().unwrap_or(0.0);
 
             if let (Some(open), Some(high), Some(low), Some(close)) = (o, h, l, c) {
-                if open <= 0.0 || high <= 0.0 || low <= 0.0 || close <= 0.0 {
+                // Reject only mathematical NaNs; preserve raw market prices as-is for downstream processing
+                if open.is_nan() || high.is_nan() || low.is_nan() || close.is_nan() {
                     continue;
-                }
-                // Universal statistical outlier gate: reject abnormal jumps (> 3x ratio) without symbol-specific hardcoding
-                if let Some(prev) = candles.last() {
-                    if crate::features::ingestion::SanityGate::is_price_outlier(prev.close, close, 3.0) {
-                        continue;
-                    }
                 }
                 let dt = DateTime::<Utc>::from_timestamp(ts, 0)
                     .unwrap_or_else(|| Utc::now());

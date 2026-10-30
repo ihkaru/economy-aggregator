@@ -18,6 +18,7 @@
 | **ADR-06** | Mesin Analitika Portofolio & Risiko Vektorisasi Berbasis Rust Asli | Diterima | 2026-10-30 |
 | **ADR-07** | Kebijakan Zero-Synthetic Data dan Deteksi Anomali Statistik Non-Hardcode | Diterima | 2026-10-30 |
 | **ADR-08** | Mitigasi Struktural Multi-Aset (Corporate Actions, Bitemporal PIT Macro, Futures Roll) | Diterima | 2026-10-30 |
+| **ADR-09** | Prinsip Preservasi Data Mentah (Raw Data Fidelity) & Pemisahan Downstream | Diterima | 2026-10-30 |
 
 ---
 
@@ -129,3 +130,17 @@
   Mencegah bias metodologis fatal dalam riset kuantitatif, backtesting portofolio, dan pemrosesan sinyal otomatis.
 * **Risiko yang Muncul:**  
   `RISK-09`, `RISK-10`, `RISK-11` (Kebutuhan metadata historis corporate actions dan log rilis vintage makro yang lengkap).
+
+---
+
+### ADR-09: Prinsip Preservasi Data Mentah (Raw Data Fidelity) dan Pemisahan Tanggung Jawab Downstream
+* **Status:** Diterima
+* **Konteks:**  
+  Sebelumnya sempat muncul kecenderungan untuk membuang harga anomali atau lonjakan harga secara langsung pada pintu gerbang ingesti (`yahoo_finance.rs` sempat menolak candle jika `is_price_outlier` bernilai true). Ini adalah anti-pattern yang berbahaya: pemecahan saham sah (misal 1:4) atau pergerakan harga komoditas negatif (WTI -$37/bbl pada 2020) berisiko terhapus permanen dari danau data, merusak integritas *ground truth* bursa.
+* **Keputusan:**  
+  1. Menetapkan **Prinsip Imutabilitas Data Mentah (Bronze Tier)**: Lapisan ingesti dan penyimpanan Parquet dilarang keras melakukan manipulasi *lossy*, pemotongan split, atau penghapusan harga anomali. Seluruh data mentah disimpan apa adanya ke disk.
+  2. Menetapkan **Pemisahan Tanggung Jawab Downstream (Silver/Gold Tier)**: Seluruh pembersihan anomali statistik (*Hampel filter*), penyesuaian aksi korporasi (*Corporate Actions*), mitigasi *look-ahead bias* (*Point-in-Time*), dan perataan *futures roll* didelegasikan sebagai modul pengolahan downstream yang dieksekusi secara non-destruktif saat data dikonsumsi.
+* **Konsekuensi Positif:**  
+  Danau data selalu menyimpan rekaman historis yang utuh dan dapat diaudit ulang (*re-playable*). Berbagai jenis konsumen hilir bebas menerapkan metode kuantitatif yang paling sesuai dengan strategi masing-masing tanpa kehilangan data asli.
+* **Risiko yang Muncul:**  
+  `RISK-12` (Konsumen hilir wajib menyadari karakteristik data mentah dan secara eksplisit menerapkan pipeline pembersihan downstream).

@@ -18,10 +18,11 @@
 
 ## 8.3 Keamanan Data & Pembersihan Input (Input Sanitization & Data Hygiene)
 - **Pembersihan Simbol Ticker:** Karakter berbahaya pada simbol (seperti `..`, `/`, `\`) dibersihkan sebelum dijadikan nama folder partisi agar tidak terjadi *directory traversal*.
-- **Filter Nilai Anomali Ingesti:** Harga bernilai nol, minus, atau tidak terhingga (*NaN / Infinity*) langsung dibuang di pintu gerbang *Sanity Gate*. Deteksi lompatan rasio harga $p_t / p_{t-1} \ge 3.0$ atau $\le 1/3.0$ diterapkan tanpa memandang nama simbol.
-- **Pembersihan Anomali Statistik (Hampel Filter & Rolling MAD):** Pada tahap analitika, pembersihan outlier runtun waktu dilakukan secara non-parametrik menggunakan formula:
+- **Sanitasi Ingesti Non-Destruktif (Bronze Tier):** Gerbang ingesti hanya menolak payload bursa yang rusak secara matematis (*NaN* atau *Infinity*) dan payload bursa malformed. Gerbang ingesti dilarang membuang transaksi pasar riil secara sepihak (termasuk lonjakan split 4:1 atau harga negatif komoditas). Seluruh rekaman mentah disimpan utuh apa adanya ke Parquet lakehouse.
+- **Pembersihan Anomali Statistik Downstream (Hampel Filter & Rolling MAD):** Pada tahap konsumsi analitika downstream, pembersihan outlier runtun waktu dilakukan secara non-parametrik menggunakan formula:
   $$|x_t - M_t| > n \times 1.4826 \times \text{MAD}_t$$
-  dengan sliding window simetris $2k + 1 = 15$ titik ($k=7$) dan ambang deviasi $n = 3.5\sigma$. Pendekatan ini tahan terhadap lonjakan fat-finger tunggal tanpa mengubah volatilitas lokal yang valid.
+  dengan sliding window simetris $2k + 1 = 15$ titik ($k=7$) dan ambang deviasi $n = 3.5\sigma$. Pendekatan ini menyaring anomali fat-finger tanpa merusak rekaman asli di danau data.
+- **Pemisahan Tanggung Jawab Downstream (Downstream Decoupling):** Transformasi aksi korporasi (`CorporateActionAdjuster`), eliminasi look-ahead bias (`PointInTimeEngine`), dan perataan futures (`FuturesRollEngine`) dieksekusi secara non-destruktif di lapisan downstream sesuai kebutuhan pemodelan spesifik.
 - **Kebijakan Zero-Synthetic Data:** Jalur analitika portofolio menolak kurva compounding sintetis konstan. Semua estimasi risiko wajib menggunakan data empiris historis riil.
 
 ## 8.4 Model Konkurensi & Manajemen Memori

@@ -62,3 +62,9 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
 ### 12. Penataan Runtun Komoditas Berkelanjutan (Futures Roll) & Sesi Valas 24/5
 - **Masalah:** Kontrak berjangka komoditas yang berganti setiap bulan/kuartal menimbulkan gap lonjakan harga (*contango/backwardation*), sedangkan pasar valas Minggu malam menimbulkan bar kosong atau desinkronisasi timestamp.
 - **Solusi:** Mengimplementasikan `FuturesRollEngine` dengan metode rasio Panama dan selisih aditif (aman untuk komoditas bernilai negatif seperti WTI 2020), serta `ForexSessionNormalizer` yang menyatukan tick Minggu malam ke sesi perdagangan Senin.
+
+### 13. Arsitektur Medallion: Preservasi Data Mentah (Bronze) vs Transformasi Downstream (Silver/Gold)
+- **Masalah:** Menyaring atau membuang data anomali (seperti kejatuhan harga split 4:1 atau harga komoditas negatif) secara destruktif pada pintu masuk danau data (*ingestion gate*) merusak rekaman kebenaran mentah bursa (*ground truth*) dan membatasi fleksibilitas analisis masa depan.
+- **Solusi:** Menerapkan pemisahan bertingkat gaya Medallion:
+  1. *Bronze Tier (Storage Lake):* Menyimpan 100% data mentah apa adanya dari bursa tanpa pemotongan destruktif.
+  2. *Silver/Gold Tier (Downstream Analytics):* Menyediakan perkakas transformasi non-destruktif (`HampelFilter`, `CorporateActionAdjuster`, `PointInTimeEngine`, `FuturesRollEngine`) yang dieksekusi saat data dikonsumsi sesuai kebutuhan spesifik model kuantitatif hilir.

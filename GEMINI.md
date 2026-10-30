@@ -70,6 +70,9 @@ src/
    - Seluruh rilis statistik ekonomi makro (GDP, CPI, NFP) disimpan dengan mencatat tanggal rilis (*release timestamp*) dan versi vintage. Kueri simulasi hanya boleh membaca data yang telah diketahui publik pada titik waktu simulasi (*as-of date*) guna mencegah *Look-Ahead Bias*.
 10. **Penataan Runtun Komoditas Berkelanjutan & Sesi Valas 24/5:**
    - Mengeliminasi lonjakan harga artifisial akibat kedaluwarsa kontrak berjangka (*futures roll*) menggunakan metode rasio Panama atau selisih aditif, serta menyelaraskan sesi pembukaan Valas Minggu malam ke sesi Senin pagi.
+11. **Prinsip Preservasi Data Mentah (Bronze Layer As-Is Invariant & Downstream Decoupling):**
+   - **Data Mentah Disimpan Apa Adanya:** Lapisan ingesti dan penyimpanan Parquet dilarang keras melakukan manipulasi *lossy*, pemotongan split, atau penghapusan harga anomali/negatif pada saat penulisan ke danau data (*Bronze Tier*). Danau data wajib merekam kebenaran mentah bursa (*ground truth*).
+   - **Pemisahan Tanggung Jawab Downstream:** Semua transformasi, pembersihan anomali statistik (*Hampel filter*), penyesuaian pemecahan saham (*Corporate Actions*), perataan kontrak berjangka (*Futures Roll*), dan pencegahan *Look-Ahead Bias* (*Point-in-Time*) adalah tanggung jawab konsumen data hilir (*downstream processing / Silver-Gold tier*) menggunakan modul analitika bawaan, BUKAN filter destruktif pada saat ingesti.
 
 ---
 

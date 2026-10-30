@@ -27,3 +27,8 @@
 | **Bond Total Return ETF** | Reksa dana yang diperdagangkan di bursa (seperti TLT, IEF, LQD) yang merefleksikan harga pasar obligasi riil termasuk reinvestasi kupon dan sensitivitas durasi-konveksitas terhadap perubahan suku bunga acuan. |
 | **CAGR & Max Drawdown** | *Compound Annual Growth Rate* (laju pertumbuhan tahunan majemuk) dan *Maximum Drawdown* (penurunan nilai puncak-ke-lembah terdalam) sebagai metrik standar valuasi risiko portofolio. |
 | **Sharpe Ratio** | Ukuran imbal hasil yang disesuaikan dengan risiko (*risk-adjusted return*), dihitung dari kelebihan return di atas risk-free rate dibagi dengan volatilitas tahunan. |
+| **Raw Data Fidelity (Bronze Layer)** | Prinsip bahwa data lakehouse harus menyimpan data pasar mentah apa adanya tanpa filter destruktif, menjaga jejak sejarah riil seperti harga negatif, split, atau lonjakan ekstrem. |
+| **Medallion Architecture (Bronze-Silver-Gold)** | Pemisahan lapisan data antara Bronze (data mentah immutabel), Silver (data terbersihkan/terstandarisasi/adjusted di memori/view), dan Gold (fitur model & metrik analitika agregasi). |
+| **Corporate Actions Adjustment** | Penyesuaian matematis runtun harga historis ke belakang (*backward adjustment*) untuk menghilangkan lompatan artifisial akibat pemecahan saham atau pembagian dividen tunai. |
+| **Point-in-Time (Bi-temporal Macro)** | Model waktu ganda (*Observation Date* vs *Knowledge Release Date*) yang mencegah Look-Ahead Bias pada rilis makroekonomi dengan mengunci pembacaan data strictly as-of tanggal simulasi. |
+| **Futures Roll Smoothing** | Rekonsiliasi perbedaan harga antar-kontrak berjangka (Contango/Backwardation) saat pergantian bulan kontrak menggunakan metode rasio Panama atau selisih kumulatif. |
