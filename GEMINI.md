@@ -46,7 +46,21 @@ src/
 
 ---
 
-## 3. Verifikasi & Pengujian (Verification Gauntlet)
+## 3. Implementation Roadmap (225 Granular Phases)
+Pengembangan jangka panjang diorganisasi ke dalam 8 Milestone yang mencakup 225 fase atomik terukur:
+- Master Index: [`docs/roadmap/ROADMAP.md`](docs/roadmap/ROADMAP.md)
+  - **M1 (Phase 001 - 025):** Core Lakehouse & Storage Engine ([docs/roadmap/milestone_1_core_storage.md](docs/roadmap/milestone_1_core_storage.md))
+  - **M2 (Phase 026 - 055):** Cryptocurrency High-Frequency Engine ([docs/roadmap/milestone_2_crypto.md](docs/roadmap/milestone_2_crypto.md))
+  - **M3 (Phase 056 - 085):** Forex & Commodities Tick Lake ([docs/roadmap/milestone_3_forex_commodities.md](docs/roadmap/milestone_3_forex_commodities.md))
+  - **M4 (Phase 086 - 115):** Global Equities & Corporate Actions ([docs/roadmap/milestone_4_equities.md](docs/roadmap/milestone_4_equities.md))
+  - **M5 (Phase 116 - 145):** Macroeconomic Calendar & Vintages ([docs/roadmap/milestone_5_macro_calendar.md](docs/roadmap/milestone_5_macro_calendar.md))
+  - **M6 (Phase 146 - 175):** Gap Healing, Dedup & Lake Compactor ([docs/roadmap/milestone_6_resilience_compactor.md](docs/roadmap/milestone_6_resilience_compactor.md))
+  - **M7 (Phase 176 - 200):** Serving Layer (REST, WS & Arrow Flight) ([docs/roadmap/milestone_7_serving_streaming.md](docs/roadmap/milestone_7_serving_streaming.md))
+  - **M8 (Phase 201 - 225+):** Observability, Replay & Production Ops ([docs/roadmap/milestone_8_operations_replay.md](docs/roadmap/milestone_8_operations_replay.md))
+
+---
+
+## 4. Verifikasi & Pengujian (Verification Gauntlet)
 
 Jalankan perintah berikut sebelum melakukan commit:
 
@@ -66,6 +80,6 @@ vsa-boundary-checker src/
 
 ---
 
-## 4. Lisensi Dependensi
+## 5. Lisensi Dependensi
 - Semua dependensi pihak ketiga wajib berlisensi bebas komersial: **MIT, Apache-2.0, atau BSD**.
 - Dilarang keras menggunakan pustaka copyleft (GPL, AGPL).
