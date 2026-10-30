@@ -32,17 +32,17 @@
   Reject corrupted feed payloads ($open \le 0$, $close \le 0$, $volume < 0$).
 - [x] **PHASE-012: Sequence Gap Detector**  
   Implement `SanityGate::track_sequence` calculating missing message delta ($seq_{curr} - seq_{prev} - 1$).
-- [ ] **PHASE-013: Apache Arrow Schema Definition**  
+- [x] **PHASE-013: Apache Arrow Schema Definition**  
   Build explicit `arrow_schema::Schema` mapping `AggregatorCandle` to Arrow RecordBatch fields.
-- [ ] **PHASE-014: Direct Arrow RecordBatch Builder**  
+- [x] **PHASE-014: Direct Arrow RecordBatch Builder**  
   Implement vectorized chunk serialization from `&[AggregatorCandle]` into `RecordBatch` without intermediate heap strings.
-- [ ] **PHASE-015: Parquet Native ZSTD Chunk Writer**  
+- [x] **PHASE-015: Parquet Native ZSTD Chunk Writer**  
   Implement `ArrowWriter` integration writing Parquet files with ZSTD compression level 3.
-- [ ] **PHASE-016: Parquet Dictionary Encoding for Categorical Columns**  
+- [x] **PHASE-016: Parquet Dictionary Encoding for Categorical Columns**  
   Enable dictionary encoding on `canonical_symbol`, `source`, `ingestion_mode` to slash storage size by >75%.
-- [ ] **PHASE-017: Configurable Row Group Sizing**  
+- [x] **PHASE-017: Configurable Row Group Sizing**  
   Enforce 32,768 rows per row group for optimal parallel multi-core decompression.
-- [ ] **PHASE-018: Atomic Chunk File Renaming**  
+- [x] **PHASE-018: Atomic Chunk File Renaming**  
   Write new Parquet files to a temporary `.tmp` extension and rename atomically to prevent partial reads.
 - [ ] **PHASE-019: Memory Budget Guard (Max Heap Monitor)**  
   Implement background heap memory watchdog logging alerts if RAM usage exceeds 45 MB during active buffering.
@@ -52,9 +52,9 @@
   Wrap all Parquet disk I/O in `tokio::task::spawn_blocking` to protect the async network event loop.
 - [ ] **PHASE-022: File Metadata Header Caching**  
   Cache recently touched Parquet partition file lists to accelerate consecutive range queries.
-- [ ] **PHASE-023: Symbology Rosetta Stone Registry**  
+- [x] **PHASE-023: Symbology Rosetta Stone Registry**  
   Implement `InstrumentRegistry` with in-memory HashMap for instant $O(1)$ symbol translation.
-- [ ] **PHASE-024: Symbology File Persistence**  
+- [x] **PHASE-024: Symbology File Persistence**  
   Serialize and load `instruments_mapping.json` from `data/lake/meta/`.
 - [ ] **PHASE-025: Milestone 1 Benchmark & Gauntlet**  
   Verify write throughput $\ge$ 100,000 candles/sec and memory consumption $\le$ 40 MB.

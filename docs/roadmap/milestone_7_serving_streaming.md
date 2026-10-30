@@ -8,19 +8,19 @@
 
 ### Phase Catalog
 
-- [ ] **PHASE-176: Axum HTTP Server Bootstrap**  
+- [x] **PHASE-176: Axum HTTP Server Bootstrap**  
   Initialize high-performance `axum` router listening on configurable port (default `:8080`).
-- [ ] **PHASE-177: Health Check & System Status Endpoint**  
+- [x] **PHASE-177: Health Check & System Status Endpoint**  
   Implement `GET /health` and `GET /status` returning uptime, RAM usage, active streams, and lake stats.
-- [ ] **PHASE-178: Instruments Metadata Endpoint**  
+- [x] **PHASE-178: Instruments Metadata Endpoint**  
   Implement `GET /v1/instruments` with filtering by `asset_class`, `is_active`, and keyword search.
 - [ ] **PHASE-179: Single Instrument Lookup Endpoint**  
   Implement `GET /v1/instruments/{symbol}` returning full metadata and vendor mappings.
-- [ ] **PHASE-180: Historical Candle Range Query Endpoint**  
+- [x] **PHASE-180: Historical Candle Range Query Endpoint**  
   Implement `GET /v1/market/candles?symbol=...&timeframe=...&from=...&to=...`.
 - [ ] **PHASE-181: Cursor-Based Pagination for Deep Historical Queries**  
   Implement opaque cursor tokens (`next_cursor`) preventing offset-based database degradation.
-- [ ] **PHASE-182: Parquet Partition Pushdown Query Engine**  
+- [x] **PHASE-182: Parquet Partition Pushdown Query Engine**  
   Translate query time range into exact Hive directory paths, bypassing irrelevant partition files.
 - [ ] **PHASE-183: Response Compression Middleware (Gzip & Zstandard)**  
   Integrate `tower-http` compression middleware reducing payload size over HTTP by up to 80%.

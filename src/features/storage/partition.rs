@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Datelike, Utc};
 use crate::core::types::{AssetClass, TimeFrame};
 
+#[derive(Debug, Clone)]
 pub struct PartitionResolver {
     base_lake_dir: PathBuf,
 }

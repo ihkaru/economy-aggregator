@@ -71,6 +71,21 @@ impl TimeFrame {
             Self::W1 => "1w",
         }
     }
+
+    pub fn from_str_opt(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "tick" => Some(Self::Tick),
+            "1s" => Some(Self::S1),
+            "1m" => Some(Self::M1),
+            "5m" => Some(Self::M5),
+            "15m" => Some(Self::M15),
+            "1h" => Some(Self::H1),
+            "4h" => Some(Self::H4),
+            "1d" => Some(Self::D1),
+            "1w" => Some(Self::W1),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

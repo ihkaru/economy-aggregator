@@ -10,15 +10,15 @@
 
 - [ ] **PHASE-146: Background Compactor Task Orchestrator**  
   Implement scheduled `tokio` background task running daily compaction routines.
-- [ ] **PHASE-147: Partition Micro-Chunk File Scanner**  
+- [x] **PHASE-147: Partition Micro-Chunk File Scanner**  
   Identify partition directories containing $> 100$ small `.parquet` chunks.
-- [ ] **PHASE-148: Multi-Chunk In-Memory Merger**  
+- [x] **PHASE-148: Multi-Chunk In-Memory Merger**  
   Load multiple micro-chunks, sort chronologically by `timestamp_utc`, and deduplicate by `natural_key`.
-- [ ] **PHASE-149: Consolidated Parquet Writer**  
+- [x] **PHASE-149: Consolidated Parquet Writer**  
   Write consolidated daily file: `compacted_YYYYMMDD.parquet` with dictionary encoding and ZSTD.
-- [ ] **PHASE-150: Atomic Compaction Switch & Cleanup**  
+- [x] **PHASE-150: Atomic Compaction Switch & Cleanup**  
   Verify consolidated file integrity before deleting legacy micro-chunk files safely.
-- [ ] **PHASE-151: Compaction Space Savings Metric**  
+- [x] **PHASE-151: Compaction Space Savings Metric**  
   Log storage compression gains and file count reduction after every compaction run.
 - [ ] **PHASE-152: Stream Disconnection Event Listener**  
   Hook into WebSocket connection drop events recording exact timestamp of disconnection $T_{drop}$.
