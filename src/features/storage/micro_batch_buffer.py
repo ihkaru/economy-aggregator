@@ -1,8 +1,8 @@
 """In-memory micro-batch buffer for high-throughput live market streams."""
 import threading
 import time
-from typing import Callable, List, Optional
-from src.core.types import OHLCVCandle
+from typing import Callable, List
+from src.core.types import AggregatorCandle
 
 
 class MicroBatchBuffer:
@@ -10,18 +10,18 @@ class MicroBatchBuffer:
 
     def __init__(
         self,
-        flush_callback: Callable[[List[OHLCVCandle]], None],
+        flush_callback: Callable[[List[AggregatorCandle]], None],
         flush_seconds: float = 5.0,
         max_rows: int = 10_000,
     ):
         self._callback = flush_callback
         self._flush_seconds = flush_seconds
         self._max_rows = max_rows
-        self._buffer: List[OHLCVCandle] = []
+        self._buffer: List[AggregatorCandle] = []
         self._lock = threading.Lock()
         self._last_flush = time.monotonic()
 
-    def add(self, item: OHLCVCandle) -> bool:
+    def add(self, item: AggregatorCandle) -> bool:
         """Adds an item to the buffer. Flushes immediately if batch limit is met."""
         should_flush = False
         with self._lock:
@@ -39,7 +39,7 @@ class MicroBatchBuffer:
 
     def flush(self) -> int:
         """Flushes buffered records to the configured writer."""
-        to_flush: List[OHLCVCandle] = []
+        to_flush: List[AggregatorCandle] = []
         with self._lock:
             if not self._buffer:
                 return 0

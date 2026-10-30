@@ -1,5 +1,5 @@
 """Partition path resolution for Hive-style columnar storage."""
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from src.core.types import AssetClass, TimeFrame
 
@@ -13,7 +13,7 @@ class PartitionResolver:
     def resolve_candle_partition(
         self,
         asset_class: AssetClass,
-        symbol: str,
+        canonical_symbol: str,
         timeframe: TimeFrame,
         timestamp_utc: datetime,
     ) -> Path:
@@ -21,12 +21,13 @@ class PartitionResolver:
 
         base/asset_class=<val>/symbol=<val>/timeframe=<val>/year=<YYYY>/month=<MM>
         """
-        clean_symbol = symbol.upper().replace("/", "_").replace(":", "_")
+        clean_symbol = canonical_symbol.upper().replace("/", "_").replace(":", "_")
         year_str = timestamp_utc.strftime("%Y")
         month_str = timestamp_utc.strftime("%m")
 
         return (
             self._base
+            / "market"
             / f"asset_class={asset_class.value}"
             / f"symbol={clean_symbol}"
             / f"timeframe={timeframe.value}"
@@ -37,15 +38,16 @@ class PartitionResolver:
     def resolve_glob_pattern(
         self,
         asset_class: AssetClass,
-        symbol: str,
+        canonical_symbol: str,
         timeframe: TimeFrame,
         year: str = "*",
         month: str = "*",
     ) -> str:
         """Returns a glob string for lazy partition scanning."""
-        clean_symbol = symbol.upper().replace("/", "_").replace(":", "_")
+        clean_symbol = canonical_symbol.upper().replace("/", "_").replace(":", "_")
         target_dir = (
             self._base
+            / "market"
             / f"asset_class={asset_class.value}"
             / f"symbol={clean_symbol}"
             / f"timeframe={timeframe.value}"
