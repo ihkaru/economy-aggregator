@@ -25,12 +25,30 @@
 - **Pemisahan Tanggung Jawab Downstream (Downstream Decoupling):** Transformasi aksi korporasi (`CorporateActionAdjuster`), eliminasi look-ahead bias (`PointInTimeEngine`), dan perataan futures (`FuturesRollEngine`) dieksekusi secara non-destruktif di lapisan downstream sesuai kebutuhan pemodelan spesifik.
 - **Kebijakan Zero-Synthetic Data:** Jalur analitika portofolio menolak kurva compounding sintetis konstan. Semua estimasi risiko wajib menggunakan data empiris historis riil.
 
-## 8.4 Model Konkurensi & Manajemen Memori
+## 8.4 Standar Pemanfaatan Data Downstream & Arsitektur Medallion
+Data diatur dalam paradigma Medallion dengan kontrak ketat:
+1. **Bronze Tier (Raw Lakehouse):**
+   - Imutabel, *append-only*, apa adanya (*as-is*).
+   - Dilarang memodifikasi harga pasar riil (termasuk komoditas berharga negatif atau stock split).
+2. **Silver Tier (Cleaned & Harmonized Panel):**
+   - Downstream wajib melakukan penyelarasan kalender (`TradingCalendarAligner`) dengan forward-fill deterministik sebelum menghitung kovariansi.
+   - Pembersihan anomali statistik dilakukan via Hampel Filter non-parametrik (bukan menghapus baris di Bronze).
+   - Valuasi multi-mata uang dinormalisasi ke mata uang basis (misal IDR) menggunakan kurs FX harian (`FxNormalizer`).
+3. **Gold Tier (Analytical Features & Models):**
+   - Bobot portofolio dinamis (HRP, Risk Parity) dan rebalancing berkala dieksekusi di atas panel Silver.
+
+## 8.5 Standar Pemodelan Instrumen Konveks & Asimetris (Anti-Compounding Glitch)
+Belajar dari evaluasi empiris simulasi portofolio, pemodelan instrumen derivatif/opsi tunduk pada invarian berikut:
+- **Larangan Compounding Harian Otonom:** Instrumen opsi (*Long Volatility / Tail Risk*) dilarang keras dimodelkan sebagai runtun harga linier dengan persentase return harian yang di-*compound* terus-menerus ($R_t$).
+- **Saturasi Delta & Volatility Crush:** Nilai opsi dibatasi oleh batas delta fisik ($\Delta \le 1.0$), lonjakan volatilitas wajib menyertakan peluruhan premi (*theta burn* harian), serta fenomena *volatility crush* pasca-rebound ekuitas.
+- **Pencairan Proteksi (Asymmetric Cash Injection):** Alokasi tail-risk di dunia nyata berfungsi sebagai injeksi likuiditas tunai saat krisis, bukan instrumen yang di-reinvestasikan ke opsi baru dengan volume berlipat ganda.
+
+## 8.6 Model Konkurensi & Manajemen Memori
 - Menggunakan antrean terkendali `tokio::sync::mpsc::channel(50_000)` dengan kapasitas tetap (*bounded channel*).
 - Jika disk mengalami perlambatan sesaat, antrean akan menahan laju penerimaan (*backpressure*) secara elegan daripada membiarkan RAM meluap kehabisan memori.
 - Operasi tulis file Parquet yang bersifat sinkron dijalankan menggunakan `tokio::task::spawn_blocking` agar tidak memperlambat thread asinkron jaringan.
 
-## 8.5 Standar CLI Ramah AI-Agent (Agent-First Envelope & Protocol)
+## 8.7 Standar CLI Ramah AI-Agent (Agent-First Envelope & Protocol)
 - **Envelope JSON Standar:** Seluruh perintah mode `--json` mengembalikan payload baku:
   ```json
   {
@@ -43,7 +61,7 @@
 - **Zero Interactivity:** Perintah mutasi tidak pernah memblokir `stdin`. Penggunaan otomatis wajib mendukung opsi `--yes`, `--force`, dan `--non-interactive`.
 - **Kode Keluar Deterministik:** `0` (Sukses), `1` (Argumen/Konfigurasi Salah), `2` (Rate Limit/Network Error), `3` (Storage I/O Error), `4` (Integritas Data Gagal).
 
-## 8.6 Manajemen Kunci Rahasia & Konfigurasi Bertingkat (Infisical & ENV Hierarchy)
+## 8.8 Manajemen Kunci Rahasia & Konfigurasi Bertingkat (Infisical & ENV Hierarchy)
 - Mengadopsi hierarki resolusi 3-tier:
   1. *Command-line Flags* (Prioritas tertinggi, misal `--start-year 2020`).
   2. *Injeksi Rahasia Mesin* via Infisical Universal Auth (`infisical run -- dev`) dan Environment Variables (`AGGREGATOR_*`).

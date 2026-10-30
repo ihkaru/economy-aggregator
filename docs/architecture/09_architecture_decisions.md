@@ -19,6 +19,8 @@
 | **ADR-07** | Kebijakan Zero-Synthetic Data dan Deteksi Anomali Statistik Non-Hardcode | Diterima | 2026-10-30 |
 | **ADR-08** | Mitigasi Struktural Multi-Aset (Corporate Actions, Bitemporal PIT Macro, Futures Roll) | Diterima | 2026-10-30 |
 | **ADR-09** | Prinsip Preservasi Data Mentah (Raw Data Fidelity) & Pemisahan Downstream | Diterima | 2026-10-30 |
+| **ADR-10** | Standar Pemodelan Derivatif Non-Linier & Pencegahan Bug Compounding | Diterima | 2026-10-30 |
+| **ADR-11** | Pipeline Transformasi Silver Terpadu & Engine Alokasi Rust Native | Diterima | 2026-10-30 |
 
 ---
 
@@ -144,3 +146,31 @@
   Danau data selalu menyimpan rekaman historis yang utuh dan dapat diaudit ulang (*re-playable*). Berbagai jenis konsumen hilir bebas menerapkan metode kuantitatif yang paling sesuai dengan strategi masing-masing tanpa kehilangan data asli.
 * **Risiko yang Muncul:**  
   `RISK-12` (Konsumen hilir wajib menyadari karakteristik data mentah dan secara eksplisit menerapkan pipeline pembersihan downstream).
+
+---
+
+### ADR-10: Standar Pemodelan Derivatif Non-Linier dan Pencegahan Bug Compounding Opsi
+* **Status:** Diterima
+* **Konteks:**  
+  Pada pengujian portofolio tingkat lanjut (seperti Dragon Portfolio dan Cockroach Portfolio yang melibatkan alokasi *Long Volatility / Tail Risk*), pemodelan simplifikasi deret waktu linier memicu bug kritis: aset opsi menghasilkan return harian $+5\% \text{ s/d } +15\%$ terus-menerus selama pasar krisis ($drawdown > 15\%$), terakumulasi menjadi return fiktif $10^{32}$ dan return portofolio $46\%$ CAGR. Di pasar riil, opsi tunduk pada *theta decay* (-7% s/d -15% per tahun), pembatasan delta fisik ($\Delta \le 1.0$), dan kejatuhan premi (*volatility crush*) pasca-rebound.
+* **Keputusan:**  
+  1. Menetapkan standar analitika ketat: instrumen derivatif konveks dilarang keras dimodelkan sebagai runtun persentase return harian otonom yang di-*compound* tanpa batas.
+  2. Mewajibkan kalibrasi ke indeks tolok ukur riil (seperti CBOE Eurekahedge Long Volatility Index `EHFI451`) atau model proteksi terikat (anggaran tetap tahunan $\approx 1-2\%$ yang hangus saat tenang dan dicairkan sebagai likuiditas tunai saat krisis).
+* **Konsekuensi Positif:**  
+  Menghilangkan ilusi performa "terlalu indah untuk menjadi kenyataan", menghasilkan estimasi risiko-imbal hasil yang objektif, akurat, dan sesuai dengan literatur keuangan institusional.
+* **Risiko yang Muncul:**  
+  `RISK-13` (Kebutuhan kalibrasi parameter volatilitas yang ketat berdasarkan data bursa derivatif).
+
+---
+
+### ADR-11: Pipeline Transformasi Silver Terpadu dan Engine Alokasi Rust Native
+* **Status:** Diterima
+* **Konteks:**  
+  Saat ini terdapat kekosongan fungsional antara layer Bronze (file-file Parquet mentah) dan kebutuhan pemodelan portofolio tingkat lanjut (HRP, Threshold Rebalancing). Konsumen terpaksa menggunakan skrip Python eksternal ad-hoc yang lambat dan rentan bug pemodelan.
+* **Keputusan:**  
+  1. Membangun sub-perintah CLI native `economy-aggregator build-silver` untuk menghasilkan panel Parquet terpadu (sudah *calendar-aligned*, *Hampel-cleaned*, dan *FX-normalized*).
+  2. Mengimplementasikan algoritma pembelajaran mesin *Hierarchical Risk Parity (HRP)* dan modul *Threshold Rebalancing* langsung di Rust (`src/features/analytics/`).
+* **Konsekuensi Positif:**  
+  Menghapus total ketergantungan runtime Python, mempercepat eksekusi analitika hingga 100x lipat di lingkungan Linux/ARM64, dan menjamin kepatuhan tipe kompilasi (*compile-time safety*).
+* **Risiko yang Muncul:**  
+  `RISK-14` (Kompleksitas algoritma pengelompokan hierarkis matriks jarak di Rust).

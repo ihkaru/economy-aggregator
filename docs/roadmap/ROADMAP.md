@@ -2,7 +2,7 @@
 
 **Scope:** Production-Grade High-Performance Financial & Macroeconomic Data Aggregator  
 **Target Runtime:** 100% Native Rust (Zero-GC, Memory Budget $\le$ 50 MB Idle / $\le$ 150 MB Load)  
-**Total Granular Phases:** 260 Atomic Implementation Phases across 9 Major Milestones.
+**Total Granular Phases:** 285 Atomic Implementation Phases across 10 Major Milestones.
 
 ---
 
@@ -20,6 +20,7 @@ flowchart TD
     M6 --> M7[M7: Serving Layer & High-Speed Streaming<br/>Phase 176 - 200]
     M7 --> M8[M8: Operations, Replay & Production Hardening<br/>Phase 201 - 225]
     M1 & M6 & M7 --> M9[M9: One-Config Setup, Deep Backfill 2020 & Agent CLI<br/>Phase 226 - 260]
+    M1 & M6 & M9 --> M10[M10: Native Silver Pipeline, Pure Rust HRP & Lake Catalog<br/>Phase 261 - 285]
 ```
 
 ---
@@ -37,6 +38,7 @@ flowchart TD
 | **M7** | **Serving Layer (REST, WS & Arrow Flight)** | Phase 176 – 200 | In Progress (5/25) | [milestone_7_serving_streaming.md](milestone_7_serving_streaming.md) |
 | **M8** | **Observability, Replay & Production Ops** | Phase 201 – 225 | Planned | [milestone_8_operations_replay.md](milestone_8_operations_replay.md) |
 | **M9** | **One-Config Bootstrap, 2020 Backfill & Agent CLI** | Phase 226 – 260 | In Progress (0/35) | [milestone_9_one_config_deep_backfill_agent_cli.md](milestone_9_one_config_deep_backfill_agent_cli.md) |
+| **M10** | **Native Silver Pipeline, Pure Rust HRP & Lake Catalog** | Phase 261 – 285 | In Progress (0/25) | [milestone_10_silver_analytics_and_hrp.md](milestone_10_silver_analytics_and_hrp.md) |
 
 ---
 

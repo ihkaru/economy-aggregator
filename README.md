@@ -19,6 +19,8 @@ A high-performance, self-contained financial and macroeconomic data aggregator e
 
 ## 2. Katalog Potensi Permasalahan Data per Kelas Aset (Downstream Awareness Guide)
 
+> 📘 **Panduan Lengkap Konsumen Data:** Baca [**`docs/DATA_CONSUMER_GUIDE.md`**](docs/DATA_CONSUMER_GUIDE.md) untuk pedoman pemodelan kuantitatif, aturan anti-compounding derivatif, dan tutorial pemanfaatan toolkit analitika Rust.
+
 Pengolah data hilir (*downstream consumers*) wajib menyadari anomali struktural berikut pada data mentah:
 
 | Kelas Aset | Potensi Masalah pada Data Mentah | Dampak Jika Diolah Mentah-mentah | Solusi / Tool Downstream yang Disediakan |
@@ -34,6 +36,7 @@ Pengolah data hilir (*downstream consumers*) wajib menyadari anomali struktural 
 | **Forex & Fixed Income** | **Negative / Zero Yields** | Yield obligasi dan suku bunga pasar uang dapat menyentuh 0% atau negatif di era krisis, merusak kalkulasi $\ln(r_t / r_{t-1})$. | Gunakan selisih absolut (*basis points*) alih-alih rasio logaritmik saat yield $\le 0$. |
 | **Commodities** | **Futures Roll Gaps (Contango/Backwardation)** | Pergantian kontrak berjangka yang kedaluwarsa memicu lompatan harga semu antarkontrak (*step gap*). | Gunakan [`FuturesRollEngine`](src/features/analytics/futures_roll.rs) dengan metode rasio Panama (*Panama Ratio*) atau selisih aditif. |
 | **Commodities** | **Negative Commodity Pricing** | Harga minyak mentah WTI anjlok ke -$37.63/bbl pada April 2020. Metode rasio matematika membagi dengan nilai negatif. | Gunakan metode selisih aditif (*Additive Difference*) pada [`FuturesRollEngine`](src/features/analytics/futures_roll.rs) saat harga $\le 0$. |
+| **Derivatives & Volatility (Options/VIX)** | **Convex Payoff Compounding Bias** | Memodelkan instrumen opsi sebagai deret waktu linier tanpa *theta decay* dan batas delta menghasilkan lonjakan return fiktif ekstrim (misal 46% CAGR / $10^{32}$). | Dilarang compounding harian otonom; gunakan model alokasi anggaran proteksi tetap tahunan (1-2%), terapkan theta burn harian, batas saturasi $\Delta \le 1.0$, dan kalibrasi ke tolok ukur riil CBOE Long Volatility Index. |
 | **Macroeconomic Calendar** | **Data Revisions & Look-Ahead Bias** | Angka PDB, Inflasi (CPI), dan Ketenagakerjaan (NFP) direvisi berbulan-bulan setelah rilis awal. Membaca data revisi final memicu bias masa depan. | Gunakan [`PointInTimeEngine`](src/features/analytics/bitemporal.rs) dengan filter bitemporal strictly `as_of` tanggal simulasi (*Zero Look-Ahead Bias*). |
 
 ---
