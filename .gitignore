@@ -1,3 +1,8 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
 # Python
 __pycache__/
 *.py[cod]

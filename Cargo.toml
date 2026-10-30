@@ -1,0 +1,38 @@
+[package]
+name = "economy-aggregator"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance economical and financial data aggregator engine in Rust"
+license = "Apache-2.0"
+authors = ["ihkaru <ihza2karunia@gmail.com>"]
+
+[dependencies]
+# Async Runtime & Networking
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = "0.23"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+axum = "0.7"
+
+# Serialization & High Performance Data
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.8", features = ["v4"] }
+
+# Columnar Storage & Parquet Lakehouse (Zero-Copy Arrow)
+parquet = { version = "52.0", features = ["arrow", "zstd"] }
+arrow = { version = "52.0", features = ["chrono-tz"] }
+
+# Logging & Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
