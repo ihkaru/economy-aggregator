@@ -29,9 +29,16 @@ graph TD
         BC[WebSocket Broadcaster]
     end
 
-    subgraph CliSlice["Fitur Antarmuka Agen (src/features/cli)"]
+    subgraph CliSlice["Fitur Antarmuka Agen (src/core/cli.rs)"]
         CLI[Agent-First CLI Engine]
         CFG[Config & Secret Resolver]
+    end
+
+    subgraph AnalyticsSlice["Fitur Analitika Kuantitatif (src/features/analytics)"]
+        ALIGN[Trading Calendar Aligner]
+        FX[FX Base Currency Normalizer]
+        BOND[Synthetic Bond Accumulator]
+        PORT[Portfolio Risk & Return Engine]
     end
 
     WS -->|Validasi| SAN
@@ -41,10 +48,15 @@ graph TD
     WRITER -->|Tentukan Folder| RESOLVER
     WRITER -->|Tulis Parquet| DISK[(Parquet Lake)]
     DISK -->|Baca Cepat| API
+    DISK -->|Scan Data Panel| PORT
     SAN -->|Pembaruan Live| BC
     CLI -->|Baca/Tulis Konfigurasi| CFG
     CLI -->|Pemicu Backfill| REST
     CLI -->|Audit Kesehatan| DISK
+    CLI -->|Eksekusi Analitik| PORT
+    ALIGN -->|Panel Sinkron| PORT
+    FX -->|Normalisasi Kurs| PORT
+    BOND -->|TRI Obligasi| PORT
 ```
 
 ### 5.1.1 Level 1 Component Catalog
@@ -52,10 +64,11 @@ graph TD
 | Komponen | Tanggung Jawab Utama | Antarmuka Terkait |
 | :--- | :--- | :--- |
 | **Ingestion Engine** | Menangani koneksi jaringan ke bursa luar, baik secara live stream maupun unduhan berkala. | `IF-01`, `IF-02` |
-| **Sanity Gate & Gap Healer** | Memfilter data rusak (harga minus atau tanggal rusak) dan mendeteksi data bolong untuk ditambal ulang. | `IF-01`, `IF-02` |
+| **Sanity Gate & Gap Healer** | Memfilter data rusak (harga minus atau lonjakan anomali) dan mendeteksi data bolong untuk ditambal ulang. | `IF-01`, `IF-02` |
 | **Micro-Batch Buffer** | Menampung data masuk di RAM secara aman sebelum dieksekusi ke harddisk. | `IF-01`, `IF-03` |
-| **Parquet Lake Writer** | Menulis data terkompresi ke partisi Parquet sesuai format folder Hive. | `IF-03` |
+| **Parquet Lake Writer & Compactor** | Menulis data terkompresi ke partisi Parquet Hive dan memadatkan micro-chunks menjadi single file bulanan. | `IF-03` |
 | **Serving Engine** | Menyediakan jalur bagi aplikasi luar untuk mengambil data via REST API atau WebSocket real-time. | `IF-04`, `IF-05` |
+| **Quantitative Analytics Engine** | Menyediakan sinkronisasi kalender multi-bursa, normalisasi FX, sintesis kupon obligasi, dan kalkulasi risiko portofolio (CAGR, Volatilitas, Max Drawdown, Sharpe, Korelasi). | `IF-07` |
 | **Agent-First CLI & Config Engine** | Menyediakan eksekusi perintah headless, inisialisasi konfigurasi deklaratif, dan orkestrasi backfill 2020 via JSON envelope. | `IF-06` |
 
 ---
@@ -68,30 +81,12 @@ src/
 ├── core/                     # Model data dasar dan konfigurasi
 │   ├── mod.rs
 │   ├── types.rs              # AggregatorCandle, EconomicEventRecord, Enums
-│   └── config.rs             # LakehouseConfig & batas budget memori
+│   ├── config.rs             # LakehouseConfig & batas budget memori
+│   └── cli.rs                # Agent-First CLI dispatcher & argument parser
 ├── features/                 # Vertical Slice Architecture
-│   ├── cli/                  # Agent-First CLI (health, config, backfill, query)
-│   ├── ingestion/            # SanityGate, Binance WS/REST, Economic Calendar
+│   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, Symbology
+│   ├── analytics/            # Calendar Aligner, FX Normalizer, Synthetic Bond, Portfolio Engine
 │   └── serving/              # Axum REST endpoints (/health, /candles, /stats)
 economy-aggregator.toml       # Template konfigurasi deklaratif 'one-config-away'
-```
-│   ├── config.rs             # Konfigurasi batas RAM, folder data, dan interval
-│   └── types.rs              # Struct data: Candle, Tick, Mapping, MacroEvent
-└── features/
-    ├── ingestion/            # Slice Ingesti
-    │   ├── mod.rs
-    │   ├── live_stream.rs    # Klien WebSocket tokio-tungstenite
-    │   ├── batch_fetcher.rs  # Klien HTTP reqwest
-    │   ├── sanity_gate.rs    # Filter anti-data kotor & deteksi gap
-    │   └── symbology.rs      # Tabel penerjemah simbol universal
-    ├── storage/              # Slice Penyimpanan
-    │   ├── mod.rs
-    │   ├── buffer.rs         # Bounded micro-batch buffer thread-safe
-    │   ├── partition.rs      # Resolver path partisi Hive
-    │   └── writer.rs         # Writer file Parquet ZSTD
-    └── serving/              # Slice Pelayanan API
-        ├── mod.rs
-        ├── rest_api.rs       # Router HTTP Axum untuk query candle
-        └── live_channel.rs   # Channel WebSocket Axum untuk push data
 ```

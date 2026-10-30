@@ -34,3 +34,15 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
 ### 5. Setup Instan Satu Konfigurasi (*One-Config-Away*) & CLI Ramah AI-Agent
 - **Masalah:** Menyiapkan pengumpulan data multi-aset (crypto, saham, komoditas, kalender makro) secara manual memakan waktu lama dan rentan salah konfigurasi saat dieksekusi otomatis oleh skrip atau agen AI.
 - **Solusi:** Menyediakan satu file konfigurasi deklaratif (`economy-aggregator.toml`) yang dapat dibuat instan via `economy-aggregator config init`, didukung antarmuka CLI yang mengembalikan JSON terstruktur, kode keluar deterministik, dan zero-interactivity.
+
+### 6. Sinkronisasi Kalender Multi-Bursa & Normalisasi Mata Uang Basis
+- **Masalah:** Bursa saham global beroperasi pada hari libur berbeda (NYSE, IDX, TSE), pasar kripto 24/7, dan denominasi mata uang beragam (USD, IDR, JPY), menyebabkan missing dates dan bias kurs saat di-join.
+- **Solusi:** Menyediakan `TradingCalendarAligner` dengan interpolasi deterministik Forward-Fill untuk menyamakan spine tanggal perdagangan, serta `FxNormalizer` untuk otomatis mengonversi valuasi instrumen ke mata uang basis investor (misal IDR).
+
+### 7. Pemodelan Instrumen Kupon & Suku Bunga Sintetis
+- **Masalah:** Instrumen pasar uang dan obligasi negara (SBN) atau korporasi tidak memiliki candle continuous tick publik layaknya saham.
+- **Solusi:** Modul `SyntheticBondAccumulator` mengompound rate yield acuan menjadi time-series *Total Return Index (TRI)* continuous harian.
+
+### 8. Mesin Analitika Portofolio Terintegrasi (In-Engine Analytics)
+- **Masalah:** Menghitung metrik risiko portofolio (CAGR, volatilitas tahunan, max drawdown, Sharpe ratio, dan matriks korelasi Pearson) biasanya memerlukan ekspor data ke Python/Polars eksternal.
+- **Solusi:** Mengintegrasikan modul `PortfolioEngine` langsung di dalam Rust binary yang mengevaluasi portofolio multi-aset secara instan via `economy-aggregator analyze`.
