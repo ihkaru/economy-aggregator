@@ -14,6 +14,11 @@ use economy_aggregator::features::storage::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && args[1] != "serve" {
+        return economy_aggregator::core::cli::run_cli(&args[1..]).await.map_err(|e| -> Box<dyn std::error::Error> { e });
+    }
+
     tracing_subscriber::fmt::init();
 
     let config = LakehouseConfig::default();

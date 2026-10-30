@@ -1,0 +1,121 @@
+{
+  "nikkei_invariant": {
+    "peak_1989": 38915.87,
+    "peak_date": "1989-12-29",
+    "trough_price": 7054.98,
+    "trough_date": "2009-03-10",
+    "max_drawdown_pct": 81.87,
+    "recovery_date": "2024-02-22",
+    "years_to_recover": 34.1
+  },
+  "gfc_anatomy": {
+    "peak_2008": 2830.26,
+    "peak_date": "2008-01-09",
+    "trough_price": 1111.39,
+    "trough_date": "2008-10-28",
+    "total_drawdown_pct": 60.73,
+    "price_down_40": 1698.16,
+    "further_drop_from_40_pct": 34.55
+  },
+  "multi_decade_22yr": {
+    "period": "2004-06-08 00:00:00 to 2026-10-30 00:00:00",
+    "trading_days": 6527,
+    "years": 25.9,
+    "metrics": {
+      "All_Weather": {
+        "start_val": 10017.24,
+        "end_val": 121127.82,
+        "cagr_pct": 10.1,
+        "ann_vol_pct": 7.64,
+        "max_drawdown_pct": 7.42,
+        "sharpe_ratio": 0.67
+      },
+      "SP500_IDR": {
+        "start_val": 9975.43,
+        "end_val": 131943.67,
+        "cagr_pct": 10.48,
+        "ann_vol_pct": 23.61,
+        "max_drawdown_pct": 42.58,
+        "sharpe_ratio": 0.23
+      },
+      "BBCA": {
+        "start_val": 10140.85,
+        "end_val": 280563.38,
+        "cagr_pct": 13.68,
+        "ann_vol_pct": 27.6,
+        "max_drawdown_pct": 55.98,
+        "sharpe_ratio": 0.31
+      },
+      "Gold_IDR": {
+        "start_val": 9903.68,
+        "end_val": 199400.41,
+        "cagr_pct": 12.29,
+        "ann_vol_pct": 24.04,
+        "max_drawdown_pct": 31.55,
+        "sharpe_ratio": 0.3
+      },
+      "IHSG": {
+        "start_val": 10087.75,
+        "end_val": 71876.08,
+        "cagr_pct": 7.88,
+        "ann_vol_pct": 18.21,
+        "max_drawdown_pct": 60.73,
+        "sharpe_ratio": 0.16
+      },
+      "Deposito_IDR": {
+        "start_val": 10001.79,
+        "end_val": 32073.07,
+        "cagr_pct": 4.6,
+        "ann_vol_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe_ratio": -1.5642476753683442e+16
+      }
+    },
+    "correlation_matrix": {
+      "columns": [
+        "BBCA",
+        "SP500_IDR",
+        "Gold_IDR",
+        "USDIDR",
+        "IHSG"
+      ],
+      "data": [
+        [
+          1.0,
+          0.0284,
+          -0.0216,
+          -0.0411,
+          0.6629
+        ],
+        [
+          0.0284,
+          1.0,
+          0.4958,
+          0.6745,
+          0.042
+        ],
+        [
+          -0.0216,
+          0.4958,
+          1.0,
+          0.7052,
+          -0.0087
+        ],
+        [
+          -0.0411,
+          0.6745,
+          0.7052,
+          1.0,
+          -0.0862
+        ],
+        [
+          0.6629,
+          0.042,
+          -0.0087,
+          -0.0862,
+          1.0
+        ]
+      ]
+    }
+  }
+}

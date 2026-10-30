@@ -155,6 +155,48 @@ impl LakeCompactor {
         })
     }
 
+    /// Recursively scans and compacts all partitions under a root lake directory.
+    pub fn compact_all(
+        &self,
+        root_dir: &Path,
+        min_files: usize,
+    ) -> Result<Vec<CompactionResult>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut results = Vec::new();
+        let mut dirs = Vec::new();
+        Self::collect_partition_dirs(root_dir, &mut dirs);
+
+        for dir in dirs {
+            let res = self.compact_partition(&dir, min_files)?;
+            if res.files_compacted > 0 {
+                results.push(res);
+            }
+        }
+        Ok(results)
+    }
+
+    fn collect_partition_dirs(dir: &Path, out: &mut Vec<PathBuf>) {
+        if let Ok(entries) = fs::read_dir(dir) {
+            let mut has_chunks = false;
+            let mut subdirs = Vec::new();
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    subdirs.push(p);
+                } else if let Some(name) = p.file_name().and_then(|f| f.to_str()) {
+                    if name.starts_with("chunk_") && name.ends_with(".parquet") {
+                        has_chunks = true;
+                    }
+                }
+            }
+            if has_chunks {
+                out.push(dir.to_path_buf());
+            }
+            for sub in subdirs {
+                Self::collect_partition_dirs(&sub, out);
+            }
+        }
+    }
+
     /// Converts an Arrow RecordBatch into domain AggregatorCandle structs.
     fn record_batch_to_candles(
         batch: &arrow::record_batch::RecordBatch,

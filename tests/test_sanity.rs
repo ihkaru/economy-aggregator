@@ -58,3 +58,15 @@ fn test_gap_detection() {
     // Sequence jumps from 101 to 105: 3 missing packets
     assert_eq!(gate.track_sequence(Some(105)), Some(3));
 }
+
+#[test]
+fn test_sanity_gate_outlier_detection() {
+    // Valid 5% jump
+    assert!(!SanityGate::is_price_outlier(100.0, 105.0, 5.0));
+    // Valid 50% drop
+    assert!(!SanityGate::is_price_outlier(100.0, 50.0, 5.0));
+    // Outlier 10x jump
+    assert!(SanityGate::is_price_outlier(100.0, 1100.0, 5.0));
+    // Outlier 10x crash (e.g. dirty quote 888.11 vs 9000.0)
+    assert!(SanityGate::is_price_outlier(9000.0, 888.11, 5.0));
+}

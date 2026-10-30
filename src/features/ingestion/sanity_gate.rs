@@ -8,6 +8,7 @@ pub enum SanityError {
     NonPositivePrice,
     NegativeVolume,
     CorruptTimestamp,
+    AbnormalOutlier,
 }
 
 pub struct SanityGate {
@@ -46,6 +47,15 @@ impl SanityGate {
         }
 
         Ok(())
+    }
+
+    /// Detects abnormal price spikes/glitches across daily intervals (e.g. 10x sudden drop).
+    pub fn is_price_outlier(prev_close: f64, current_close: f64, max_jump_ratio: f64) -> bool {
+        if prev_close <= 0.0 || current_close <= 0.0 {
+            return false;
+        }
+        let ratio = current_close / prev_close;
+        ratio > max_jump_ratio || ratio < (1.0 / max_jump_ratio)
     }
 
     /// Audits sequence numbers to detect dropped packets / stream gaps.

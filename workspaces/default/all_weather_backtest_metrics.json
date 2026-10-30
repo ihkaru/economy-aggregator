@@ -1,0 +1,115 @@
+{
+  "analyzed_period": "2021-11-01 00:00:00 to 2026-10-30 00:00:00",
+  "trading_days": 1824,
+  "years": 7.24,
+  "metrics": {
+    "All_Weather": {
+      "start_val": 9998.51,
+      "end_val": 17061.0,
+      "cagr_pct": 7.66,
+      "ann_vol_pct": 4.48,
+      "max_drawdown_pct": 3.27,
+      "sharpe_ratio": 0.59
+    },
+    "SP500_IDR": {
+      "start_val": 10070.61,
+      "end_val": 21509.73,
+      "cagr_pct": 11.05,
+      "ann_vol_pct": 15.3,
+      "max_drawdown_pct": 20.68,
+      "sharpe_ratio": 0.4
+    },
+    "IHSG": {
+      "start_val": 9909.03,
+      "end_val": 7717.28,
+      "cagr_pct": -3.39,
+      "ann_vol_pct": 14.66,
+      "max_drawdown_pct": 45.3,
+      "sharpe_ratio": -0.57
+    },
+    "BBCA": {
+      "start_val": 9864.86,
+      "end_val": 6729.73,
+      "cagr_pct": -5.15,
+      "ann_vol_pct": 21.98,
+      "max_drawdown_pct": 55.98,
+      "sharpe_ratio": -0.46
+    },
+    "Gold_IDR": {
+      "start_val": 9998.17,
+      "end_val": 28547.16,
+      "cagr_pct": 15.6,
+      "ann_vol_pct": 17.09,
+      "max_drawdown_pct": 19.45,
+      "sharpe_ratio": 0.62
+    },
+    "Bitcoin_USD": {
+      "start_val": 10364.24,
+      "end_val": 12676.56,
+      "cagr_pct": 2.82,
+      "ann_vol_pct": 42.21,
+      "max_drawdown_pct": 76.63,
+      "sharpe_ratio": -0.05
+    }
+  },
+  "correlation_matrix": {
+    "columns": [
+      "BBCA_ret",
+      "GSPC_ret",
+      "GOLD_ret",
+      "USDIDR_ret",
+      "JKSE_ret",
+      "BTC_ret"
+    ],
+    "data": [
+      [
+        1.0,
+        0.0681,
+        -0.0452,
+        -0.0393,
+        0.6503,
+        0.0281
+      ],
+      [
+        0.0681,
+        1.0,
+        0.1106,
+        -0.1179,
+        0.0747,
+        0.3903
+      ],
+      [
+        -0.0452,
+        0.1106,
+        1.0,
+        -0.0871,
+        0.0887,
+        0.1059
+      ],
+      [
+        -0.0393,
+        -0.1179,
+        -0.0871,
+        1.0,
+        -0.1195,
+        -0.0967
+      ],
+      [
+        0.6503,
+        0.0747,
+        0.0887,
+        -0.1195,
+        1.0,
+        0.0278
+      ],
+      [
+        0.0281,
+        0.3903,
+        0.1059,
+        -0.0967,
+        0.0278,
+        1.0
+      ]
+    ]
+  }
+}
