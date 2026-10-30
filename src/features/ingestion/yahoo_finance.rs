@@ -128,14 +128,9 @@ impl YahooFinanceFetcher {
                 if open <= 0.0 || high <= 0.0 || low <= 0.0 || close <= 0.0 {
                     continue;
                 }
-                // Sanity filter for severe vendor outliers (e.g. Yahoo USDIDR 888.11 glitch)
-                if raw_symbol.contains("USDIDR") && close < 5000.0 {
-                    continue;
-                }
+                // Universal statistical outlier gate: reject abnormal jumps (> 3x ratio) without symbol-specific hardcoding
                 if let Some(prev) = candles.last() {
-                    if (raw_symbol.contains("USDIDR") || raw_symbol.starts_with('^'))
-                        && crate::features::ingestion::SanityGate::is_price_outlier(prev.close, close, 2.5)
-                    {
+                    if crate::features::ingestion::SanityGate::is_price_outlier(prev.close, close, 3.0) {
                         continue;
                     }
                 }

@@ -1,8 +1,8 @@
 # 2. Architecture Constraints
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `271cb11`
-> - **Verified Timestamp**: `2026-10-30T18:53:00+07:00`
+> - **Verified Commit**: `4ae83e1`
+> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -28,3 +28,7 @@ Agar sistem selalu cepat, tidak rakus RAM, dan tidak membebani prosesor mesin lo
 - **Portabilitas Sistem Operasi:** Berjalan sebagai satu file binary tunggal di Linux (termasuk Android/Termux aarch64), macOS, dan Windows.
 - **Lisensi Dependensi:** Semua pustaka pihak ketiga wajib berlisensi bebas komersial (MIT, Apache-2.0, atau BSD). Dilarang keras menggunakan lisensi copyleft (GPL/AGPL).
 - **One-Config-Away Bootstrap:** Seluruh pipeline (crypto, equities, commodities, macro) dapat langsung berjalan hanya dengan satu file konfigurasi deklaratif `economy-aggregator.toml`.
+
+## 2.3 Quantitative & Backtest Data Integrity Constraints
+- **Invarian Zero Synthetic Data:** Modul analitika dan simulasi portofolio dilarang keras merekayasa time-series menggunakan kurva compounding konstan (seperti formula yield eksponensial datar). Semua evaluasi wajib menggunakan 100% instrumen pasar empiris riil (seperti ETF Obligasi Total Return: TLT, IEF, LQD) atau yield observasi pasar nyata untuk mencegah distorsi nol volatilitas dan Sharpe ratio palsu.
+- **Deteksi Anomali Non-Parametrik (No Hardcoded Price Bounds):** Filter pembersihan data pada jalur analitika dilarang keras menggunakan nilai batas harga statis atau nama ticker tertentu (misal `price < 5000.0` atau `symbol == "USD_IDR"`). Pembersihan wajib menggunakan metode statistik non-parametrik adaptif seperti Hampel Filter berbasis rolling Median Absolute Deviation (MAD).

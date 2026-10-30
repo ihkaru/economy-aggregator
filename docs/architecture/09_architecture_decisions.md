@@ -1,8 +1,8 @@
 # 9. Architecture Decisions
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `271cb11`
-> - **Verified Timestamp**: `2026-10-30T18:53:00+07:00`
+> - **Verified Commit**: `4ae83e1`
+> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -16,6 +16,7 @@
 | **ADR-04** | Antarmuka CLI Ramah Agen AI dengan Format Envelope JSON | Diterima | 2026-10-30 |
 | **ADR-05** | Arsitektur Penyelarasan Kalender Multi-Bursa & Normalisasi Valuasi FX | Diterima | 2026-10-30 |
 | **ADR-06** | Mesin Analitika Portofolio & Risiko Vektorisasi Berbasis Rust Asli | Diterima | 2026-10-30 |
+| **ADR-07** | Kebijakan Zero-Synthetic Data dan Deteksi Anomali Statistik Non-Hardcode | Diterima | 2026-10-30 |
 
 ---
 
@@ -94,3 +95,18 @@
   Kalkulasi CAGR, volatilitas tahunan, max drawdown, Sharpe ratio, dan matriks korelasi Pearson dapat dieksekusi secara instan (<2 detik) langsung dari Parquet lakehouse tanpa membutuhkan runtime Python eksternal.
 * **Risiko yang Muncul:**  
   `DEBT-02` (Hutang analitik diselesaikan dan diverifikasi penuh dengan 100% tes otomatis).
+
+---
+
+### ADR-07: Kebijakan Zero-Synthetic Data dan Deteksi Anomali Statistik Non-Hardcode
+* **Status:** Diterima
+* **Konteks:**  
+  Pada iterasi awal, kelas aset obligasi dimodelkan menggunakan akumulasi yield sintetis konstan ($1.072^t$). Ini menyebabkan bias artifisial berat karena runtun waktu obligasi memiliki volatilitas nol dan drawdown nol, yang secara palsu melipatgandakan Sharpe ratio portofolio. Selain itu, pembersihan anomali harga pada rute ingesti sempat menggunakan aturan hardcode ad-hoc (seperti `price < 5000.0` atau pemeriksaan string `USD_IDR`). Hal ini melanggar prinsip kebersihan kode dan tidak tahan uji jangka panjang.
+* **Keputusan:**  
+  1. Menetapkan **Invarian Zero-Synthetic Data** yang melarang keras penggunaan kurva yield konstan atau data fiktif dalam riset dan backtesting portofolio. Portofolio All-Weather wajib divalidasi dengan 100% instrumen pasar empiris riil (seperti ETF Obligasi Total Return: TLT, IEF, LQD, BND).
+  2. Menggantikan seluruh ambang batas hardcoded dengan **Hampel Filter (Rolling Median Absolute Deviation / MAD)** non-parametrik adaptif ($k=7, 3.5\sigma$) yang bekerja secara agnostik terhadap seluruh kelas aset.
+  3. Mengganti injeksi bobot prosedural dengan spesifikasi konfigurasi deklaratif `PortfolioSpec`.
+* **Konsekuensi Positif:**  
+  Hasil backtest memiliki integritas kuantitatif tinggi setara standar hedge fund institusional tanpa distorsi volatilitas palsu. Algoritma pembersihan tahan terhadap regresi dan tidak memerlukan tambal-sulam saat menambahkan instrumen baru.
+* **Risiko yang Muncul:**  
+  `RISK-08` (Diperlukannya pengunduhan data pasar empiris riil untuk instrumen ETF obligasi sebelum backtest dapat dieksekusi).

@@ -1,9 +1,35 @@
 use std::collections::HashMap;
 use chrono::NaiveDate;
 use economy_aggregator::features::analytics::{
-    DayCountConvention, FxNormalizer, PortfolioEngine,
+    DayCountConvention, FxNormalizer, HampelFilter, PortfolioEngine,
     SyntheticBondAccumulator, TradingCalendarAligner,
 };
+
+#[test]
+fn test_hampel_filter_outlier_removal() {
+    let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let mut series = Vec::new();
+
+    // 20 points normally between 98.0 and 102.0
+    for i in 0..20 {
+        let d = start + chrono::Duration::days(i);
+        let val = 100.0 + ((i % 5) as f64 - 2.0); // 98, 99, 100, 101, 102
+        series.push((d, val));
+    }
+
+    // Inject flash drop outlier at index 7 (glitch like USD/IDR 888.11)
+    series[7].1 = 8.88;
+    // Inject flash spike outlier at index 14
+    series[14].1 = 888.0;
+
+    let cleaned = HampelFilter::filter_outliers(&series, 3, 3.0);
+
+    // Both outliers should be successfully rejected
+    assert_eq!(cleaned.len(), 18);
+    for (_, val) in &cleaned {
+        assert!(*val >= 95.0 && *val <= 105.0);
+    }
+}
 
 #[test]
 fn test_calendar_aligner_forward_fill() {

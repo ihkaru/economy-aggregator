@@ -1,8 +1,8 @@
 # 4. Solution Strategy
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `271cb11`
-> - **Verified Timestamp**: `2026-10-30T18:53:00+07:00`
+> - **Verified Commit**: `4ae83e1`
+> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -39,10 +39,14 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
 - **Masalah:** Bursa saham global beroperasi pada hari libur berbeda (NYSE, IDX, TSE), pasar kripto 24/7, dan denominasi mata uang beragam (USD, IDR, JPY), menyebabkan missing dates dan bias kurs saat di-join.
 - **Solusi:** Menyediakan `TradingCalendarAligner` dengan interpolasi deterministik Forward-Fill untuk menyamakan spine tanggal perdagangan, serta `FxNormalizer` untuk otomatis mengonversi valuasi instrumen ke mata uang basis investor (misal IDR).
 
-### 7. Pemodelan Instrumen Kupon & Suku Bunga Sintetis
-- **Masalah:** Instrumen pasar uang dan obligasi negara (SBN) atau korporasi tidak memiliki candle continuous tick publik layaknya saham.
-- **Solusi:** Modul `SyntheticBondAccumulator` mengompound rate yield acuan menjadi time-series *Total Return Index (TRI)* continuous harian.
+### 7. Penggunaan Instrumen Fixed Income Empiris (Zero-Synthetic Bond Mandate)
+- **Masalah:** Menggunakan yield konstan sintetis ($1.072^t$) pada obligasi menghasilkan runtun waktu tanpa volatilitas dan nol drawdown palsu, yang merusak akurasi backtesting dan melebih-lebihkan rasio Sharpe.
+- **Solusi:** Mesin analisis portofolio mewajibkan penggunaan instrumen empiris pasar riil (seperti ETF Obligasi Total Return: TLT, IEF, LQD) yang memuat dinamika durasi, konveksitas, dan fluktuasi harga pasar sekunder nyata. Modul `SyntheticBondAccumulator` hanya dipertahankan sebagai alat komparasi teoritis.
 
 ### 8. Mesin Analitika Portofolio Terintegrasi (In-Engine Analytics)
 - **Masalah:** Menghitung metrik risiko portofolio (CAGR, volatilitas tahunan, max drawdown, Sharpe ratio, dan matriks korelasi Pearson) biasanya memerlukan ekspor data ke Python/Polars eksternal.
 - **Solusi:** Mengintegrasikan modul `PortfolioEngine` langsung di dalam Rust binary yang mengevaluasi portofolio multi-aset secara instan via `economy-aggregator analyze`.
+
+### 9. Deteksi Anomali Non-Parametrik Berbasis Statistik (Hampel Filter & Rolling MAD)
+- **Masalah:** Filter berbasis ambang batas statis (hardcoded) seperti `price < 5000.0` atau `symbol == "USD_IDR"` rapuh, tidak skalabel, dan melanggar prinsip kebersihan kode arsitektur jangka panjang.
+- **Solusi:** Mengimplementasikan `HampelFilter` berbasis Median Absolute Deviation (MAD) dengan jendela simetris bergerak ($k=7$) dan ambang $3.5\sigma$ yang secara otomatis mendeteksi dan membersihkan outlier tanpa asumsi nilai absolut maupun nama simbol.

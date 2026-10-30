@@ -24,11 +24,19 @@ src/
     ├── ingestion/            # Slice Ingesti
     │   ├── mod.rs
     │   └── sanity_gate.rs    # Filter anti-data kotor & detektor gap
-    └── storage/              # Slice Penyimpanan
+    ├── storage/              # Slice Penyimpanan
+    │   ├── mod.rs
+    │   ├── buffer.rs         # Bounded micro-batch buffer thread-safe
+    │   ├── partition.rs      # Resolver path partisi Hive
+    │   └── writer.rs         # Writer data Parquet ZSTD & deduplikator
+    └── analytics/            # Slice Analitika Portofolio & Risiko
         ├── mod.rs
-        ├── buffer.rs         # Bounded micro-batch buffer thread-safe
-        ├── partition.rs      # Resolver path partisi Hive
-        └── writer.rs         # Writer data Parquet ZSTD & deduplikator
+        ├── calendar_aligner.rs # Forward-fill sinkronisasi kalender multi-bursa
+        ├── config.rs         # PortfolioSpec & AssetSpec deklaratif
+        ├── fx_normalizer.rs  # Normalisasi valuasi multi-currency ke IDR
+        ├── outlier.rs        # Hampel Filter (Rolling MAD) non-parametrik
+        ├── portfolio.rs      # Engine CAGR, Volatilitas, Max DD, Sharpe, Korelasi
+        └── runner.rs         # CLI runner `economy-aggregator analyze`
 ```
 
 ### Batasan Teknis & Aturan Performa:
@@ -43,6 +51,16 @@ src/
    - Penulisan disk Parquet/file wajib didelegasikan ke `tokio::task::spawn_blocking`.
 4. **Zero-Copy Hot Path:**
    - Jalur pemrosesan WebSocket tick dilarang mengalokasikan string baru secara boros.
+5. **Invarian Keras Zero Synthetic Data (Zero-Synthetic Data Mandate):**
+   - **Dilarang Keras Data Sintetis:** Simulasi, riset, dan backtest portofolio mutlak dilarang memalsukan data atau merekayasa runtun waktu menggunakan kurva bunga majemuk konstan (seperti formula yield eksponensial datar $P_0 (1+y)^t$). Kurva sintetis datar menghasilkan nol volatilitas dan nol drawdown palsu yang merusak validitas Sharpe ratio dan metrik risiko institusional.
+   - **100% Instrumen Pasar Empiris:** Seluruh kelas aset obligasi dan pasar uang dalam pengujian portofolio wajib menggunakan instrumen empiris pasar riil (seperti ETF Obligasi Total Return: TLT, IEF, LQD, BND) atau runtun yield historis riil dengan sensitivitas durasi-konveksitas nyata.
+6. **Pembersihan Anomali Non-Parametrik Berbasis Statistik (No Hardcoded Price Bounds):**
+   - **Anti-Hardcode:** Dilarang keras menaruh filter harga statis atau nama ticker spesifik (misal `price < 5000.0` atau `symbol == "USD_IDR"`) di jalur analitika dan ingesti.
+   - **Hampel Filter (Rolling MAD):** Pembersihan lonjakan harga anomali / fat-finger quotes wajib menggunakan metode statistik non-parametrik berbasis Median Absolute Deviation (MAD):
+     $$|x_t - M_t| > n \times 1.4826 \times \text{MAD}_t$$
+     di mana $M_t = \text{median}(x_{t-k..t+k})$ dan $\text{MAD}_t = \text{median}(|x_i - M_t|)$ dengan jendela rolling simetris ($k=7$, batas $3.5\sigma$).
+7. **Konfigurasi Portofolio Deklaratif:**
+   - Seluruh alokasi aset, bobot, dan instrumen wajib dirumuskan melalui struktur spesifikasi deklaratif (`PortfolioSpec` & `AssetSpec`), bukan melalui injeksi variabel prosedural di dalam loop kalkulasi.
 
 ---
 
