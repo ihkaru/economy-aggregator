@@ -1,8 +1,8 @@
 # 6. Runtime View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -63,3 +63,27 @@ Aplikasi grafik atau skrip analis meminta data historis:
 2. Router `Axum` mengarahkan permintaan ke modul pembaca Parquet.
 3. Pembaca langsung menuju folder partisi tanggal yang sesuai (*folder pruning*).
 4. Data dikirimkan kembali ke klien dalam format JSON terkompresi atau stream Arrow.
+
+## 6.4 Skenario 4: Eksekusi Backfill Historis 2020 via Agent-First CLI
+
+Alur saat Agen AI atau operator mengeksekusi penarikan data historis sejak tahun 2020 secara headless:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Agen AI / Operator
+    participant CLI as Agent CLI Engine
+    participant Config as Config & Secret Loader
+    participant Fetcher as Historical REST Paginator
+    participant Lake as Parquet Lake Writer
+
+    Agent->>CLI: economy-aggregator backfill start --asset crypto --start-year 2020 --json
+    CLI->>Config: Muat economy-aggregator.toml & Injeksi Token Infisical
+    Config-->>CLI: Konfigurasi Terverifikasi
+    CLI->>Fetcher: Inisiasi Paginasi dari 2020-01-01T00:00:00Z
+    loop Paginasi Bulanan
+        Fetcher->>Lake: Tulis Chunks Parquet Harian (1D bars)
+    end
+    Lake-->>CLI: Total Baris Tersimpan & Statistik Partisi
+    CLI-->>Agent: Output Envelope JSON: {"success": true, "data": {...}, "next_steps": [...]}
+```

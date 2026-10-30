@@ -1,8 +1,8 @@
 # 8. Cross-Cutting Concepts
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -24,3 +24,23 @@
 - Menggunakan antrean terkendali `tokio::sync::mpsc::channel(50_000)` dengan kapasitas tetap (*bounded channel*).
 - Jika disk mengalami perlambatan sesaat, antrean akan menahan laju penerimaan (*backpressure*) secara elegan daripada membiarkan RAM meluap kehabisan memori.
 - Operasi tulis file Parquet yang bersifat sinkron dijalankan menggunakan `tokio::task::spawn_blocking` agar tidak memperlambat thread asinkron jaringan.
+
+## 8.5 Standar CLI Ramah AI-Agent (Agent-First Envelope & Protocol)
+- **Envelope JSON Standar:** Seluruh perintah mode `--json` mengembalikan payload baku:
+  ```json
+  {
+    "success": true,
+    "error": null,
+    "data": { ... },
+    "next_steps": ["economy-aggregator backfill status", "economy-aggregator lake stats"]
+  }
+  ```
+- **Zero Interactivity:** Perintah mutasi tidak pernah memblokir `stdin`. Penggunaan otomatis wajib mendukung opsi `--yes`, `--force`, dan `--non-interactive`.
+- **Kode Keluar Deterministik:** `0` (Sukses), `1` (Argumen/Konfigurasi Salah), `2` (Rate Limit/Network Error), `3` (Storage I/O Error), `4` (Integritas Data Gagal).
+
+## 8.6 Manajemen Kunci Rahasia & Konfigurasi Bertingkat (Infisical & ENV Hierarchy)
+- Mengadopsi hierarki resolusi 3-tier:
+  1. *Command-line Flags* (Prioritas tertinggi, misal `--start-year 2020`).
+  2. *Injeksi Rahasia Mesin* via Infisical Universal Auth (`infisical run -- dev`) dan Environment Variables (`AGGREGATOR_*`).
+  3. *File Konfigurasi Deklaratif* (`economy-aggregator.toml`) untuk kemudahan setup "one config away".
+- Token rahasia atau API key vendor tidak pernah disimpan ke git commit atau dicetak mentah di log terminal (wajib dimaskir: `sk_***`).

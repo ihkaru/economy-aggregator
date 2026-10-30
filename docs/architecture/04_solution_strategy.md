@@ -1,8 +1,8 @@
 # 4. Solution Strategy
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -30,3 +30,7 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
   1. Setiap baris memiliki kunci identitas unik (`natural_key`).
   2. Data resmi dari REST API yang sudah final (*settled*) otomatis menggantikan data live sementara (*provisional*).
   3. Sistem mendeteksi nomor urut pesan yang melompat dan langsung memanggil REST API untuk menambal data yang terlewat.
+
+### 5. Setup Instan Satu Konfigurasi (*One-Config-Away*) & CLI Ramah AI-Agent
+- **Masalah:** Menyiapkan pengumpulan data multi-aset (crypto, saham, komoditas, kalender makro) secara manual memakan waktu lama dan rentan salah konfigurasi saat dieksekusi otomatis oleh skrip atau agen AI.
+- **Solusi:** Menyediakan satu file konfigurasi deklaratif (`economy-aggregator.toml`) yang dapat dibuat instan via `economy-aggregator config init`, didukung antarmuka CLI yang mengembalikan JSON terstruktur, kode keluar deterministik, dan zero-interactivity.

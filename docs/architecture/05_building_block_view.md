@@ -1,8 +1,8 @@
 # 5. Building Block View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -29,6 +29,11 @@ graph TD
         BC[WebSocket Broadcaster]
     end
 
+    subgraph CliSlice["Fitur Antarmuka Agen (src/features/cli)"]
+        CLI[Agent-First CLI Engine]
+        CFG[Config & Secret Resolver]
+    end
+
     WS -->|Validasi| SAN
     REST -->|Validasi| SAN
     SAN -->|Kirim Record| BUF
@@ -37,6 +42,9 @@ graph TD
     WRITER -->|Tulis Parquet| DISK[(Parquet Lake)]
     DISK -->|Baca Cepat| API
     SAN -->|Pembaruan Live| BC
+    CLI -->|Baca/Tulis Konfigurasi| CFG
+    CLI -->|Pemicu Backfill| REST
+    CLI -->|Audit Kesehatan| DISK
 ```
 
 ### 5.1.1 Level 1 Component Catalog
@@ -48,6 +56,7 @@ graph TD
 | **Micro-Batch Buffer** | Menampung data masuk di RAM secara aman sebelum dieksekusi ke harddisk. | `IF-01`, `IF-03` |
 | **Parquet Lake Writer** | Menulis data terkompresi ke partisi Parquet sesuai format folder Hive. | `IF-03` |
 | **Serving Engine** | Menyediakan jalur bagi aplikasi luar untuk mengambil data via REST API atau WebSocket real-time. | `IF-04`, `IF-05` |
+| **Agent-First CLI & Config Engine** | Menyediakan eksekusi perintah headless, inisialisasi konfigurasi deklaratif, dan orkestrasi backfill 2020 via JSON envelope. | `IF-06` |
 
 ---
 
@@ -58,6 +67,15 @@ src/
 ├── main.rs                   # Titik masuk program utama & inisialisasi server
 ├── core/                     # Model data dasar dan konfigurasi
 │   ├── mod.rs
+│   ├── types.rs              # AggregatorCandle, EconomicEventRecord, Enums
+│   └── config.rs             # LakehouseConfig & batas budget memori
+├── features/                 # Vertical Slice Architecture
+│   ├── cli/                  # Agent-First CLI (health, config, backfill, query)
+│   ├── ingestion/            # SanityGate, Binance WS/REST, Economic Calendar
+│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, Symbology
+│   └── serving/              # Axum REST endpoints (/health, /candles, /stats)
+economy-aggregator.toml       # Template konfigurasi deklaratif 'one-config-away'
+```
 │   ├── config.rs             # Konfigurasi batas RAM, folder data, dan interval
 │   └── types.rs              # Struct data: Candle, Tick, Mapping, MacroEvent
 └── features/

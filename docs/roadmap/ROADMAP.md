@@ -2,7 +2,7 @@
 
 **Scope:** Production-Grade High-Performance Financial & Macroeconomic Data Aggregator  
 **Target Runtime:** 100% Native Rust (Zero-GC, Memory Budget $\le$ 50 MB Idle / $\le$ 150 MB Load)  
-**Total Granular Phases:** 225 Atomic Implementation Phases across 8 Major Milestones.
+**Total Granular Phases:** 260 Atomic Implementation Phases across 9 Major Milestones.
 
 ---
 
@@ -18,7 +18,8 @@ flowchart TD
     M1 --> M5[M5: Macroeconomic Calendar & Vintages<br/>Phase 116 - 145]
     M2 & M3 & M4 & M5 --> M6[M6: Gap Healing & Lake Compaction<br/>Phase 146 - 175]
     M6 --> M7[M7: Serving Layer & High-Speed Streaming<br/>Phase 176 - 200]
-    M7 --> M8[M8: Operations, Replay & Production Hardening<br/>Phase 201 - 225+]
+    M7 --> M8[M8: Operations, Replay & Production Hardening<br/>Phase 201 - 225]
+    M1 & M6 & M7 --> M9[M9: One-Config Setup, Deep Backfill 2020 & Agent CLI<br/>Phase 226 - 260]
 ```
 
 ---
@@ -34,7 +35,8 @@ flowchart TD
 | **M5** | **Macroeconomic Calendar & SDMX Vintages** | Phase 116 – 145 | In Progress (4/30) | [milestone_5_macro_calendar.md](milestone_5_macro_calendar.md) |
 | **M6** | **Gap Healing, Dedup & Lake Compactor** | Phase 146 – 175 | In Progress (5/30) | [milestone_6_resilience_compactor.md](milestone_6_resilience_compactor.md) |
 | **M7** | **Serving Layer (REST, WS & Arrow Flight)** | Phase 176 – 200 | In Progress (5/25) | [milestone_7_serving_streaming.md](milestone_7_serving_streaming.md) |
-| **M8** | **Observability, Replay & Production Ops** | Phase 201 – 225+ | Planned | [milestone_8_operations_replay.md](milestone_8_operations_replay.md) |
+| **M8** | **Observability, Replay & Production Ops** | Phase 201 – 225 | Planned | [milestone_8_operations_replay.md](milestone_8_operations_replay.md) |
+| **M9** | **One-Config Bootstrap, 2020 Backfill & Agent CLI** | Phase 226 – 260 | In Progress (0/35) | [milestone_9_one_config_deep_backfill_agent_cli.md](milestone_9_one_config_deep_backfill_agent_cli.md) |
 
 ---
 

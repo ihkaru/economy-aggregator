@@ -1,8 +1,8 @@
 # 3. Context and Scope
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -43,3 +43,4 @@ flowchart LR
 | **IF-03** | Penyimpanan Lokal Parquet | Lokal | File Disk, Apache Parquet (ZSTD) | Menyimpan data terpartisi rapi berdasarkan kategori, simbol, dan bulan. |
 | **IF-04** | REST Query API | Keluar | HTTP REST (`http://`), JSON / Arrow | Melayani permintaan data rentang waktu untuk grafik dan analisis. |
 | **IF-05** | Real-Time Broadcast Stream | Keluar | WebSocket (`ws://`), JSON | Meneruskan data harga terbaru secara langsung ke layar pengguna. |
+| **IF-06** | Agent-First Management & Query CLI | Keluar/Masuk | CLI Stdio, JSON Envelope | Mengontrol konfigurasi, inisialisasi, backfill 2020, dan audit kesehatan secara headless bagi agen AI dan operator. |

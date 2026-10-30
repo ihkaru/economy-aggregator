@@ -1,8 +1,8 @@
 # 9. Architecture Decisions
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -52,3 +52,16 @@
   Data selalu lengkap dan akurat tanpa perlu intervensi manual dari pengguna.
 * **Risiko yang Muncul:**  
   `RISK-03` (Batas kuota panggilan REST API / rate limit dari penyedia data eksternal).
+
+---
+
+### ADR-04: Antarmuka CLI Ramah Agen AI dengan Format Envelope JSON dan Zero Interactivity
+* **Status:** Diterima
+* **Konteks:**  
+  Sistem perlu dioperasikan tidak hanya oleh manusia via terminal interaktif, tetapi juga oleh Agen AI otonom (*Autonomous AI Agents*) secara headless. Prompt interaktif (seperti `[y/N]`) dan output tidak terstruktur menyebabkan agen macet (*hang indefinitely*) atau salah tafsir hasil.
+* **Keputusan:**  
+  Membangun CLI dengan format output envelope terstandarisasi (`{"success": true, "data": {...}, "error": null, "next_steps": [...]}`), flag non-interaktif (`--yes`, `--force`), kode keluar numerik terklasifikasi, dan dukungan *dry-run*.
+* **Konsekuensi Positif:**  
+  Agen AI dapat memanggil, memverifikasi kesehatan, mengonfigurasi parameter, dan memicu deep backfill sejak 2020 dengan keandalan 100%.
+* **Risiko yang Muncul:**  
+  `RISK-04` (Potensi pembatasan laju panggilan / rate limit saat penarikan data historis masif sejak tahun 2020).

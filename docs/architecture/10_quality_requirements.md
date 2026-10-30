@@ -1,8 +1,8 @@
 # 10. Quality Requirements
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -16,6 +16,7 @@ graph LR
     Q --> E[#efficiency: Hemat RAM & CPU]
     Q --> R[#reliability: Keandalan Data]
     Q --> M[#maintainability: Kemudahan Perawatan]
+    Q --> A[#agent_readiness: Otomasi Agen AI]
 
     P --> P1["QS-01: Latensi parsing tick < 100 µs"]
     P --> P2["QS-02: Waktu query REST candle 1 bulan < 10 ms"]
@@ -23,6 +24,7 @@ graph LR
     E --> E2["QS-04: Konsumsi RAM beban tinggi <= 150 MB"]
     R --> R1["QS-05: Penanganan recon & deduplikasi 100% akurat"]
     M --> M1["QS-06: 100% lulus static lint & zero memory leak"]
+    A --> A1["QS-07: Output CLI 100% valid JSON envelope & exit code deterministik"]
 ```
 
 ## 10.2 Quality Scenarios
@@ -35,3 +37,4 @@ graph LR
 | **QS-04** | #efficiency | Sistem menerima arus deras 50.000 tick/detik secara berkelanjutan. | Kapasitas antrean memori tertahan di angka aman, total RAM tidak melebihi 150 MB. |
 | **QS-05** | #reliability | Koneksi WebSocket terputus selama 60 detik lalu tersambung kembali. | Detektor gap mendeteksi data yang hilang, mengunduh via REST, dan menyatukannya tanpa duplikasi record. |
 | **QS-06** | #maintainability | Menjalankan seluruh test suite dan linter otomatis Rust (`cargo clippy`, `cargo test`). | 100% test lulus, nol peringatan keamanan (*zero warnings*), dan bebas dari kebocoran memori. |
+| **QS-07** | #agent_readiness | Perintah CLI dijalankan via subprocess oleh Agen AI dengan parameter `--json`. | Output 100% parseable JSON envelope tanpa kode escape ANSI dan exit code akurat sesuai status eksekusi. |

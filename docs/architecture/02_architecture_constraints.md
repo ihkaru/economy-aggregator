@@ -1,8 +1,8 @@
 # 2. Architecture Constraints
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -20,8 +20,11 @@ Agar sistem selalu cepat, tidak rakus RAM, dan tidak membebani prosesor mesin lo
 | **Format File Disk** | Apache Parquet (`ZSTD` level 3) | Format tabel kolumnar terbuka; file terkompresi hemat tempat dan sangat cepat dibaca oleh Polars, DuckDB, dan Python. |
 | **Ukuran Grup Baris (Row Group)**| 32.768 baris per blok Parquet | Ukuran seimbang agar pembacaan Parquet dapat memanfaatkan multi-core CPU secara maksimal. |
 | **Pemisahan Thread CPU** | Thread Jaringan $\ne$ Thread Disk | Operasi penulisan disk yang berat dijalankan di thread terpisah (`spawn_blocking`) agar tidak mengganggu penerimaan data jaringan WebSocket. |
+| **Standar Antarmuka CLI Agen**| Format Envelope JSON & Zero-Interactivity | Setiap perintah CLI wajib mendukung `--json`, kode keluar deterministik, dan bendera `--yes` / `--force` tanpa memblokir input terminal (`stdin`). |
+| **Hierarki Kredensial & Rahasia** | Infisical Universal Auth & ENV | Kunci API vendor (Binance, FRED, Alpaca) tidak boleh disimpan di git repository; wajib diinjeksi via Infisical dev vault atau environment variable. |
 
 ## 2.2 Operational Constraints
 - **Tanpa Dependency Server Tambahan:** Tidak membutuhkan database eksternal terpisah (seperti PostgreSQL, MySQL, Redis, atau Kafka). Seluruh penyimpanan berjalan lokal di folder file.
 - **Portabilitas Sistem Operasi:** Berjalan sebagai satu file binary tunggal di Linux (termasuk Android/Termux aarch64), macOS, dan Windows.
 - **Lisensi Dependensi:** Semua pustaka pihak ketiga wajib berlisensi bebas komersial (MIT, Apache-2.0, atau BSD). Dilarang keras menggunakan lisensi copyleft (GPL/AGPL).
+- **One-Config-Away Bootstrap:** Seluruh pipeline (crypto, equities, commodities, macro) dapat langsung berjalan hanya dengan satu file konfigurasi deklaratif `economy-aggregator.toml`.

@@ -1,8 +1,8 @@
 # 12. Glossary
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `87bcbb6`
-> - **Verified Timestamp**: `2026-10-30T15:40:50.316215+07:00`
+> - **Verified Commit**: `59e65fc`
+> - **Verified Timestamp**: `2026-10-30T15:52:21.884969+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -18,3 +18,6 @@
 | **Zero-Copy** | Teknik pemrosesan data di mana komputer langsung membaca data dari lokasi memori aslinya tanpa perlu menduplikat atau menyalin ulang data tersebut ke tempat lain. |
 | **Settled vs Provisional** | Data *provisional* adalah data sementara hasil tangkapan langsung saat menit berjalan; data *settled* adalah data resmi final yang sudah diaudit oleh bursa setelah periode waktu selesai. |
 | **Backpressure** | Mekanisme rem otomatis saat aliran data masuk lebih cepat daripada kemampuan komputer menyimpannya ke disk, mencegah memori RAM meluap habis. |
+| **Agent-First CLI** | Antarmuka baris perintah yang dirancang untuk diurai secara deterministik oleh agen kecerdasan buatan (AI) menggunakan format envelope JSON tanpa input interaktif. |
+| **Deep Backfill** | Proses penarikan data historis jangka panjang (sejak tahun 2020) secara terkelompok (*chunked pagination*) dengan checkpoint untuk mencegah pengunduhan ulang. |
+| **One-Config-Away** | Paradigma di mana seluruh pipeline sistem dapat diaktifkan dan dikonfigurasi melalui satu file konfigurasi deklaratif tanpa setup manual berulang. |
