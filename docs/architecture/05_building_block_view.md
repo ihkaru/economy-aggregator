@@ -1,8 +1,8 @@
 # 5. Building Block View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `4ae83e1`
-> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
+> - **Verified Commit**: `0a4caf6`
+> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -37,6 +37,8 @@ graph TD
     subgraph AnalyticsSlice["Fitur Analitika Kuantitatif (src/features/analytics)"]
         ALIGN[Trading Calendar Aligner]
         FX[FX Base Currency Normalizer]
+        HAMPEL[Hampel Outlier Filter MAD]
+        SPEC[Declarative PortfolioSpec]
         BOND[Synthetic Bond Accumulator]
         PORT[Portfolio Risk & Return Engine]
     end
@@ -54,9 +56,12 @@ graph TD
     CLI -->|Pemicu Backfill| REST
     CLI -->|Audit Kesehatan| DISK
     CLI -->|Eksekusi Analitik| PORT
-    ALIGN -->|Panel Sinkron| PORT
-    FX -->|Normalisasi Kurs| PORT
-    BOND -->|TRI Obligasi| PORT
+    SPEC -->|Spesifikasi Bobot & Aset| PORT
+    DISK -->|Runtun Waktu Mentah| HAMPEL
+    HAMPEL -->|Data Bersih Non-Outlier| FX
+    FX -->|Normalisasi Kurs IDR| ALIGN
+    ALIGN -->|Panel Sinkron 100% Empiris| PORT
+    BOND -.->|TRI Teoritis| PORT
 ```
 
 ### 5.1.1 Level 1 Component Catalog
@@ -86,7 +91,7 @@ src/
 ├── features/                 # Vertical Slice Architecture
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, Symbology
-│   ├── analytics/            # Calendar Aligner, FX Normalizer, Synthetic Bond, Portfolio Engine
+│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, PortfolioSpec, Portfolio Engine
 │   └── serving/              # Axum REST endpoints (/health, /candles, /stats)
 economy-aggregator.toml       # Template konfigurasi deklaratif 'one-config-away'
 ```

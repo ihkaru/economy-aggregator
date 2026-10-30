@@ -1,8 +1,8 @@
 # 12. Glossary
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `4ae83e1`
-> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
+> - **Verified Commit**: `0a4caf6`
+> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -21,3 +21,9 @@
 | **Agent-First CLI** | Antarmuka baris perintah yang dirancang untuk diurai secara deterministik oleh agen kecerdasan buatan (AI) menggunakan format envelope JSON tanpa input interaktif. |
 | **Deep Backfill** | Proses penarikan data historis jangka panjang (sejak tahun 2020) secara terkelompok (*chunked pagination*) dengan checkpoint untuk mencegah pengunduhan ulang. |
 | **One-Config-Away** | Paradigma di mana seluruh pipeline sistem dapat diaktifkan dan dikonfigurasi melalui satu file konfigurasi deklaratif tanpa setup manual berulang. |
+| **Hampel Filter (Rolling MAD)** | Metode statistik non-parametrik adaptif berbasis Median Absolute Deviation (MAD) untuk menyaring anomali harga (glitch/fat-finger) tanpa asumsi distribusi normal dan tanpa hardcode threshold. |
+| **Zero-Synthetic Data Mandate** | Invarian arsitektur yang melarang penggunaan kurva bunga majemuk konstan ($1.072^t$) atau runtun waktu fiktif dalam riset kuantitatif, mewajibkan penggunaan 100% instrumen pasar empiris riil. |
+| **Forward-Fill Alignment** | Strategi penyelarasan tanggal perdagangan lintas bursa multi-negara di mana hari libur salah satu bursa diisi dengan harga penutupan terakhir yang diketahui (*forward-fill*, return harian = 0%). |
+| **Bond Total Return ETF** | Reksa dana yang diperdagangkan di bursa (seperti TLT, IEF, LQD) yang merefleksikan harga pasar obligasi riil termasuk reinvestasi kupon dan sensitivitas durasi-konveksitas terhadap perubahan suku bunga acuan. |
+| **CAGR & Max Drawdown** | *Compound Annual Growth Rate* (laju pertumbuhan tahunan majemuk) dan *Maximum Drawdown* (penurunan nilai puncak-ke-lembah terdalam) sebagai metrik standar valuasi risiko portofolio. |
+| **Sharpe Ratio** | Ukuran imbal hasil yang disesuaikan dengan risiko (*risk-adjusted return*), dihitung dari kelebihan return di atas risk-free rate dibagi dengan volatilitas tahunan. |

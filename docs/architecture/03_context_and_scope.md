@@ -1,8 +1,8 @@
 # 3. Context and Scope
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `4ae83e1`
-> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
+> - **Verified Commit**: `0a4caf6`
+> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -44,3 +44,4 @@ flowchart LR
 | **IF-04** | REST Query API | Keluar | HTTP REST (`http://`), JSON / Arrow | Melayani permintaan data rentang waktu untuk grafik dan analisis. |
 | **IF-05** | Real-Time Broadcast Stream | Keluar | WebSocket (`ws://`), JSON | Meneruskan data harga terbaru secara langsung ke layar pengguna. |
 | **IF-06** | Agent-First Management & Query CLI | Keluar/Masuk | CLI Stdio, JSON Envelope | Mengontrol konfigurasi, inisialisasi, backfill 2020, dan audit kesehatan secara headless bagi agen AI dan operator. |
+| **IF-07** | In-Engine Analytical CLI & Engine | Keluar/Masuk | CLI Stdio, JSON Envelope | Mengevaluasi performa risiko portofolio multi-dekade berbasis data pasar empiris riil (`economy-aggregator analyze`). |

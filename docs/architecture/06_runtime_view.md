@@ -1,8 +1,8 @@
 # 6. Runtime View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `4ae83e1`
-> - **Verified Timestamp**: `2026-10-30T19:14:40+07:00`
+> - **Verified Commit**: `0a4caf6`
+> - **Verified Timestamp**: `2026-10-30T19:42:18+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -86,4 +86,36 @@ sequenceDiagram
     end
     Lake-->>CLI: Total Baris Tersimpan & Statistik Partisi
     CLI-->>Agent: Output Envelope JSON: {"success": true, "data": {...}, "next_steps": [...]}
+```
+
+## 6.5 Skenario 5: Eksekusi Analitika Portofolio Empiris & Deteksi Anomali Non-Parametrik
+
+Alur saat Agen AI atau analis menjalankan simulasi portofolio multi-dekade berbasis 100% instrumen empiris pasar riil via `economy-aggregator analyze`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Agen AI / Analis
+    participant CLI as CLI Runner (runner.rs)
+    participant Spec as PortfolioSpec (config.rs)
+    participant Lake as Parquet Lakehouse
+    participant Hampel as Hampel Filter (outlier.rs)
+    participant FX as FxNormalizer
+    participant Aligner as TradingCalendarAligner
+    participant Engine as PortfolioEngine
+
+    Agent->>CLI: economy-aggregator analyze --start-year 2004
+    CLI->>Spec: Muat Spesifikasi Portofolio Empiris (All-Weather)
+    Spec-->>CLI: Daftar Aset (TLT, IEF, LQD, GSPC, BBCA, Gold) & Bobot
+    CLI->>Lake: Pindai & Baca Runtun Waktu Parquet tiap Simbol
+    Lake-->>CLI: Runtun Waktu Mentah Multi-Dekade
+    CLI->>Hampel: Bersihkan Outlier (Rolling MAD window=15, 3.5 sigmas)
+    Hampel-->>CLI: Runtun Waktu Bebas Glitch/Fat-Finger
+    CLI->>FX: Normalisasi Aset Berdenominasi USD ke IDR
+    FX-->>CLI: Runtun Waktu Terdenominasi IDR
+    CLI->>Aligner: Sinkronisasi Kalender Multi-Bursa (Forward-Fill)
+    Aligner-->>CLI: Panel Tanggal Terpadu (AlignedPanel)
+    CLI->>Engine: Evaluasi Metrik Portofolio (CAGR, Vol, Drawdown, Sharpe, Pearson)
+    Engine-->>CLI: PortfolioMetrics Lengkap
+    CLI-->>Agent: Output JSON Envelope (Data Fidelity: 100% Empirical)
 ```
