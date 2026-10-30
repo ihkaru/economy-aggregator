@@ -1,7 +1,7 @@
 # 9. Architecture Decisions
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `ceeac71`
+> - **Verified Commit**: `fae2423`
 > - **Verified Timestamp**: `2026-10-30T14:52:27+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`

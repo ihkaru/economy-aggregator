@@ -1,6 +1,6 @@
 //! Partition path calculation for Hive-style columnar storage.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use chrono::{DateTime, Datelike, Utc};
 use crate::core::types::{AssetClass, TimeFrame};
 
