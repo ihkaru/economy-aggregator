@@ -14,19 +14,19 @@
   Register core series: CPI (`CPIAUCSL`), Fed Funds Rate (`FEDFUNDS`), GDP (`GDP`), 10Y Yield (`DGS10`).
 - [ ] **PHASE-118: Data Vintages & Revision History Extractor**  
   Extract `realtime_start` and `realtime_end` to track how economic statistics are revised over time.
-- [ ] **PHASE-119: FinanceCalendar API Client**  
-  Implement client for `financecalendar.com` JSON endpoints for forward-looking event releases.
+- [x] **PHASE-119: FinanceCalendar API Client**  
+  Implement client for keyless economic calendar JSON endpoints (`biquote.io/api/calendar`) for forward-looking event releases.
 - [ ] **PHASE-120: ForexFactory Economic Calendar Scraper Adapter**  
   Scrape weekly economic release schedules with impact level categorization (Red, Orange, Yellow).
 - [ ] **PHASE-121: Deterministic Event ID Generator**  
   Generate SHA-256 hash from `(country, indicator_code, scheduled_utc)` for idempotent event tracking.
-- [ ] **PHASE-122: Actual vs Forecast vs Previous Alignment**  
+- [x] **PHASE-122: Actual vs Forecast vs Previous Alignment**  
   Standardize triple-metric structure (`actual`, `forecast`, `previous`, `revised_previous`).
 - [ ] **PHASE-123: Economic Event Surprise Index Calculator**  
   Compute economic surprise: $Surprise = \frac{Actual - Forecast}{|Forecast|} \times 100$.
-- [ ] **PHASE-124: ISO-3166-1 Alpha-2 Country Code Normalizer**  
+- [x] **PHASE-124: ISO-3166-1 Alpha-2 Country Code Normalizer**  
   Normalize source country strings ("United States", "USA", "US") to standard `"US"`.
-- [ ] **PHASE-125: ISO-4217 Currency Code Normalizer**  
+- [x] **PHASE-125: ISO-4217 Currency Code Normalizer**  
   Map impacted economies to official currency tickers (`USD`, `EUR`, `GBP`, `JPY`, `IDR`).
 - [ ] **PHASE-126: Central Bank Decision Tracker**  
   Track FOMC, ECB, BOJ, BOE, and Bank Indonesia rate decisions and statement release dates.

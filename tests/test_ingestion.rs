@@ -122,3 +122,49 @@ fn test_rate_limit_weight_extraction() {
     let empty_headers = HeaderMap::new();
     assert_eq!(extract_rate_limit_weight(&empty_headers), None);
 }
+
+#[test]
+fn test_economic_calendar_payload_parsing() {
+    use economy_aggregator::features::ingestion::RawCalendarItem;
+
+    let raw = r#"{
+        "id": "mql5:282561",
+        "eventId": "mql5:840010001",
+        "time": "2026-10-29T12:30:00Z",
+        "period": "2026-09-01T00:00:00Z",
+        "countryCode": "US",
+        "currency": "USD",
+        "name": "Core PCE Price Index m/m",
+        "importance": "high",
+        "type": "indicator",
+        "sector": "prices",
+        "unit": "percent",
+        "multiplier": "none",
+        "digits": 1,
+        "actual": 0.3,
+        "forecast": 0.2,
+        "previous": 0.2,
+        "revisedPrevious": 0.3,
+        "revision": 0,
+        "timeMode": "exact",
+        "sourceUrl": "https://bea.gov",
+        "source": "mql5"
+    }"#;
+
+    let item: RawCalendarItem = serde_json::from_str(raw).expect("valid raw calendar json");
+    assert_eq!(item.id, "mql5:282561");
+    assert_eq!(item.country_code, "US");
+    assert_eq!(item.actual, Some(0.3));
+
+    let record = item.to_domain_record().expect("domain conversion succeeds");
+    assert_eq!(record.country, "US");
+    assert_eq!(record.currency, "USD");
+    assert_eq!(record.title, "Core PCE Price Index m/m");
+    assert_eq!(record.impact_level, 3); // "high" -> 3
+    assert_eq!(record.category, "prices");
+    assert_eq!(record.actual, Some(0.3));
+    assert_eq!(record.forecast, Some(0.2));
+    assert_eq!(record.previous, Some(0.2));
+    assert_eq!(record.revised_previous, Some(0.3));
+    assert!(record.released_at_utc.is_some());
+}

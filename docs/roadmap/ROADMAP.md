@@ -31,7 +31,7 @@ flowchart TD
 | **M2** | **Cryptocurrency High-Frequency Engine** | Phase 026 – 055 | In Progress (9/30) | [milestone_2_crypto.md](milestone_2_crypto.md) |
 | **M3** | **Forex & Commodities Tick Lake** | Phase 056 – 085 | Planned | [milestone_3_forex_commodities.md](milestone_3_forex_commodities.md) |
 | **M4** | **Global Equities & Corporate Actions** | Phase 086 – 115 | Planned | [milestone_4_equities.md](milestone_4_equities.md) |
-| **M5** | **Macroeconomic Calendar & SDMX Vintages** | Phase 116 – 145 | Planned | [milestone_5_macro_calendar.md](milestone_5_macro_calendar.md) |
+| **M5** | **Macroeconomic Calendar & SDMX Vintages** | Phase 116 – 145 | In Progress (4/30) | [milestone_5_macro_calendar.md](milestone_5_macro_calendar.md) |
 | **M6** | **Gap Healing, Dedup & Lake Compactor** | Phase 146 – 175 | In Progress (5/30) | [milestone_6_resilience_compactor.md](milestone_6_resilience_compactor.md) |
 | **M7** | **Serving Layer (REST, WS & Arrow Flight)** | Phase 176 – 200 | In Progress (5/25) | [milestone_7_serving_streaming.md](milestone_7_serving_streaming.md) |
 | **M8** | **Observability, Replay & Production Ops** | Phase 201 – 225+ | Planned | [milestone_8_operations_replay.md](milestone_8_operations_replay.md) |
