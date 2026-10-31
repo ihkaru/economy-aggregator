@@ -1,7 +1,7 @@
 # 10. Quality Requirements
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `4e98035`
+> - **Verified Commit**: `f1daafe`
 > - **Verified Timestamp**: `2026-10-30T20:29:28+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
