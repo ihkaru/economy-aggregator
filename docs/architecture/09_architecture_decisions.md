@@ -21,6 +21,7 @@
 | **ADR-09** | Prinsip Preservasi Data Mentah (Raw Data Fidelity) & Pemisahan Downstream | Diterima | 2026-10-30 |
 | **ADR-10** | Standar Pemodelan Derivatif Non-Linier & Pencegahan Bug Compounding | Diterima | 2026-10-30 |
 | **ADR-11** | Pipeline Transformasi Silver Terpadu & Engine Alokasi Rust Native | Diterima | 2026-10-30 |
+| **ADR-12** | Symbology Temporal (Point-in-Time Alias) & Penyesuaian Aksi Korporasi Volume | Diterima | 2026-10-31 |
 
 ---
 
@@ -174,3 +175,19 @@
   Menghapus total ketergantungan runtime Python, mempercepat eksekusi analitika hingga 100x lipat di lingkungan Linux/ARM64, dan menjamin kepatuhan tipe kompilasi (*compile-time safety*).
 * **Risiko yang Muncul:**  
   `RISK-14` (Kompleksitas algoritma pengelompokan hierarkis matriks jarak di Rust).
+
+---
+
+### ADR-12: Symbology Temporal (Point-in-Time Alias) dan Penyesuaian Aksi Korporasi Volume-Aware
+* **Status:** Diterima
+* **Konteks:**  
+  Ticker saham di pasar keuangan bersifat fana (*transient*): perusahaan dapat melakukan rebranding (seperti `FB` $\to$ `META`), restrukturisasi merger, atau penggantian simbol pasca-reverse split. Pemetaan ticker statis menyebabkan data historis sebelum perubahan simbol terputus (*data fragmentation*) atau bias kesintasan (*survivorship bias*). Selain itu, pemecahan saham (*stock split*) tidak hanya membagi harga, tetapi juga mengalikan jumlah lembar saham yang beredar, sehingga penyesuaian volume historis ($V / \text{split\_factor}$) wajib dilakukan agar omzet perputaran (*turnover*) tetap konsisten.
+* **Keputusan:**  
+  1. Memperluas skema `InstrumentMapping` dengan dukungan identitas permanen (ISIN, OpenFIGI, PermID) dan daftar alias temporal (`TickerAlias { raw_symbol, vendor, valid_from, valid_to }`).
+  2. Mengimplementasikan `InstrumentRegistry::resolve_at()` untuk resolusi simbol berbasis tanggal (*Point-in-Time Symbology*).
+  3. Memperluas `CorporateActionAdjuster` dengan metode `adjust_ohlcv_backward()` yang secara otomatis menyesuaikan harga ($P \times \text{factor}$) sekaligus volume ($V / \text{split\_factor}$).
+  4. Mengotomatisasi penarikan riwayat split dan dividen langsung dari Yahoo Finance via `YahooFinanceFetcher::fetch_daily_bars_with_events()`.
+* **Konsekuensi Positif:**  
+  Data historis emiten sebelum dan sesudah rebranding tertaut sempurna ke satu identitas kanonikal, dan analisis volume/likuiditas pra-split mencerminkan nilai ekuivalen pasca-split secara deterministik.
+* **Risiko yang Muncul:**  
+  `RISK-15` (Kebutuhan pemeliharaan tabel symbology master yang terus diperbarui seiring pengumuman aksi korporasi bursa).

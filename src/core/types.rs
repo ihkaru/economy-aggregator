@@ -166,3 +166,28 @@ pub struct EconomicEventRecord {
     pub source_url: Option<String>,
     pub raw_payload: Option<String>,
 }
+
+/// Stock split corporate action event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SplitEvent {
+    pub date: chrono::NaiveDate,
+    pub from_shares: f64,
+    pub to_shares: f64,
+}
+
+impl SplitEvent {
+    pub fn ratio(&self) -> f64 {
+        if self.from_shares > 0.0 {
+            self.to_shares / self.from_shares
+        } else {
+            1.0
+        }
+    }
+}
+
+/// Cash dividend corporate action event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DividendEvent {
+    pub ex_date: chrono::NaiveDate,
+    pub cash_amount: f64,
+}

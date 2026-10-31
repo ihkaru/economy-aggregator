@@ -156,6 +156,10 @@ fn test_symbology_registry_and_persistence() {
         vendor_symbols: vendors,
         contract_address: None,
         network: None,
+        isin: None,
+        figi: Some("BBG0028KLS37".to_string()),
+        perm_id: None,
+        aliases: Vec::new(),
     });
 
     assert_eq!(registry.resolve_vendor("binance", "btcusdt"), Some("BTC/USDT"));
@@ -227,4 +231,80 @@ fn test_lake_compactor_merges_chunks_and_deduplicates() {
     let file = File::open(&compacted_file).unwrap();
     let reader = SerializedFileReader::new(file).unwrap();
     assert_eq!(reader.metadata().file_metadata().num_rows(), 2);
+}
+
+#[test]
+fn test_temporal_symbology_point_in_time_ticker_resolution() {
+    use std::collections::HashMap;
+    use chrono::NaiveDate;
+    use economy_aggregator::core::types::{AssetClass, InstrumentType};
+    use economy_aggregator::features::storage::{InstrumentMapping, InstrumentRegistry, TickerAlias};
+
+    let mut registry = InstrumentRegistry::new();
+    let mut vendors = HashMap::new();
+    vendors.insert("nasdaq".to_string(), "META".to_string());
+    vendors.insert("yahoo".to_string(), "META".to_string());
+
+    // Register Meta Platforms with temporal aliases:
+    // FB before 2022-06-09, META from 2022-06-09 onwards
+    let split_date = NaiveDate::from_ymd_opt(2022, 6, 9).unwrap();
+
+    let meta_mapping = InstrumentMapping {
+        canonical_symbol: "META".to_string(),
+        name: "Meta Platforms, Inc.".to_string(),
+        asset_class: AssetClass::Equities,
+        instrument_type: InstrumentType::Spot,
+        base_currency: "USD".to_string(),
+        quote_currency: "USD".to_string(),
+        market_timezone: "America/New_York".to_string(),
+        is_24_7: false,
+        vendor_symbols: vendors,
+        contract_address: None,
+        network: None,
+        isin: Some("US30303M1027".to_string()),
+        figi: Some("BBG000MM2P62".to_string()),
+        perm_id: Some(4295905573),
+        aliases: vec![
+            TickerAlias {
+                raw_symbol: "FB".to_string(),
+                vendor: "nasdaq".to_string(),
+                valid_from: None,
+                valid_to: Some(split_date),
+            },
+            TickerAlias {
+                raw_symbol: "FB".to_string(),
+                vendor: "yahoo".to_string(),
+                valid_from: None,
+                valid_to: Some(split_date),
+            },
+            TickerAlias {
+                raw_symbol: "META".to_string(),
+                vendor: "nasdaq".to_string(),
+                valid_from: Some(split_date),
+                valid_to: None,
+            },
+        ],
+    };
+
+    registry.register(meta_mapping);
+
+    // 1. Historical query: FB on 2021-05-15 (before rename)
+    let past_date = NaiveDate::from_ymd_opt(2021, 5, 15).unwrap();
+    let resolved_past = registry.resolve_canonical_at("yahoo", "FB", past_date);
+    assert_eq!(resolved_past, Some("META"), "FB in 2021 must resolve to META canonical");
+
+    // 2. Modern query: META on 2023-10-01 (after rename)
+    let modern_date = NaiveDate::from_ymd_opt(2023, 10, 1).unwrap();
+    let resolved_modern = registry.resolve_canonical_at("nasdaq", "META", modern_date);
+    assert_eq!(resolved_modern, Some("META"), "META in 2023 must resolve to META canonical");
+
+    // 3. Invalid/Expired ticker query: FB on 2024-01-01 (FB is no longer valid in 2024)
+    let future_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let resolved_invalid = registry.resolve_canonical_at("yahoo", "FB", future_date);
+    assert_eq!(resolved_invalid, None, "FB in 2024 is retired and must not resolve");
+
+    // 4. Verify permanent identifier retrieval
+    let meta_inst = registry.get("META").expect("META exists");
+    assert_eq!(meta_inst.figi.as_deref(), Some("BBG000MM2P62"));
+    assert_eq!(meta_inst.isin.as_deref(), Some("US30303M1027"));
 }

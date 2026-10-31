@@ -71,3 +71,17 @@
   Model tail risk as a fixed annual protection budget (1%–2%) that injects rebalancing liquidity during severe drawdowns.
 - [ ] **PHASE-285: Integration Test Suite: Invariant Proof against Compounding Glitch**  
   Write automated hermetic tests proving that the engine rejects uncalibrated exponential compounding on option instruments.
+
+---
+
+#### E. Temporal Symbology & Corporate Actions Auto-Ingestion (Phases 286 – 290)
+- [x] **PHASE-286: Permanent Identifiers (ISIN, OpenFIGI, PermID) & Temporal Aliases (`TickerAlias`)**  
+  Extended `InstrumentMapping` in `symbology.rs` with persistent financial IDs and validity dates for historical rebrands.
+- [x] **PHASE-287: Point-in-Time Symbology Resolver (`InstrumentRegistry::resolve_at`)**  
+  Implemented temporal resolver mapping past ticker symbols (e.g. `FB` $\to$ `META`) based on query dates, preventing ticker drift.
+- [x] **PHASE-288: Volume-Aware Stock Split Backward Adjustment (`adjust_ohlcv_backward`)**  
+  Extended `CorporateActionAdjuster` to scale historical price ($P \times \text{factor}$) and volume ($V / \text{split\_factor}$), preserving turnover continuity.
+- [x] **PHASE-289: Automated Yahoo Finance Corporate Action Events Extractor**  
+  Implemented `YahooFinanceFetcher::fetch_daily_bars_with_events()` parsing historical splits and dividends directly from exchange feeds.
+- [ ] **PHASE-290: Parquet Corporate Actions Metadata Table (`data/lake/meta/corporate_actions/`)**  
+  Write persistent Parquet tables for declared corporate actions to feed the automated Silver pipeline.

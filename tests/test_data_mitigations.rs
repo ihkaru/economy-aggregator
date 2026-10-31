@@ -50,6 +50,67 @@ fn test_corporate_actions_split_and_dividend_adjustment() {
 }
 
 #[test]
+fn test_corporate_actions_ohlcv_volume_and_price_scaling() {
+    use economy_aggregator::features::analytics::RawBar;
+
+    let d_pre = NaiveDate::from_ymd_opt(2021, 10, 12).unwrap();
+    let d_split = NaiveDate::from_ymd_opt(2021, 10, 13).unwrap(); // BBCA 5:1 split ex-date
+
+    // Real-world scenario: BBCA 5-for-1 split in Oct 2021
+    // Pre-split: Price Rp 35.000, Volume 10.000.000 shares (Turnover = 350M IDR)
+    // Post-split: Price Rp 7.000, Volume 50.000.000 shares (Turnover = 350M IDR)
+    let raw_bars = vec![
+        RawBar {
+            date: d_pre,
+            open: 34800.0,
+            high: 35200.0,
+            low: 34500.0,
+            close: 35000.0,
+            volume: 10_000_000.0,
+        },
+        RawBar {
+            date: d_split,
+            open: 7000.0,
+            high: 7100.0,
+            low: 6950.0,
+            close: 7000.0,
+            volume: 50_000_000.0,
+        },
+    ];
+
+    let splits = vec![SplitEvent {
+        date: d_split,
+        from_shares: 1.0,
+        to_shares: 5.0, // 5-for-1
+    }];
+
+    let adjusted = CorporateActionAdjuster::adjust_ohlcv_backward(&raw_bars, &splits, &[]);
+    assert_eq!(adjusted.len(), 2);
+
+    let adj_pre = &adjusted[0];
+    let adj_split = &adjusted[1];
+
+    // 1. Post-split bar retains factor = 1.0
+    assert_eq!(adj_split.adjusted_close, 7000.0);
+    assert_eq!(adj_split.adjusted_volume, 50_000_000.0);
+
+    // 2. Pre-split bar is scaled by split factor (1/5 = 0.2)
+    assert_eq!(adj_pre.adjusted_close, 7000.0); // 35000 * 0.2 = 7000.0
+    assert_eq!(adj_pre.adjusted_open, 6960.0);  // 34800 * 0.2 = 6960.0
+
+    // 3. Pre-split volume is scaled inversely (volume / 0.2 = volume * 5 = 50,000,000)
+    assert_eq!(adj_pre.adjusted_volume, 50_000_000.0);
+
+    // 4. Verify continuous economic return on split date
+    let is_continuous = CorporateActionAdjuster::is_return_continuous(
+        adj_pre.adjusted_close,
+        adj_split.adjusted_close,
+        0.01,
+    );
+    assert!(is_continuous, "Return across 5:1 split must be continuous (0% change)");
+}
+
+#[test]
 fn test_bitemporal_macro_point_in_time_lookahead_prevention() {
     let t_preliminary = Utc.with_ymd_and_hms(2024, 4, 25, 12, 30, 0).unwrap();
     let t_revised = Utc.with_ymd_and_hms(2024, 5, 30, 12, 30, 0).unwrap();

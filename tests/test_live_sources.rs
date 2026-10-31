@@ -138,3 +138,28 @@ async fn test_live_alpaca_market_data_key_guarded() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_live_yahoo_finance_splits_and_dividends_pull() {
+    use economy_aggregator::features::ingestion::YahooFinanceFetcher;
+
+    let fetcher = YahooFinanceFetcher::default();
+    match fetcher.fetch_daily_bars_with_events("BBCA.JK", "BBCA", "max").await {
+        Ok((candles, splits, dividends)) => {
+            println!(
+                "✅ Live Yahoo BBCA pull successful: {} candles, {} splits, {} dividends",
+                candles.len(),
+                splits.len(),
+                dividends.len()
+            );
+            assert!(!candles.is_empty(), "Candles must not be empty");
+            assert!(!splits.is_empty(), "BBCA historical splits must not be empty");
+            // BBCA 5:1 split in Oct 2021 has ratio 5.0
+            let has_5to1 = splits.iter().any(|s| (s.ratio() - 5.0).abs() < 1e-4);
+            assert!(has_5to1, "BBCA 5:1 stock split in Oct 2021 must be retrieved");
+        }
+        Err(e) => {
+            println!("⏭️ Skipping live Yahoo corporate actions test (network or rate limit: {})", e);
+        }
+    }
+}

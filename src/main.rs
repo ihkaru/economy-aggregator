@@ -62,6 +62,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             vendor_symbols: btc_vendors,
             contract_address: None,
             network: None,
+            isin: None,
+            figi: Some("BBG0028KLS37".to_string()),
+            perm_id: None,
+            aliases: Vec::new(),
         });
 
         let mut eth_vendors = HashMap::new();
@@ -81,6 +85,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             vendor_symbols: eth_vendors,
             contract_address: None,
             network: None,
+            isin: None,
+            figi: Some("BBG001S5TD05".to_string()),
+            perm_id: None,
+            aliases: Vec::new(),
         });
 
         let mut eur_vendors = HashMap::new();
@@ -100,6 +108,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             vendor_symbols: eur_vendors,
             contract_address: None,
             network: None,
+            isin: None,
+            figi: None,
+            perm_id: None,
+            aliases: Vec::new(),
         });
 
         if let Some(parent) = meta_file.parent() {

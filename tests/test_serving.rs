@@ -98,6 +98,10 @@ async fn test_rest_api_instruments_and_candles_query() {
         vendor_symbols: vendors,
         contract_address: None,
         network: None,
+        isin: None,
+        figi: None,
+        perm_id: None,
+        aliases: Vec::new(),
     });
 
     // Write a real candle into the Parquet lake

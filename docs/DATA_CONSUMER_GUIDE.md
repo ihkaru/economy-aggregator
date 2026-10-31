@@ -53,7 +53,8 @@ API publik kadang-kadang memancarkan *fat-finger glitch* (misal kurs USD/IDR ber
 
 ### 4. Invarian Total Return Index & Stock Split (Aksi Korporasi)
 * Saham mentah mengalami penurunan harga saat *ex-dividend date* dan melompat tajam saat *stock split*.
-* Jika menguji strategi jangka panjang (seperti All-Weather atau Dividend Aristocrats), konversikan harga mentah ke **Total Return Index (TRI)** menggunakan `CorporateActionAdjuster` backward-adjustment.
+* **Penyesuaian Ganda (Harga & Volume):** Saat stock split 5:1 terjadi, harga historis pra-split dibagi 5 ($P \times 0.2$), sedangkan volume perdagangan historis dikalikan 5 ($V / 0.2$). Hal ini menjamin nilai omzet transaksi (*dollar turnover*) masa lalu tetap ekuivalen secara ekonomi.
+* Gunakan `CorporateActionAdjuster::adjust_ohlcv_backward()` untuk mentransformasi lilin mentah ke lilin yang telah disesuaikan secara berkesinambungan.
 
 ---
 
@@ -64,14 +65,21 @@ API publik kadang-kadang memancarkan *fat-finger glitch* (misal kurs USD/IDR ber
 
 ---
 
+### 6. Invarian Symbology Temporal (Point-in-Time Ticker Drift)
+* Simbol ticker dapat berganti sewaktu-waktu akibat rebranding (misal `FB` $\to$ `META` pada 9 Juni 2022) atau restrukturisasi emiten.
+* **Jangan Menggunakan Pemetaan String Statis:** Kueri data historis sebelum tanggal rebranding wajib menggunakan fungsi resolusi temporal `InstrumentRegistry::resolve_at(vendor, raw_ticker, as_of_date)` agar riwayat emiten sebelum perubahan nama tidak hilang atau terpecah.
+
+---
+
 ## 3. Toolkit Pengolahan Rust Bawaan
 
 | Modul Pengolahan | Lokasi Kode Sumber | Fungsi Utama |
 | :--- | :--- | :--- |
+| `InstrumentRegistry` | [`src/features/storage/symbology.rs`](file:///root/projects/economy-aggregator/src/features/storage/symbology.rs) | Resolusi Point-in-Time Ticker & identitas permanen (ISIN/FIGI). |
 | `HampelFilter` | [`src/features/analytics/outlier.rs`](file:///root/projects/economy-aggregator/src/features/analytics/outlier.rs) | Deteksi outlier statistik non-parametrik adaptif. |
 | `TradingCalendarAligner` | [`src/features/analytics/calendar_aligner.rs`](file:///root/projects/economy-aggregator/src/features/analytics/calendar_aligner.rs) | Sinkronisasi multi-bursa dengan deterministic forward-fill. |
 | `FxNormalizer` | [`src/features/analytics/fx_normalizer.rs`](file:///root/projects/economy-aggregator/src/features/analytics/fx_normalizer.rs) | Normalisasi valuasi aset asing ke IDR. |
-| `CorporateActionAdjuster` | [`src/features/analytics/corporate_actions.rs`](file:///root/projects/economy-aggregator/src/features/analytics/corporate_actions.rs) | Backward adjustment untuk split dan dividen tunai. |
+| `CorporateActionAdjuster` | [`src/features/analytics/corporate_actions.rs`](file:///root/projects/economy-aggregator/src/features/analytics/corporate_actions.rs) | Backward adjustment OHLCV (harga dan volume) untuk split & dividen. |
 | `PointInTimeEngine` | [`src/features/analytics/bitemporal.rs`](file:///root/projects/economy-aggregator/src/features/analytics/bitemporal.rs) | Kueri bitemporal untuk mencegah look-ahead bias makro. |
 | `FuturesRollEngine` | [`src/features/analytics/futures_roll.rs`](file:///root/projects/economy-aggregator/src/features/analytics/futures_roll.rs) | Penyambungan kontrak berjangka via Panama Ratio & Additive Diff. |
 | `PortfolioEngine` | [`src/features/analytics/portfolio.rs`](file:///root/projects/economy-aggregator/src/features/analytics/portfolio.rs) | Evaluasi CAGR, Volatilitas, Max Drawdown, Sharpe, & Korelasi. |

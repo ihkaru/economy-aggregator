@@ -16,7 +16,7 @@ pub mod synthetic_bond;
 pub use bitemporal::{MacroVintageRecord, PointInTimeEngine, VintageStage};
 pub use calendar_aligner::{AlignedPanel, TradingCalendarAligner};
 pub use config::{AssetSpec, PortfolioSpec};
-pub use corporate_actions::{AdjustedPricePoint, CorporateActionAdjuster, DividendEvent, SplitEvent};
+pub use corporate_actions::{AdjustedBar, AdjustedPricePoint, CorporateActionAdjuster, DividendEvent, RawBar, SplitEvent};
 pub use futures_roll::{ForexSessionNormalizer, FuturesRollEngine, FuturesRollEvent, RollMethod};
 pub use fx_normalizer::FxNormalizer;
 pub use outlier::HampelFilter;

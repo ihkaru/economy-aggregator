@@ -1,11 +1,12 @@
 //! Yahoo Finance REST API fetcher for global equities, indices, commodities, bonds, and forex.
 
+use std::collections::HashMap;
 use std::time::Duration;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::core::types::{AggregatorCandle, IngestionMode, TimeFrame};
+use crate::core::types::{AggregatorCandle, DividendEvent, IngestionMode, SplitEvent, TimeFrame};
 
 #[derive(Debug, Deserialize)]
 struct YahooChartResponse {
@@ -28,6 +29,26 @@ struct YahooChartError {
 struct YahooChartResult {
     timestamp: Option<Vec<i64>>,
     indicators: YahooIndicators,
+    events: Option<YahooEvents>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YahooEvents {
+    splits: Option<HashMap<String, YahooSplitEvent>>,
+    dividends: Option<HashMap<String, YahooDividendEvent>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YahooSplitEvent {
+    date: i64,
+    numerator: f64,
+    denominator: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct YahooDividendEvent {
+    date: i64,
+    amount: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,17 +94,31 @@ impl YahooFinanceFetcher {
         canonical_symbol: &str,
         range: &str,
     ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
+        let (candles, _, _) = self.fetch_daily_bars_with_events(raw_symbol, canonical_symbol, range).await?;
+        Ok(candles)
+    }
+
+    /// Fetches historical daily candles alongside corporate action events (Stock Splits and Dividends).
+    pub async fn fetch_daily_bars_with_events(
+        &self,
+        raw_symbol: &str,
+        canonical_symbol: &str,
+        range: &str,
+    ) -> Result<
+        (Vec<AggregatorCandle>, Vec<SplitEvent>, Vec<DividendEvent>),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
         let url = if range == "max" {
             let now = Utc::now().timestamp();
             format!(
-                "{}/v8/finance/chart/{}?interval=1d&period1=0&period2={}",
+                "{}/v8/finance/chart/{}?interval=1d&period1=0&period2={}&events=capitalGain%7Cdiv%7Csplit",
                 self.base_url,
                 urlencoding_safe(raw_symbol),
                 now
             )
         } else {
             format!(
-                "{}/v8/finance/chart/{}?interval=1d&range={}",
+                "{}/v8/finance/chart/{}?interval=1d&range={}&events=capitalGain%7Cdiv%7Csplit",
                 self.base_url,
                 urlencoding_safe(raw_symbol),
                 range
@@ -157,7 +192,38 @@ impl YahooFinanceFetcher {
             }
         }
 
-        Ok(candles)
+        // Parse Corporate Action Splits and Dividends
+        let mut splits = Vec::new();
+        let mut dividends = Vec::new();
+
+        if let Some(events) = result.events {
+            if let Some(s_map) = events.splits {
+                for (_, s) in s_map {
+                    if let Some(dt) = DateTime::<Utc>::from_timestamp(s.date, 0) {
+                        splits.push(SplitEvent {
+                            date: dt.date_naive(),
+                            from_shares: s.denominator,
+                            to_shares: s.numerator,
+                        });
+                    }
+                }
+                splits.sort_by_key(|s| s.date);
+            }
+
+            if let Some(d_map) = events.dividends {
+                for (_, d) in d_map {
+                    if let Some(dt) = DateTime::<Utc>::from_timestamp(d.date, 0) {
+                        dividends.push(DividendEvent {
+                            ex_date: dt.date_naive(),
+                            cash_amount: d.amount,
+                        });
+                    }
+                }
+                dividends.sort_by_key(|d| d.ex_date);
+            }
+        }
+
+        Ok((candles, splits, dividends))
     }
 }
 
