@@ -109,6 +109,8 @@ impl IngestionMode {
 /// Standardized high-frequency candlestick / bar record.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregatorCandle {
+    #[serde(default = "default_time")]
+    pub time: i64, // Numeric Unix epoch timestamp in seconds (UTC)
     pub timestamp_utc: DateTime<Utc>,
     pub canonical_symbol: String,
     pub timeframe: TimeFrame,
@@ -129,6 +131,10 @@ pub struct AggregatorCandle {
     pub trade_count: Option<u32>,
     pub price_type: String, // "last", "mark", "index"
     pub raw_metadata: Option<String>, // Optional vendor-specific extra metadata (0 bytes in Parquet when None)
+}
+
+fn default_time() -> i64 {
+    0
 }
 
 impl AggregatorCandle {

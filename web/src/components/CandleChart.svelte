@@ -168,8 +168,12 @@
 
     for (const c of candles) {
       if (typeof c.open !== 'number' || typeof c.close !== 'number' || isNaN(c.open) || isNaN(c.close)) continue;
-      const dt = new Date(c.timestamp_utc);
-      const sec = Math.floor(dt.getTime() / 1000);
+      
+      // Pure numeric UTC timestamp from backend
+      const sec = typeof c.time === 'number' && c.time > 0
+        ? c.time
+        : Math.floor(new Date(c.timestamp_utc).getTime() / 1000);
+
       if (isNaN(sec) || seenSecs.has(sec)) continue;
       seenSecs.add(sec);
 

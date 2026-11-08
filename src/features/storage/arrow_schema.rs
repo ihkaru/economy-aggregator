@@ -177,6 +177,7 @@ pub fn record_batch_to_candles(
         };
 
         candles.push(AggregatorCandle {
+            time: ts.timestamp(),
             timestamp_utc: ts,
             canonical_symbol: extract_str(1, i),
             timeframe,

@@ -203,27 +203,31 @@ impl ReconciliationEngine {
         let to_candles = |series: &[(NaiveDate, f64)], src: &str| -> Vec<AggregatorCandle> {
             series
                 .iter()
-                .map(|(d, p)| AggregatorCandle {
-                    timestamp_utc: d.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc(),
-                    canonical_symbol: canonical_symbol.to_string(),
-                    timeframe: TimeFrame::D1,
-                    open: *p,
-                    high: *p,
-                    low: *p,
-                    close: *p,
-                    volume_base: 0.0,
-                    volume_quote: 0.0,
-                    taker_buy_volume_base: None,
-                    taker_buy_volume_quote: None,
-                    source: src.to_string(),
-                    raw_symbol: canonical_symbol.to_string(),
-                    ingestion_mode: IngestionMode::RestBatch,
-                    is_settled: true,
-                    sequence_id: None,
-                    vwap: None,
-                    trade_count: None,
-                    price_type: "close".to_string(),
-                    raw_metadata: None,
+                .map(|(d, p)| {
+                    let ts = d.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
+                    AggregatorCandle {
+                        time: ts.timestamp(),
+                        timestamp_utc: ts,
+                        canonical_symbol: canonical_symbol.to_string(),
+                        timeframe: TimeFrame::D1,
+                        open: *p,
+                        high: *p,
+                        low: *p,
+                        close: *p,
+                        volume_base: 0.0,
+                        volume_quote: 0.0,
+                        taker_buy_volume_base: None,
+                        taker_buy_volume_quote: None,
+                        source: src.to_string(),
+                        raw_symbol: canonical_symbol.to_string(),
+                        ingestion_mode: IngestionMode::RestBatch,
+                        is_settled: true,
+                        sequence_id: None,
+                        vwap: None,
+                        trade_count: None,
+                        price_type: "close".to_string(),
+                        raw_metadata: None,
+                    }
                 })
                 .collect()
         };

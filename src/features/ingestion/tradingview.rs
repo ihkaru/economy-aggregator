@@ -79,6 +79,7 @@ impl TradingViewParser {
             let volume = resp.v.get(i).copied().unwrap_or(0.0);
 
             candles.push(AggregatorCandle {
+                time: timestamp_utc.timestamp(),
                 timestamp_utc,
                 canonical_symbol: canonical_symbol.to_string(),
                 timeframe,

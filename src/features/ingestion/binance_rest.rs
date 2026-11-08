@@ -99,6 +99,7 @@ impl BinanceRestFetcher {
                 .unwrap_or_else(Utc::now);
 
             candles.push(AggregatorCandle {
+                time: ts_utc.timestamp(),
                 timestamp_utc: ts_utc,
                 canonical_symbol: canonical_symbol.to_string(),
                 timeframe,

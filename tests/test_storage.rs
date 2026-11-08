@@ -16,8 +16,10 @@ fn create_sample_candle(
     is_settled: bool,
     source: &str,
 ) -> AggregatorCandle {
+    let dt = Utc.with_ymd_and_hms(2026, 10, 30, 14, 0, 0).unwrap();
     AggregatorCandle {
-        timestamp_utc: Utc.with_ymd_and_hms(2026, 10, 30, 14, 0, 0).unwrap(),
+        time: dt.timestamp(),
+        timestamp_utc: dt,
         canonical_symbol: symbol.to_string(),
         timeframe: TimeFrame::M1,
         open: 100.0,
@@ -188,15 +190,18 @@ fn test_lake_compactor_merges_chunks_and_deduplicates() {
     // Create 2 chunks: one provisional candle, then another settled candle with the same key
     let dt = Utc.with_ymd_and_hms(2026, 10, 30, 14, 0, 0).unwrap();
     let mut provisional = create_sample_candle("BTC/USDT", false, "binance");
+    provisional.time = dt.timestamp();
     provisional.timestamp_utc = dt;
     provisional.close = 100.0;
 
     let mut settled = create_sample_candle("BTC/USDT", true, "binance");
+    settled.time = dt.timestamp();
     settled.timestamp_utc = dt;
     settled.close = 105.0; // Settled final price
 
     let dt2 = Utc.with_ymd_and_hms(2026, 10, 30, 14, 1, 0).unwrap();
     let mut candle2 = create_sample_candle("BTC/USDT", true, "binance");
+    candle2.time = dt2.timestamp();
     candle2.timestamp_utc = dt2;
 
     // Write chunk 1

@@ -168,6 +168,7 @@ impl YahooFinanceFetcher {
                     .unwrap_or_else(|| Utc::now());
 
                 candles.push(AggregatorCandle {
+                    time: dt.timestamp(),
                     timestamp_utc: dt,
                     canonical_symbol: canonical_symbol.to_string(),
                     timeframe: TimeFrame::D1,

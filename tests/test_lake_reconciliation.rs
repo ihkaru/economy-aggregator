@@ -20,8 +20,10 @@ fn make_candle(
     volume: f64,
     source: &str,
 ) -> AggregatorCandle {
+    let dt = Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap());
     AggregatorCandle {
-        timestamp_utc: Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap()),
+        time: dt.timestamp(),
+        timestamp_utc: dt,
         canonical_symbol: symbol.to_string(),
         timeframe: TimeFrame::D1,
         open: close * 0.99,

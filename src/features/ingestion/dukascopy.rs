@@ -102,6 +102,7 @@ impl DukascopyParser {
         let timestamp_utc = DateTime::from_timestamp_micros(ts_micros)?;
 
         Some(AggregatorCandle {
+            time: timestamp_utc.timestamp(),
             timestamp_utc,
             canonical_symbol: canonical_symbol.to_string(),
             timeframe,

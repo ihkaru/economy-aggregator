@@ -17,8 +17,10 @@ use economy_aggregator::features::storage::{
 };
 
 fn create_sample_candle(symbol: &str) -> AggregatorCandle {
+    let dt = Utc.with_ymd_and_hms(2026, 10, 30, 15, 0, 0).unwrap();
     AggregatorCandle {
-        timestamp_utc: Utc.with_ymd_and_hms(2026, 10, 30, 15, 0, 0).unwrap(),
+        time: dt.timestamp(),
+        timestamp_utc: dt,
         canonical_symbol: symbol.to_string(),
         timeframe: TimeFrame::M1,
         open: 50000.0,

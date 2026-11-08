@@ -6,9 +6,20 @@
   export let candles: AggregatorCandle[] = [];
   export let timeframe: string;
 
+  function formatTimestamp(c: AggregatorCandle | undefined): string {
+    if (!c) return '-';
+    if (typeof c.time === 'number' && c.time > 0) {
+      return new Date(c.time * 1000).toISOString().split('T')[0];
+    }
+    if (c.timestamp_utc) {
+      return c.timestamp_utc.split('T')[0];
+    }
+    return '-';
+  }
+
   $: count = candles.length;
-  $: firstDate = candles.length > 0 ? candles[0].timestamp_utc.split('T')[0] : '-';
-  $: lastDate = candles.length > 0 ? candles[candles.length - 1].timestamp_utc.split('T')[0] : '-';
+  $: firstDate = candles.length > 0 ? formatTimestamp(candles[0]) : '-';
+  $: lastDate = candles.length > 0 ? formatTimestamp(candles[candles.length - 1]) : '-';
   $: settledCount = candles.filter((c) => c.is_settled).length;
 </script>
 
