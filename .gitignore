@@ -16,7 +16,8 @@ venv/
 **/.venv/
 build/
 develop-eggs/
-dist/
+/dist/
+!web/dist/**
 downloads/
 eggs/
 .eggs/

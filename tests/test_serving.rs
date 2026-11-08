@@ -155,6 +155,7 @@ async fn test_rest_api_instruments_and_candles_query() {
 
     // 3. Test /v1/storage/stats
     let res_stats = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/v1/storage/stats")
@@ -168,4 +169,41 @@ async fn test_rest_api_instruments_and_candles_query() {
     let json_stats: Value = serde_json::from_slice(&body_stats).unwrap();
     assert_eq!(json_stats["total_chunks_found"], 1);
     assert!(json_stats["total_bytes"].as_u64().unwrap() > 0);
+
+    // 4. Test /v1/market/catalog
+    let res_cat = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/market/catalog")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_cat.status(), StatusCode::OK);
+    let body_cat = res_cat.into_body().collect().await.unwrap().to_bytes();
+    let cat: Value = serde_json::from_slice(&body_cat).unwrap();
+    assert!(cat.is_array());
+    assert_eq!(cat[0]["symbol"], "ETH/USDT");
+    assert_eq!(cat[0]["canonical_symbol"], "ETH/USDT");
+    assert_eq!(cat[0]["asset_class"], "crypto");
+    assert_eq!(cat[0]["active"], true);
+
+    // 5. Test root UI fallback (serving web/dist if present)
+    let res_ui = app
+        .oneshot(
+            Request::builder()
+                .uri("/")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if std::path::Path::new("web/dist/index.html").exists() {
+        assert_eq!(res_ui.status(), StatusCode::OK);
+        let body_ui = res_ui.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body_ui);
+        assert!(html.contains("<!doctype html>") || html.contains("<html"));
+    }
 }

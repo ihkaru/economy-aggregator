@@ -22,6 +22,8 @@
 | **ADR-10** | Standar Pemodelan Derivatif Non-Linier & Pencegahan Bug Compounding | Diterima | 2026-10-30 |
 | **ADR-11** | Pipeline Transformasi Silver Terpadu & Engine Alokasi Rust Native | Diterima | 2026-10-30 |
 | **ADR-12** | Symbology Temporal (Point-in-Time Alias) & Penyesuaian Aksi Korporasi Volume | Diterima | 2026-10-31 |
+| **ADR-13** | Rekonsiliasi Lilin Multi-Sumber & Audit Integritas Data Lakehouse | Diterima | 2026-11-08 |
+| **ADR-14** | Built-in High-Density Svelte Candle Inspection Terminal & Batasan Deterministik 400 Baris | Diterima | 2026-11-08 |
 
 ---
 
@@ -214,3 +216,28 @@
   Integritas lakehouse dapat diaudit secara berkala tanpa menyentuh atau memutasi data Bronze asli, memberikan bukti empiris bahwa data yang tersimpan valid, bebas revisi liar, dan terdeteksi dini jika ada celah data.
 * **Risiko yang Muncul:**  
   `RISK-16` (Perbedaan konvensi jam penutupan bursa / timezone antar vendor yang dapat menimbulkan selisih mikro toleransi harga).
+
+---
+
+### ADR-14: Built-in High-Density Svelte Candle Inspection Terminal & Batasan Deterministik 400 Baris
+* **Status:** Diterima
+* **Konteks:**  
+  Meskipun engine rekonsiliasi CLI dan test suite otomatis telah menjamin akurasi numerik candle lakehouse, analis dan operator tetap membutuhkan sarana konfirmasi visual instan untuk mengamati formasi lilin, wick, anomali volume, dan pola data tanpa harus membuka platform trading pihak ketiga yang berat atau berpotensi terikat lisensi komersial.
+  Kebutuhan spesifik:
+  1. Antarmuka bawaan (*built-in*) langsung dilayani oleh backend Rust Axum (`GET /`).
+  2. Charting berkinerja tinggi berbasis `lightweight-charts`.
+  3. Gaya antarmuka ala TradingView / Bloomberg Terminal dengan densitas tinggi (*high density*, obsidian dark `#08090d`).
+  4. Aturan tanpa sudut melengkung (*zero rounded corners*, `border-radius: 0px` strictly everywhere).
+  5. Tipografi 100% Google Sans (termasuk angka tabular `tnum`/`lnum`).
+  6. Nol emotikon/emoji (*zero emoticons*), digantikan oleh vektor SVG miter/square monokromatik.
+  7. Implementasi murni Svelte (`web/`).
+  8. Batasan deterministik ketat: maksimal 400 baris per file di seluruh codebase frontend maupun backend.
+* **Keputusan:**  
+  1. Membangun modul frontend di `web/` menggunakan Svelte 4 dan Vite 5, membungkus TradingView `lightweight-charts` dengan histogram volume terintegrasi, legend pelacak crosshair interaktif, pemilih instrumen/ticker modal keyboard-first (`/` atau `Ctrl+K`), dan pemilih timeframe (`1m`, `5m`, `15m`, `1h`, `1d`, `1w`, `1M`).
+  2. Menyediakan endpoint katalog `/v1/market/catalog` di backend Axum dan melayani bundel statis `web/dist` melalui `tower_http::services::ServeDir`.
+  3. Mengadopsi `Icons.svelte` berbasis SVG terminal miter/square untuk meniadakan ketergantungan bundle eksternal dan menjamin tampilan bebas rounded corner.
+  4. Menerapkan pengujian deterministik di `tests/test_sanity.rs` (`test_deterministic_file_line_limits_under_400`) yang secara rekursif memverifikasi bahwa tidak ada satupun file `.rs`, `.svelte`, `.ts`, `.js`, atau `.css` yang melampaui 400 baris kode.
+* **Konsekuensi Positif:**  
+  Operator mendapatkan visualisasi real-time yang tajam, sangat responsif, dan zero-friction langsung dari executable tunggal `economy-aggregator serve`, sembari menjaga modularitas kode tetap ramping, terdekomposisi rapi, dan mudah diaudit.
+* **Risiko yang Muncul:**  
+  `RISK-17` (Kebutuhan build Vite `bun run build` jika terjadi perubahan komponen UI di direktori `web/src/`).

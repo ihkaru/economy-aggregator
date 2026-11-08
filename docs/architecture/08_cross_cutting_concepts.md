@@ -80,3 +80,14 @@ Belajar dari evaluasi empiris simulasi portofolio, pemodelan instrumen derivatif
   4. `MissingInLive`: Bar perdagangan ada di danau data tetapi tidak disediakan oleh vendor live pada rentang kueri.
 - **Dukungan Multi-Sumber:** Mengakomodasi format vendor eksternal bursa, termasuk Binance klines, Yahoo Finance daily bars, Dukascopy FX/CFD JSON (format array dan objek), serta TradingView UDF response format (`s: "ok"`, `t`, `o`, `h`, `l`, `c`, `v`).
 - **Audit Non-Destruktif:** Pemeriksaan rekonsiliasi bersifat murni *read-only* tanpa pernah memutasi data Bronze mentah di disk.
+
+## 8.10 Visual Candle Inspection Terminal & Batasan Deterministik 400 Baris
+- **Tujuan:** Menyediakan antarmuka visual bawaan (*built-in zero-dependency UI*) yang ringan, berdensitas tinggi, dan dapat diakses instan oleh analis/operator pasar untuk memverifikasi bentuk lilin secara visual berdampingan dengan tes rekonsiliasi otomatis.
+- **Invarian Desain Terminal (TradingView & Bloomberg Aesthetics):**
+  1. *Zero Rounded Corners:* Seluruh elemen UI wajib menggunakan sudut siku tajam (`border-radius: 0px` strictly everywhere, `.rounded-none`).
+  2. *Obsidian Dark Theme:* Palet warna gelap obsidian `#08090d` dengan kontras batas 1px (`#1f2430` / `#2d3446`).
+  3. *Tipografi 100% Google Sans:* Seluruh teks dan angka menggunakan Google Sans dengan fitur OpenType tabular numbers (`font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum', 'lnum'`).
+  4. *Zero Emotikon / Emojis:* Dilarang keras menggunakan emoji di manapun pada antarmuka. Seluruh ikonografi menggunakan SVG vektor square/miter murni via `Icons.svelte`.
+  5. *Interaksi Keyboard-First:* Pemilihan instrumen mendukung pencarian instan via modal keyboard shortcut (`/` atau `Ctrl+K`), navigasi panah, dan pemilih timeframe instan (`1m`, `5m`, `15m`, `1h`, `1d`, `1w`, `1M`).
+- **Batasan Deterministik 400 Baris (Strict Line Limit):**
+  Untuk mencegah *file bloat* dan pelanggaran *Single Responsibility Principle* (SRP), seluruh berkas kode baik frontend (`.svelte`, `.ts`, `.js`, `.css`) maupun backend (`.rs`) diwajibkan memiliki panjang maksimal $\le 400$ baris kode. Invarian ini diverifikasi secara deterministik oleh test suite otomatis `tests/test_sanity.rs` (`test_deterministic_file_line_limits_under_400`).

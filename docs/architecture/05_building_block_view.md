@@ -27,6 +27,7 @@ graph TD
     subgraph ServingSlice["Fitur Pelayanan (src/features/serving)"]
         API[Axum REST Server]
         BC[WebSocket Broadcaster]
+        UI[High-Density Svelte Web Terminal (web/)]
     end
 
     subgraph CliSlice["Fitur Antarmuka Agen (src/core/cli.rs)"]
@@ -72,7 +73,7 @@ graph TD
 | **Sanity Gate & Gap Healer** | Memfilter data rusak (harga minus atau lonjakan anomali) dan mendeteksi data bolong untuk ditambal ulang. | `IF-01`, `IF-02` |
 | **Micro-Batch Buffer** | Menampung data masuk di RAM secara aman sebelum dieksekusi ke harddisk. | `IF-01`, `IF-03` |
 | **Parquet Lake Writer & Compactor** | Menulis data terkompresi ke partisi Parquet Hive dan memadatkan micro-chunks menjadi single file bulanan. | `IF-03` |
-| **Serving Engine** | Menyediakan jalur bagi aplikasi luar untuk mengambil data via REST API atau WebSocket real-time. | `IF-04`, `IF-05` |
+| **Serving Engine & UI Terminal** | Menyediakan jalur pengambilan data via REST API, WebSocket, serta web terminal Svelte bawaan berdensitas tinggi untuk konfirmasi lilin visual. | `IF-04`, `IF-05`, `IF-08` |
 | **Quantitative Analytics Engine** | Menyediakan sinkronisasi kalender multi-bursa, normalisasi FX, sintesis kupon obligasi, dan kalkulasi risiko portofolio (CAGR, Volatilitas, Max Drawdown, Sharpe, Korelasi). | `IF-07` |
 | **Agent-First CLI & Config Engine** | Menyediakan eksekusi perintah headless, inisialisasi konfigurasi deklaratif, dan orkestrasi backfill 2020 via JSON envelope. | `IF-06` |
 
@@ -92,6 +93,13 @@ src/
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, Symbology
 │   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, PortfolioSpec, Portfolio Engine
-│   └── serving/              # Axum REST endpoints (/health, /candles, /stats)
+│   └── serving/              # Axum REST endpoints (/health, /candles, /catalog, /stats) & UI static server
+web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
+├── src/
+│   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons
+│   ├── lib/                  # api.ts, types.ts
+│   ├── app.css               # Obsidian terminal theme (#08090d), tabular numbers, 0px border-radius
+│   └── App.svelte            # Root layout (< 400 lines)
+├── dist/                     # Pre-compiled static assets served directly at GET /
 economy-aggregator.toml       # Template konfigurasi deklaratif 'one-config-away'
 ```

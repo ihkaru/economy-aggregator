@@ -1,6 +1,7 @@
-//! REST API serving endpoints for market candles, instruments metadata, and health.
+//! REST API serving endpoints for market candles, instruments catalog, and health.
 
 use std::fs::{self, File};
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use axum::extract::{Query, State};
@@ -10,9 +11,11 @@ use axum::routing::get;
 use axum::{Json, Router};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use serde::{Deserialize, Serialize};
+use tower_http::services::{ServeDir, ServeFile};
 
 use crate::core::config::LakehouseConfig;
-use crate::core::types::{AggregatorCandle, AssetClass, IngestionMode, TimeFrame};
+use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
+use crate::features::storage::arrow_schema::record_batch_to_candles;
 use crate::features::storage::{InstrumentMapping, InstrumentRegistry, PartitionResolver};
 
 pub struct AppState {
@@ -47,13 +50,33 @@ pub struct StorageStatsResponse {
     pub total_bytes: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstrumentCatalogItem {
+    pub symbol: String,
+    pub canonical_symbol: String,
+    pub name: String,
+    pub asset_class: String,
+    pub source: String,
+    pub active: bool,
+}
+
 pub fn create_router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let api_router = Router::new()
         .route("/health", get(health_handler))
         .route("/v1/instruments", get(list_instruments_handler))
+        .route("/v1/market/catalog", get(market_catalog_handler))
         .route("/v1/market/candles", get(query_candles_handler))
         .route("/v1/storage/stats", get(storage_stats_handler))
-        .with_state(state)
+        .with_state(state);
+
+    let web_dist = Path::new("web/dist");
+    if web_dist.exists() {
+        let serve_dir = ServeDir::new(web_dist)
+            .not_found_service(ServeFile::new(web_dist.join("index.html")));
+        api_router.fallback_service(serve_dir)
+    } else {
+        api_router
+    }
 }
 
 async fn health_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -71,6 +94,33 @@ async fn list_instruments_handler(
 ) -> Json<Vec<InstrumentMapping>> {
     let reg = state.registry.read().unwrap();
     Json(reg.list_all())
+}
+
+async fn market_catalog_handler(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<InstrumentCatalogItem>> {
+    let reg = state.registry.read().unwrap();
+    let mappings = reg.list_all();
+    let items: Vec<InstrumentCatalogItem> = mappings
+        .into_iter()
+        .map(|m| {
+            let src = m
+                .vendor_symbols
+                .keys()
+                .next()
+                .cloned()
+                .unwrap_or_else(|| "lakehouse".to_string());
+            InstrumentCatalogItem {
+                symbol: m.canonical_symbol.clone(),
+                canonical_symbol: m.canonical_symbol.clone(),
+                name: m.name.clone(),
+                asset_class: m.asset_class.as_str().to_string(),
+                source: src,
+                active: true,
+            }
+        })
+        .collect();
+    Json(items)
 }
 
 async fn storage_stats_handler(
@@ -91,7 +141,7 @@ async fn storage_stats_handler(
     })
 }
 
-fn count_parquet_recursive(dir: &std::path::Path, count: &mut usize, bytes: &mut u64) {
+fn count_parquet_recursive(dir: &Path, count: &mut usize, bytes: &mut u64) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let p = entry.path();
@@ -154,7 +204,7 @@ async fn query_candles_handler(
                 if let Ok(builder) = ParquetRecordBatchReaderBuilder::try_new(file) {
                     if let Ok(mut reader) = builder.build() {
                         while let Some(Ok(batch)) = reader.next() {
-                            if let Ok(parsed) = parse_batch_to_candles(&batch) {
+                            if let Ok(parsed) = record_batch_to_candles(&batch) {
                                 candles.extend(parsed);
                             }
                         }
@@ -175,104 +225,4 @@ async fn query_candles_handler(
     }
 
     Ok(Json(candles))
-}
-
-fn parse_batch_to_candles(
-    batch: &arrow::record_batch::RecordBatch,
-) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
-    use arrow::array::*;
-    use arrow::datatypes::{DataType, TimeUnit};
-    use chrono::{DateTime, Utc};
-
-    let ts_col = batch.column(0);
-    let ts_micros: Vec<i64> = match ts_col.data_type() {
-        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-            let arr = ts_col.as_any().downcast_ref::<TimestampNanosecondArray>().ok_or("Failed downcast ts nanos")?;
-            (0..batch.num_rows()).map(|i| arr.value(i) / 1_000).collect()
-        }
-        DataType::Timestamp(TimeUnit::Microsecond, _) => {
-            let arr = ts_col.as_any().downcast_ref::<TimestampMicrosecondArray>().ok_or("Failed downcast ts micros")?;
-            (0..batch.num_rows()).map(|i| arr.value(i)).collect()
-        }
-        DataType::Timestamp(TimeUnit::Millisecond, _) => {
-            let arr = ts_col.as_any().downcast_ref::<TimestampMillisecondArray>().ok_or("Failed downcast ts millis")?;
-            (0..batch.num_rows()).map(|i| arr.value(i) * 1_000).collect()
-        }
-        dt => return Err(format!("Unexpected timestamp data type: {:?}", dt).into()),
-    };
-
-    let extract_str = |col_idx: usize, row_idx: usize| -> String {
-        let col = batch.column(col_idx);
-        if let Some(arr) = col.as_any().downcast_ref::<StringArray>() {
-            return arr.value(row_idx).to_string();
-        }
-        if let Some(arr) = col.as_any().downcast_ref::<LargeStringArray>() {
-            return arr.value(row_idx).to_string();
-        }
-        if let Some(dict) = col.as_any().downcast_ref::<DictionaryArray<arrow::datatypes::Int32Type>>() {
-            if let Some(values) = dict.values().as_any().downcast_ref::<StringArray>() {
-                if let Some(key) = dict.key(row_idx) {
-                    return values.value(key).to_string();
-                }
-            }
-        }
-        String::new()
-    };
-
-    let open_array = batch.column(3).as_any().downcast_ref::<Float64Array>().ok_or("Invalid open col")?;
-    let high_array = batch.column(4).as_any().downcast_ref::<Float64Array>().ok_or("Invalid high col")?;
-    let low_array = batch.column(5).as_any().downcast_ref::<Float64Array>().ok_or("Invalid low col")?;
-    let close_array = batch.column(6).as_any().downcast_ref::<Float64Array>().ok_or("Invalid close col")?;
-    let vol_base_array = batch.column(7).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vol_base col")?;
-    let vol_quote_array = batch.column(8).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vol_quote col")?;
-    let taker_base_array = batch.column(9).as_any().downcast_ref::<Float64Array>().ok_or("Invalid taker_base col")?;
-    let taker_quote_array = batch.column(10).as_any().downcast_ref::<Float64Array>().ok_or("Invalid taker_quote col")?;
-    let is_settled_array = batch.column(14).as_any().downcast_ref::<BooleanArray>().ok_or("Invalid is_settled col")?;
-    let sequence_id_array = batch.column(15).as_any().downcast_ref::<UInt64Array>().ok_or("Invalid seq col")?;
-    let vwap_array = batch.column(16).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vwap col")?;
-    let trade_count_array = batch.column(17).as_any().downcast_ref::<UInt32Array>().ok_or("Invalid trade_count col")?;
-
-    let mut candles = Vec::with_capacity(batch.num_rows());
-    for i in 0..batch.num_rows() {
-        let ts = DateTime::from_timestamp_micros(ts_micros[i]).unwrap_or_else(Utc::now);
-        let tf_str = extract_str(2, i);
-        let timeframe = TimeFrame::from_str_opt(&tf_str).unwrap_or(TimeFrame::M1);
-
-        let mode_str = extract_str(13, i);
-        let ingestion_mode = match mode_str.as_str() {
-            "rest_batch" => IngestionMode::RestBatch,
-            "reconciliation" => IngestionMode::Reconciliation,
-            _ => IngestionMode::LiveWs,
-        };
-
-        candles.push(AggregatorCandle {
-            timestamp_utc: ts,
-            canonical_symbol: extract_str(1, i),
-            timeframe,
-            open: open_array.value(i),
-            high: high_array.value(i),
-            low: low_array.value(i),
-            close: close_array.value(i),
-            volume_base: vol_base_array.value(i),
-            volume_quote: vol_quote_array.value(i),
-            taker_buy_volume_base: if taker_base_array.is_null(i) { None } else { Some(taker_base_array.value(i)) },
-            taker_buy_volume_quote: if taker_quote_array.is_null(i) { None } else { Some(taker_quote_array.value(i)) },
-            source: extract_str(11, i),
-            raw_symbol: extract_str(12, i),
-            ingestion_mode,
-            is_settled: is_settled_array.value(i),
-            sequence_id: if sequence_id_array.is_null(i) { None } else { Some(sequence_id_array.value(i)) },
-            vwap: if vwap_array.is_null(i) { None } else { Some(vwap_array.value(i)) },
-            trade_count: if trade_count_array.is_null(i) { None } else { Some(trade_count_array.value(i)) },
-            price_type: extract_str(18, i),
-            raw_metadata: if batch.num_columns() > 19 && !batch.column(19).is_null(i) {
-                let s = extract_str(19, i);
-                if s.is_empty() { None } else { Some(s) }
-            } else {
-                None
-            },
-        });
-    }
-
-    Ok(candles)
 }

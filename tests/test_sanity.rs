@@ -78,3 +78,49 @@ fn test_sanity_gate_outlier_detection() {
     // Outlier 10x crash (e.g. dirty quote 888.11 vs 9000.0)
     assert!(SanityGate::is_price_outlier(9000.0, 888.11, 5.0));
 }
+
+#[test]
+fn test_deterministic_file_line_limits_under_400() {
+    use std::fs;
+    use std::path::Path;
+
+    fn check_dir(dir: &Path, max_limit: usize, violations: &mut Vec<(String, usize)>) {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                let file_name = p.file_name().unwrap_or_default().to_string_lossy();
+                if file_name.starts_with('.') || file_name == "node_modules" || file_name == "target" || file_name == "dist" {
+                    continue;
+                }
+                if p.is_dir() {
+                    check_dir(&p, max_limit, violations);
+                } else if let Some(ext) = p.extension() {
+                    let ext_str = ext.to_string_lossy();
+                    if matches!(ext_str.as_ref(), "rs" | "svelte" | "ts" | "js" | "css") {
+                        if let Ok(content) = fs::read_to_string(&p) {
+                            let line_count = content.lines().count();
+                            if line_count > max_limit {
+                                violations.push((p.display().to_string(), line_count));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut violations = Vec::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    check_dir(&root.join("src"), 400, &mut violations);
+    check_dir(&root.join("tests"), 400, &mut violations);
+    check_dir(&root.join("web").join("src"), 400, &mut violations);
+
+    if !violations.is_empty() {
+        let msg = violations
+            .iter()
+            .map(|(path, lines)| format!("{}: {} lines", path, lines))
+            .collect::<Vec<_>>()
+            .join("\n");
+        panic!("Found files exceeding deterministic 400-line ceiling:\n{}", msg);
+    }
+}
