@@ -161,6 +161,53 @@ impl InstrumentRegistry {
         }
         Ok(())
     }
+
+    /// Seeds standard canonical instruments with authentic market data vendor mappings (zero "parquet" placeholders).
+    pub fn seed_core_instruments(&mut self) {
+        let entries = [
+            ("BBCA", "Bank Central Asia", AssetClass::Equities, InstrumentType::Spot, "IDR", "IDR", "Asia/Jakarta", "yahoo", "BBCA.JK"),
+            ("GSPC", "S&P 500 Index", AssetClass::Equities, InstrumentType::Index, "USD", "USD", "America/New_York", "yahoo", "^GSPC"),
+            ("JKSE", "Jakarta Composite Index (IHSG)", AssetClass::Equities, InstrumentType::Index, "IDR", "IDR", "Asia/Jakarta", "yahoo", "^JKSE"),
+            ("N225", "Nikkei 225 Index", AssetClass::Equities, InstrumentType::Index, "JPY", "JPY", "Asia/Tokyo", "yahoo", "^N225"),
+            ("TLT", "iShares 20+ Year Treasury Bond", AssetClass::Equities, InstrumentType::Spot, "USD", "USD", "America/New_York", "yahoo", "TLT"),
+            ("IEF", "iShares 7-10 Year Treasury Bond", AssetClass::Equities, InstrumentType::Spot, "USD", "USD", "America/New_York", "yahoo", "IEF"),
+            ("LQD", "iShares Investment Grade Corporate Bond", AssetClass::Equities, InstrumentType::Spot, "USD", "USD", "America/New_York", "yahoo", "LQD"),
+            ("XAU/USD", "Gold Spot / US Dollar", AssetClass::Commodities, InstrumentType::Spot, "XAU", "USD", "UTC", "yahoo", "GC=F"),
+            ("USD/IDR", "US Dollar / Indonesian Rupiah", AssetClass::Forex, InstrumentType::Spot, "USD", "IDR", "Asia/Jakarta", "yahoo", "USDIDR=X"),
+            ("BTC/USDT", "Bitcoin / Tether USD", AssetClass::Crypto, InstrumentType::Spot, "BTC", "USDT", "UTC", "binance", "BTCUSDT"),
+            ("ETH/USDT", "Ethereum / Tether USD", AssetClass::Crypto, InstrumentType::Spot, "ETH", "USDT", "UTC", "binance", "ETHUSDT"),
+            ("EUR/USD", "Euro / US Dollar", AssetClass::Forex, InstrumentType::Spot, "EUR", "USD", "America/New_York", "oanda", "EUR_USD"),
+        ];
+
+        for (sym, name, ac, it, base, quote, tz, vendor, raw) in entries {
+            let mut vendors = HashMap::new();
+            vendors.insert(vendor.to_string(), raw.to_string());
+            if sym == "BTC/USDT" {
+                vendors.insert("yahoo".to_string(), "BTC-USD".to_string());
+                vendors.insert("coinbase".to_string(), "BTC-USD".to_string());
+            } else if sym == "EUR/USD" {
+                vendors.insert("yahoo".to_string(), "EURUSD=X".to_string());
+            }
+
+            self.register(InstrumentMapping {
+                canonical_symbol: sym.to_string(),
+                name: name.to_string(),
+                asset_class: ac,
+                instrument_type: it,
+                base_currency: base.to_string(),
+                quote_currency: quote.to_string(),
+                market_timezone: tz.to_string(),
+                is_24_7: ac == AssetClass::Crypto,
+                vendor_symbols: vendors,
+                contract_address: None,
+                network: None,
+                isin: None,
+                figi: None,
+                perm_id: None,
+                aliases: Vec::new(),
+            });
+        }
+    }
 }
 
 pub fn friendly_symbol_name(sym: &str) -> &'static str {
@@ -211,4 +258,20 @@ pub fn resolve_instrument_specs(sym: &str, asset_class: &str) -> (String, usize,
     };
 
     (currency, precision, min_tick, supported_tf, has_intraday)
+}
+
+/// Resolves the canonical upstream vendor source for an instrument (e.g. yahoo, binance, oanda).
+/// Eliminates synthetic storage placeholders like "parquet_lake".
+pub fn resolve_instrument_vendor(sym: &str, asset_class: &str) -> &'static str {
+    match asset_class {
+        "crypto" => "binance",
+        "forex" => {
+            if sym.to_uppercase().contains("EUR") {
+                "oanda"
+            } else {
+                "yahoo"
+            }
+        }
+        _ => "yahoo",
+    }
 }

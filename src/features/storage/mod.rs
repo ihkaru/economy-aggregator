@@ -13,5 +13,5 @@ pub use compactor::{CompactionResult, LakeCompactor};
 pub use partition::PartitionResolver;
 pub use reader::LakeReader;
 pub use resampler::CandleResampler;
-pub use symbology::{friendly_symbol_name, resolve_instrument_specs, InstrumentMapping, InstrumentRegistry, TickerAlias};
+pub use symbology::{friendly_symbol_name, resolve_instrument_specs, resolve_instrument_vendor, InstrumentMapping, InstrumentRegistry, TickerAlias};
 pub use writer::LakeWriter;

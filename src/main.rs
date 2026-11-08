@@ -1,14 +1,12 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::signal;
 use tracing::info;
 
 use economy_aggregator::core::config::LakehouseConfig;
-use economy_aggregator::core::types::{AssetClass, InstrumentType};
 use economy_aggregator::features::serving::{create_router, AppState};
 use economy_aggregator::features::storage::{
-    InstrumentMapping, InstrumentRegistry, LakeReader, PartitionResolver,
+    InstrumentRegistry, LakeReader, PartitionResolver,
 };
 
 #[tokio::main]
@@ -41,83 +39,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if registry.is_empty() {
-        // Seed default canonical instruments
-        let mut btc_vendors = HashMap::new();
-        btc_vendors.insert("binance".to_string(), "BTCUSDT".to_string());
-        btc_vendors.insert("bybit".to_string(), "BTCUSDT".to_string());
-        btc_vendors.insert("coinbase".to_string(), "BTC-USD".to_string());
-        btc_vendors.insert("yahoo".to_string(), "BTC-USD".to_string());
-
-        registry.register(InstrumentMapping {
-            canonical_symbol: "BTC/USDT".to_string(),
-            name: "Bitcoin / Tether USD".to_string(),
-            asset_class: AssetClass::Crypto,
-            instrument_type: InstrumentType::Spot,
-            base_currency: "BTC".to_string(),
-            quote_currency: "USDT".to_string(),
-            market_timezone: "UTC".to_string(),
-            is_24_7: true,
-            vendor_symbols: btc_vendors,
-            contract_address: None,
-            network: None,
-            isin: None,
-            figi: Some("BBG0028KLS37".to_string()),
-            perm_id: None,
-            aliases: Vec::new(),
-        });
-
-        let mut eth_vendors = HashMap::new();
-        eth_vendors.insert("binance".to_string(), "ETHUSDT".to_string());
-        eth_vendors.insert("bybit".to_string(), "ETHUSDT".to_string());
-        eth_vendors.insert("coinbase".to_string(), "ETH-USD".to_string());
-
-        registry.register(InstrumentMapping {
-            canonical_symbol: "ETH/USDT".to_string(),
-            name: "Ethereum / Tether USD".to_string(),
-            asset_class: AssetClass::Crypto,
-            instrument_type: InstrumentType::Spot,
-            base_currency: "ETH".to_string(),
-            quote_currency: "USDT".to_string(),
-            market_timezone: "UTC".to_string(),
-            is_24_7: true,
-            vendor_symbols: eth_vendors,
-            contract_address: None,
-            network: None,
-            isin: None,
-            figi: Some("BBG001S5TD05".to_string()),
-            perm_id: None,
-            aliases: Vec::new(),
-        });
-
-        let mut eur_vendors = HashMap::new();
-        eur_vendors.insert("dukascopy".to_string(), "EURUSD".to_string());
-        eur_vendors.insert("oanda".to_string(), "EUR_USD".to_string());
-        eur_vendors.insert("yahoo".to_string(), "EURUSD=X".to_string());
-
-        registry.register(InstrumentMapping {
-            canonical_symbol: "EUR/USD".to_string(),
-            name: "Euro / US Dollar".to_string(),
-            asset_class: AssetClass::Forex,
-            instrument_type: InstrumentType::Spot,
-            base_currency: "EUR".to_string(),
-            quote_currency: "USD".to_string(),
-            market_timezone: "America/New_York".to_string(),
-            is_24_7: false,
-            vendor_symbols: eur_vendors,
-            contract_address: None,
-            network: None,
-            isin: None,
-            figi: None,
-            perm_id: None,
-            aliases: Vec::new(),
-        });
-
+    if registry.len() < 10 {
+        registry.seed_core_instruments();
         if let Some(parent) = meta_file.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
         let _ = registry.save_to_file(&meta_file);
-        info!("🌱 Seeded {} default instruments", registry.len());
+        info!("🌱 Seeded {} canonical instruments with authentic vendor symbology", registry.len());
     }
 
     let resolver = PartitionResolver::new(config.lake_dir.clone());

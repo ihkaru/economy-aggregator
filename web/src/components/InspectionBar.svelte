@@ -23,6 +23,9 @@
   $: lastDate = candles.length > 0 ? formatTimestamp(candles[candles.length - 1]) : '-';
   $: settledCount = candles.filter((c) => c.is_settled).length;
   $: settledPct = count > 0 ? Math.round((settledCount / count) * 100) : 0;
+  $: activeSource = (candles.length > 0 && candles[0].source && candles[0].source !== 'parquet_lake')
+    ? candles[0].source
+    : (instrument.source || 'YAHOO');
 </script>
 
 <footer class="inspection-bar tabular-nums">
@@ -65,7 +68,7 @@
       </span>
     {/if}
     <span class="env-tag">PARQUET L1</span>
-    <span class="source-tag">{instrument.source.toUpperCase()}</span>
+    <span class="source-tag">{activeSource.toUpperCase()}</span>
     <span class="tf-tag">{timeframe.toUpperCase()}</span>
   </div>
 </footer>

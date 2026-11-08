@@ -17,7 +17,7 @@ use crate::core::config::LakehouseConfig;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
 use crate::features::serving::types::*;
 use crate::features::storage::{
-    friendly_symbol_name, resolve_instrument_specs, CandleResampler,
+    friendly_symbol_name, resolve_instrument_specs, resolve_instrument_vendor, CandleResampler,
     InstrumentMapping, InstrumentRegistry, LakeReader, PartitionResolver,
 };
 
@@ -130,6 +130,7 @@ async fn market_catalog_handler(
                                     let friendly_name = friendly_symbol_name(sym_stripped);
                                     let (currency, precision, min_tick, supported_tf, _) =
                                         resolve_instrument_specs(&canonical, ac_stripped);
+                                    let vendor = resolve_instrument_vendor(&canonical, ac_stripped);
                                     items.push(InstrumentCatalogItem {
                                         symbol: canonical.clone(),
                                         canonical_symbol: canonical,
@@ -140,7 +141,7 @@ async fn market_catalog_handler(
                                         min_tick,
                                         supported_timeframes: supported_tf,
                                         default_timeframe: "1d".to_string(),
-                                        source: "parquet_lake".to_string(),
+                                        source: vendor.to_string(),
                                         active: true,
                                     });
                                 }
