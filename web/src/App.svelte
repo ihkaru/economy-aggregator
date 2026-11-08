@@ -121,6 +121,20 @@
       </div>
     {/if}
 
+    {#if !isLoading && candles.length === 0 && !errorMsg}
+      <div class="empty-state-overlay">
+        <div class="empty-state-box tabular-nums">
+          <span class="empty-title">NO LAKE DATA FOUND</span>
+          <span class="empty-desc">
+            No Parquet chunks found for {selectedInstrument.canonical_symbol || selectedInstrument.symbol} [{selectedTimeframe.toUpperCase()}].
+          </span>
+          <button class="empty-action-btn" on:click={() => (isModalOpen = true)}>
+            SELECT OTHER INSTRUMENT [/]
+          </button>
+        </div>
+      </div>
+    {/if}
+
     {#if errorMsg}
       <div class="error-banner">
         <span>ERROR: {errorMsg}</span>
@@ -266,6 +280,58 @@
     font-weight: 500;
     color: var(--text-muted);
     letter-spacing: 0.4px;
+  }
+
+  /* Empty State Overlay */
+  .empty-state-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 35;
+    background: rgba(8, 9, 13, 0.7);
+  }
+
+  .empty-state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    background: #0f121a;
+    border: 1px solid var(--border-contrast);
+    padding: 20px 28px;
+    max-width: 360px;
+  }
+
+  .empty-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-amber);
+    letter-spacing: 0.8px;
+  }
+
+  .empty-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .empty-action-btn {
+    margin-top: 6px;
+    background: #2962ff;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+
+  .empty-action-btn:hover {
+    background: #1e4bd8;
   }
 
   .error-banner {

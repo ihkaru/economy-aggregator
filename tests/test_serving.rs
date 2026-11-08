@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::sync::Arc;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{TimeZone, Utc};
@@ -51,12 +50,7 @@ async fn test_rest_api_health_endpoint() {
     config.base_dir = tmp.path().to_path_buf();
 
     let resolver = PartitionResolver::new(tmp.path().to_path_buf());
-    let state = Arc::new(AppState {
-        config,
-        resolver,
-        registry: RwLock::new(InstrumentRegistry::new()),
-        start_time: Instant::now(),
-    });
+    let state = Arc::new(AppState::new(config, resolver, InstrumentRegistry::new()));
 
     let app = create_router(state);
     let response = app
@@ -111,12 +105,7 @@ async fn test_rest_api_instruments_and_candles_query() {
     let candle = create_sample_candle("ETH/USDT");
     writer.write_candles(&[candle], AssetClass::Crypto).unwrap();
 
-    let state = Arc::new(AppState {
-        config,
-        resolver,
-        registry: RwLock::new(registry),
-        start_time: Instant::now(),
-    });
+    let state = Arc::new(AppState::new(config, resolver, registry));
 
     let app = create_router(state);
 

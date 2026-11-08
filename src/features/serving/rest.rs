@@ -1,21 +1,21 @@
 //! REST API serving endpoints for market candles, instruments catalog, and health.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::core::config::LakehouseConfig;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
+use crate::features::serving::types::*;
 use crate::features::storage::{
     friendly_symbol_name, resolve_instrument_specs, CandleResampler,
     InstrumentMapping, InstrumentRegistry, LakeReader, PartitionResolver,
@@ -26,71 +26,23 @@ pub struct AppState {
     pub resolver: PartitionResolver,
     pub registry: RwLock<InstrumentRegistry>,
     pub start_time: Instant,
+    pub candle_cache: RwLock<HashMap<String, (Instant, Vec<AggregatorCandle>)>>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct HealthResponse {
-    pub status: &'static str,
-    pub service: &'static str,
-    pub version: &'static str,
-    pub uptime_secs: u64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CandleQuery {
-    pub asset_class: String,
-    pub symbol: String,
-    pub timeframe: String,
-    pub year: Option<i32>,
-    pub month: Option<u32>,
-    pub limit: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct StorageStatsResponse {
-    pub lake_dir: String,
-    pub total_chunks_found: usize,
-    pub total_bytes: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstrumentCatalogItem {
-    pub symbol: String,
-    pub canonical_symbol: String,
-    pub name: String,
-    pub asset_class: String,
-    pub currency: String,
-    pub price_precision: usize,
-    pub min_tick: f64,
-    pub supported_timeframes: Vec<String>,
-    pub default_timeframe: String,
-    pub source: String,
-    pub active: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct MetadataQuery {
-    pub symbol: String,
-    pub asset_class: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstrumentMetadata {
-    pub symbol: String,
-    pub canonical_symbol: String,
-    pub name: String,
-    pub asset_class: String,
-    pub currency: String,
-    pub price_precision: usize,
-    pub min_tick: f64,
-    pub supported_timeframes: Vec<String>,
-    pub default_timeframe: String,
-    pub has_intraday: bool,
-    pub has_daily: bool,
-    pub has_weekly_and_monthly: bool,
-    pub total_bars: usize,
-    pub first_date: Option<String>,
-    pub last_date: Option<String>,
+impl AppState {
+    pub fn new(
+        config: LakehouseConfig,
+        resolver: PartitionResolver,
+        registry: InstrumentRegistry,
+    ) -> Self {
+        Self {
+            config,
+            resolver,
+            registry: RwLock::new(registry),
+            start_time: Instant::now(),
+            candle_cache: RwLock::new(HashMap::new()),
+        }
+    }
 }
 
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -162,7 +114,6 @@ async fn market_catalog_handler(
         });
     }
 
-    // Auto-discover partitions from lakehouse directory
     let market_dir = state.config.lake_dir.join("market");
     if let Ok(ac_entries) = fs::read_dir(market_dir) {
         for ac_entry in ac_entries.flatten() {
@@ -232,18 +183,13 @@ async fn market_metadata_handler(
 
     let friendly_name = friendly_symbol_name(&clean_symbol);
 
-    let candles = LakeReader::read_candles(
+    // Fast metadata lookup without full row decompression
+    let (total_bars, first_date, last_date) = LakeReader::read_metadata_bounds(
         &state.config.lake_dir,
         Some(&asset_class),
         &clean_symbol,
         "1d",
-        None,
-        None,
-    ).unwrap_or_default();
-
-    let total_bars = candles.len();
-    let first_date = candles.first().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
-    let last_date = candles.last().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
+    ).unwrap_or((0, None, None));
 
     Ok(Json(InstrumentMetadata {
         symbol: query.symbol.clone(),
@@ -283,16 +229,15 @@ async fn storage_stats_handler(
 }
 
 fn count_parquet_recursive(dir: &Path, count: &mut usize, bytes: &mut u64) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.is_dir() {
-                count_parquet_recursive(&p, count, bytes);
-            } else if p.extension().map_or(false, |ext| ext == "parquet") {
-                *count += 1;
-                if let Ok(meta) = entry.metadata() {
-                    *bytes += meta.len();
-                }
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            count_parquet_recursive(&p, count, bytes);
+        } else if p.extension().map_or(false, |ext| ext == "parquet") {
+            *count += 1;
+            if let Ok(meta) = entry.metadata() {
+                *bytes += meta.len();
             }
         }
     }
@@ -332,26 +277,57 @@ async fn query_candles_handler(
         _ => (None, None),
     };
 
-    let mut candles = LakeReader::read_candles(
+    let clean_symbol = query.symbol.to_uppercase().replace('/', "_");
+    let cache_key = format!("{}:{}:{}", asset_class.as_str(), clean_symbol, timeframe.as_str());
+
+    // Check fast in-memory cache if no arbitrary historical date filter
+    if start_date.is_none() && end_date.is_none() {
+        if let Ok(cache) = state.candle_cache.read() {
+            if let Some((inserted_at, cached_candles)) = cache.get(&cache_key) {
+                if inserted_at.elapsed() < Duration::from_secs(60) {
+                    let mut res = cached_candles.clone();
+                    if let Some(lim) = query.limit {
+                        if res.len() > lim {
+                            let start_idx = res.len() - lim;
+                            res = res.split_off(start_idx);
+                        }
+                    }
+                    return Ok(Json(res));
+                }
+            }
+        }
+    }
+
+    let mut candles = LakeReader::read_candles_with_limit(
         &state.config.lake_dir,
         Some(asset_class.as_str()),
         &query.symbol,
         timeframe.as_str(),
         start_date,
         end_date,
+        query.limit,
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Dynamic Resampling: If candles are empty for weekly or monthly, resample from 1d daily lake
     if candles.is_empty() && (timeframe == TimeFrame::W1 || timeframe == TimeFrame::MN1) {
-        if let Ok(daily_candles) = LakeReader::read_candles(
+        let daily_limit = query.limit.map(|l| if timeframe == TimeFrame::MN1 { l * 31 } else { l * 7 });
+        if let Ok(daily_candles) = LakeReader::read_candles_with_limit(
             &state.config.lake_dir,
             Some(asset_class.as_str()),
             &query.symbol,
             "1d",
             start_date,
             end_date,
+            daily_limit,
         ) {
             candles = CandleResampler::resample(&daily_candles, timeframe);
+        }
+    }
+
+    // Cache the resolved candles in memory
+    if start_date.is_none() && end_date.is_none() && !candles.is_empty() {
+        if let Ok(mut cache) = state.candle_cache.write() {
+            cache.insert(cache_key, (Instant::now(), candles.clone()));
         }
     }
 

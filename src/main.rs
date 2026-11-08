@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::sync::Arc;
 use tokio::signal;
 use tracing::info;
 
@@ -9,7 +8,7 @@ use economy_aggregator::core::config::LakehouseConfig;
 use economy_aggregator::core::types::{AssetClass, InstrumentType};
 use economy_aggregator::features::serving::{create_router, AppState};
 use economy_aggregator::features::storage::{
-    InstrumentMapping, InstrumentRegistry, PartitionResolver,
+    InstrumentMapping, InstrumentRegistry, LakeReader, PartitionResolver,
 };
 
 #[tokio::main]
@@ -122,11 +121,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let resolver = PartitionResolver::new(config.lake_dir.clone());
-    let state = Arc::new(AppState {
-        config: config.clone(),
-        resolver,
-        registry: RwLock::new(registry),
-        start_time: Instant::now(),
+    let state = Arc::new(AppState::new(config.clone(), resolver, registry));
+
+    // Asynchronous background cache pre-warmer for core instruments
+    let prewarm_state = state.clone();
+    tokio::spawn(async move {
+        let targets = [
+            ("equities", "BBCA"),
+            ("equities", "GSPC"),
+            ("crypto", "BTC_USDT"),
+            ("forex", "USD_IDR"),
+            ("commodities", "XAU_USD"),
+        ];
+        for (ac, sym) in targets {
+            let _ = LakeReader::read_candles_with_limit(
+                &prewarm_state.config.lake_dir,
+                Some(ac),
+                sym,
+                "1d",
+                None,
+                None,
+                Some(2000),
+            ).map(|candles| {
+                if !candles.is_empty() {
+                    let key = format!("{}:{}:1d", ac, sym);
+                    if let Ok(mut cache) = prewarm_state.candle_cache.write() {
+                        cache.insert(key, (std::time::Instant::now(), candles));
+                    }
+                }
+            });
+        }
+        info!("🔥 In-memory lake cache pre-warmed for core instruments");
     });
 
     let app = create_router(state);

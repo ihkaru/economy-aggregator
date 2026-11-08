@@ -185,10 +185,20 @@
   }
 
   function updateSeriesData() {
-    if (!candleSeries || !volumeSeries || candles.length === 0) return;
+    if (!candleSeries || !volumeSeries) return;
+
+    if (candles.length === 0) {
+      candleSeries.setData([]);
+      volumeSeries.setData([]);
+      return;
+    }
 
     const { candles: candleData, volumes: volumeData } = prepareChartSeriesData(candles);
-    if (candleData.length === 0) return;
+    if (candleData.length === 0) {
+      candleSeries.setData([]);
+      volumeSeries.setData([]);
+      return;
+    }
 
     candleSeries.setData(candleData);
     volumeSeries.setData(volumeData);
