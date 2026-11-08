@@ -163,39 +163,37 @@
   function updateSeriesData() {
     if (!candleSeries || !volumeSeries || candles.length === 0) return;
 
-    const chartBars: CandlestickData<Time>[] = [];
-    const volumeBars: HistogramData<Time>[] = [];
-
-    // Sort chronologically and deduplicate timestamps
-    const seenTimes = new Set<string>();
+    const seenSecs = new Set<number>();
+    const validPairs: { bar: CandlestickData<Time>; vol: HistogramData<Time> }[] = [];
 
     for (const c of candles) {
+      if (typeof c.open !== 'number' || typeof c.close !== 'number' || isNaN(c.open) || isNaN(c.close)) continue;
       const dt = new Date(c.timestamp_utc);
-      // For daily bars, lightweight-charts supports "YYYY-MM-DD"
-      const dateKey = dt.toISOString().split('T')[0];
-      if (seenTimes.has(dateKey)) continue;
-      seenTimes.add(dateKey);
-
-      const timeVal = (c.timeframe === '1d' || c.timeframe === '1w' || c.timeframe === '1M')
-        ? (dateKey as unknown as Time)
-        : ((Math.floor(dt.getTime() / 1000)) as unknown as Time);
+      const sec = Math.floor(dt.getTime() / 1000);
+      if (isNaN(sec) || seenSecs.has(sec)) continue;
+      seenSecs.add(sec);
 
       const isUp = c.close >= c.open;
-
-      chartBars.push({
-        time: timeVal,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      });
-
-      volumeBars.push({
-        time: timeVal,
-        value: c.volume_base,
-        color: isUp ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
+      validPairs.push({
+        bar: {
+          time: sec as unknown as Time,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        },
+        vol: {
+          time: sec as unknown as Time,
+          value: c.volume_base || 0,
+          color: isUp ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
+        },
       });
     }
+
+    // Lightweight charts requires strictly ascending order by time
+    validPairs.sort((a, b) => (a.bar.time as number) - (b.bar.time as number));
+    const chartBars = validPairs.map((p) => p.bar);
+    const volumeBars = validPairs.map((p) => p.vol);
 
     candleSeries.setData(chartBars);
     volumeSeries.setData(volumeBars);
