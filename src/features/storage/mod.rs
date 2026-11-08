@@ -3,6 +3,7 @@ pub mod buffer;
 pub mod compactor;
 pub mod partition;
 pub mod reader;
+pub mod resampler;
 pub mod symbology;
 pub mod writer;
 
@@ -11,5 +12,6 @@ pub use buffer::MicroBatchBuffer;
 pub use compactor::{CompactionResult, LakeCompactor};
 pub use partition::PartitionResolver;
 pub use reader::LakeReader;
-pub use symbology::{InstrumentMapping, InstrumentRegistry, TickerAlias};
+pub use resampler::CandleResampler;
+pub use symbology::{friendly_symbol_name, resolve_instrument_specs, InstrumentMapping, InstrumentRegistry, TickerAlias};
 pub use writer::LakeWriter;

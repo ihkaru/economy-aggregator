@@ -17,11 +17,34 @@
 
   export let candles: AggregatorCandle[] = [];
   export let onCrosshairData: (data: ChartLegendData | null) => void;
+  export let pricePrecision: number = 2;
+  export let minMove: number = 0.01;
+  export let timeframe: string = '1d';
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | null = null;
   let volumeSeries: ISeriesApi<'Histogram'> | null = null;
+
+  $: isIntraday = timeframe === '1m' || timeframe === '5m' || timeframe === '15m' || timeframe === '1h';
+
+  $: if (chart) {
+    chart.applyOptions({
+      timeScale: {
+        timeVisible: isIntraday,
+      },
+    });
+  }
+
+  $: if (candleSeries) {
+    candleSeries.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision: pricePrecision,
+        minMove: minMove,
+      },
+    });
+  }
 
   onMount(() => {
     initChart();
@@ -73,9 +96,12 @@
       },
       timeScale: {
         borderColor: '#1c202d',
-        timeVisible: true,
+        timeVisible: isIntraday,
         secondsVisible: false,
         borderVisible: true,
+        barSpacing: 9,
+        minBarSpacing: 3,
+        rightOffset: 3,
       },
       rightPriceScale: {
         borderColor: '#1c202d',
@@ -105,6 +131,11 @@
       borderVisible: false,
       wickUpColor: '#089981',
       wickDownColor: '#f23645',
+      priceFormat: {
+        type: 'price',
+        precision: pricePrecision,
+        minMove: minMove,
+      },
     });
 
     volumeSeries = chart.addSeries(HistogramSeries, {
@@ -161,7 +192,14 @@
 
     candleSeries.setData(candleData);
     volumeSeries.setData(volumeData);
-    chart?.timeScale().fitContent();
+
+    // TradingView Best Practice: Display the latest ~90 to 120 bars so candles have natural size
+    const totalBars = candleData.length;
+    const visibleCount = Math.min(100, totalBars);
+    chart?.timeScale().setVisibleLogicalRange({
+      from: totalBars - visibleCount,
+      to: totalBars + 2,
+    });
   }
 </script>
 

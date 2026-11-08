@@ -17,6 +17,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::core::config::LakehouseConfig;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
 use crate::features::storage::{
+    friendly_symbol_name, resolve_instrument_specs, CandleResampler,
     InstrumentMapping, InstrumentRegistry, LakeReader, PartitionResolver,
 };
 
@@ -58,8 +59,38 @@ pub struct InstrumentCatalogItem {
     pub canonical_symbol: String,
     pub name: String,
     pub asset_class: String,
+    pub currency: String,
+    pub price_precision: usize,
+    pub min_tick: f64,
+    pub supported_timeframes: Vec<String>,
+    pub default_timeframe: String,
     pub source: String,
     pub active: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MetadataQuery {
+    pub symbol: String,
+    pub asset_class: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstrumentMetadata {
+    pub symbol: String,
+    pub canonical_symbol: String,
+    pub name: String,
+    pub asset_class: String,
+    pub currency: String,
+    pub price_precision: usize,
+    pub min_tick: f64,
+    pub supported_timeframes: Vec<String>,
+    pub default_timeframe: String,
+    pub has_intraday: bool,
+    pub has_daily: bool,
+    pub has_weekly_and_monthly: bool,
+    pub total_bars: usize,
+    pub first_date: Option<String>,
+    pub last_date: Option<String>,
 }
 
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -67,6 +98,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/health", get(health_handler))
         .route("/v1/instruments", get(list_instruments_handler))
         .route("/v1/market/catalog", get(market_catalog_handler))
+        .route("/v1/market/metadata", get(market_metadata_handler))
         .route("/v1/market/candles", get(query_candles_handler))
         .route("/v1/storage/stats", get(storage_stats_handler))
         .with_state(state);
@@ -113,11 +145,18 @@ async fn market_catalog_handler(
             .cloned()
             .unwrap_or_else(|| "lakehouse".to_string());
         seen.insert(m.canonical_symbol.clone());
+        let (currency, precision, min_tick, supported_tf, _) =
+            resolve_instrument_specs(&m.canonical_symbol, m.asset_class.as_str());
         items.push(InstrumentCatalogItem {
             symbol: m.canonical_symbol.clone(),
             canonical_symbol: m.canonical_symbol.clone(),
             name: m.name.clone(),
             asset_class: m.asset_class.as_str().to_string(),
+            currency,
+            price_precision: precision,
+            min_tick,
+            supported_timeframes: supported_tf,
+            default_timeframe: "1d".to_string(),
             source: src,
             active: true,
         });
@@ -137,21 +176,19 @@ async fn market_catalog_handler(
                             if let Some(sym_stripped) = sym_name.strip_prefix("symbol=") {
                                 let canonical = sym_stripped.replace('_', "/");
                                 if seen.insert(canonical.clone()) {
-                                    let friendly_name = match sym_stripped {
-                                        "GSPC" => "S&P 500 Index",
-                                        "BBCA" => "Bank Central Asia",
-                                        "JKSE" => "Jakarta Composite Index (IHSG)",
-                                        "N225" => "Nikkei 225 Index",
-                                        "TLT" => "iShares 20+ Year Treasury Bond",
-                                        "IEF" => "iShares 7-10 Year Treasury Bond",
-                                        "LQD" => "iShares Investment Grade Corporate Bond",
-                                        _ => sym_stripped,
-                                    };
+                                    let friendly_name = friendly_symbol_name(sym_stripped);
+                                    let (currency, precision, min_tick, supported_tf, _) =
+                                        resolve_instrument_specs(&canonical, ac_stripped);
                                     items.push(InstrumentCatalogItem {
                                         symbol: canonical.clone(),
                                         canonical_symbol: canonical,
                                         name: friendly_name.to_string(),
                                         asset_class: ac_stripped.to_string(),
+                                        currency,
+                                        price_precision: precision,
+                                        min_tick,
+                                        supported_timeframes: supported_tf,
+                                        default_timeframe: "1d".to_string(),
                                         source: "parquet_lake".to_string(),
                                         active: true,
                                     });
@@ -166,6 +203,65 @@ async fn market_catalog_handler(
 
     items.sort_by(|a, b| a.symbol.cmp(&b.symbol));
     Json(items)
+}
+
+async fn market_metadata_handler(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<MetadataQuery>,
+) -> Result<Json<InstrumentMetadata>, (StatusCode, String)> {
+    let clean_symbol = query.symbol.to_uppercase().replace('/', "_");
+
+    let asset_class = if let Some(ac) = query.asset_class {
+        ac.to_lowercase()
+    } else {
+        let mut detected = "equities".to_string();
+        let known = ["equities", "crypto", "forex", "commodities", "macro"];
+        let market_dir = state.config.lake_dir.join("market");
+        for k in known {
+            let p = market_dir.join(format!("asset_class={}", k)).join(format!("symbol={}", clean_symbol));
+            if p.exists() {
+                detected = k.to_string();
+                break;
+            }
+        }
+        detected
+    };
+
+    let (currency, precision, min_tick, supported_tf, has_intraday) =
+        resolve_instrument_specs(&clean_symbol, &asset_class);
+
+    let friendly_name = friendly_symbol_name(&clean_symbol);
+
+    let candles = LakeReader::read_candles(
+        &state.config.lake_dir,
+        Some(&asset_class),
+        &clean_symbol,
+        "1d",
+        None,
+        None,
+    ).unwrap_or_default();
+
+    let total_bars = candles.len();
+    let first_date = candles.first().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
+    let last_date = candles.last().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
+
+    Ok(Json(InstrumentMetadata {
+        symbol: query.symbol.clone(),
+        canonical_symbol: query.symbol.replace('_', "/"),
+        name: friendly_name.to_string(),
+        asset_class,
+        currency,
+        price_precision: precision,
+        min_tick,
+        supported_timeframes: supported_tf,
+        default_timeframe: "1d".to_string(),
+        has_intraday,
+        has_daily: true,
+        has_weekly_and_monthly: true,
+        total_bars,
+        first_date,
+        last_date,
+    }))
 }
 
 async fn storage_stats_handler(
@@ -244,6 +340,20 @@ async fn query_candles_handler(
         start_date,
         end_date,
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Dynamic Resampling: If candles are empty for weekly or monthly, resample from 1d daily lake
+    if candles.is_empty() && (timeframe == TimeFrame::W1 || timeframe == TimeFrame::MN1) {
+        if let Ok(daily_candles) = LakeReader::read_candles(
+            &state.config.lake_dir,
+            Some(asset_class.as_str()),
+            &query.symbol,
+            "1d",
+            start_date,
+            end_date,
+        ) {
+            candles = CandleResampler::resample(&daily_candles, timeframe);
+        }
+    }
 
     // Apply limit: keep the most recent candles for charting
     if let Some(lim) = query.limit {

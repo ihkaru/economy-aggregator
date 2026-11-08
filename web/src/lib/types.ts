@@ -27,11 +27,34 @@ export interface InstrumentSummary {
   canonical_symbol: string;
   name: string;
   asset_class: AssetClass;
+  currency?: string;
+  price_precision?: number;
+  min_tick?: number;
+  supported_timeframes?: string[];
+  default_timeframe?: string;
   source: string;
-  timeframes: string[];
+  timeframes?: string[];
   candle_count?: number;
   last_price?: number;
   last_updated?: string;
+}
+
+export interface InstrumentMetadata {
+  symbol: string;
+  canonical_symbol: string;
+  name: string;
+  asset_class: AssetClass;
+  currency: string;
+  price_precision: number;
+  min_tick: number;
+  supported_timeframes: TimeframeOption[];
+  default_timeframe: TimeframeOption;
+  has_intraday: boolean;
+  has_daily: boolean;
+  has_weekly_and_monthly: boolean;
+  total_bars: number;
+  first_date?: string | null;
+  last_date?: string | null;
 }
 
 export interface ChartLegendData {

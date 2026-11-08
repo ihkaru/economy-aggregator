@@ -4,6 +4,8 @@
 
   export let selectedInstrument: InstrumentSummary;
   export let selectedTimeframe: TimeframeOption;
+  export let supportedTimeframes: TimeframeOption[] = ['1d', '1w', '1M'];
+  export let pricePrecision: number = 2;
   export let legendData: ChartLegendData | null = null;
   export let isLoading: boolean = false;
   export let onSelectTimeframe: (tf: TimeframeOption) => void;
@@ -44,10 +46,14 @@
     <!-- Timeframe Selector -->
     <div class="timeframe-group">
       {#each timeframes as tf}
+        {@const isSupported = supportedTimeframes.includes(tf)}
         <button
           class="tf-btn"
           class:active={selectedTimeframe === tf}
-          on:click={() => onSelectTimeframe(tf)}
+          class:disabled={!isSupported}
+          disabled={!isSupported}
+          title={isSupported ? `Switch to ${tf}` : `${tf} not supported for ${selectedInstrument.symbol}`}
+          on:click={() => isSupported && onSelectTimeframe(tf)}
         >
           {tf}
         </button>
@@ -62,17 +68,17 @@
         <span class="metric-label">TIME</span>
         <span class="metric-val">{legendData.time}</span>
         <span class="metric-label">O</span>
-        <span class="metric-val">{formatNum(legendData.open)}</span>
+        <span class="metric-val">{formatNum(legendData.open, pricePrecision)}</span>
         <span class="metric-label">H</span>
-        <span class="metric-val">{formatNum(legendData.high)}</span>
+        <span class="metric-val">{formatNum(legendData.high, pricePrecision)}</span>
         <span class="metric-label">L</span>
-        <span class="metric-val">{formatNum(legendData.low)}</span>
+        <span class="metric-val">{formatNum(legendData.low, pricePrecision)}</span>
         <span class="metric-label">C</span>
         <span class="metric-val" class:bull={legendData.isUp} class:bear={!legendData.isUp}>
-          {formatNum(legendData.close)}
+          {formatNum(legendData.close, pricePrecision)}
         </span>
         <span class="change-tag" class:bull={legendData.isUp} class:bear={!legendData.isUp}>
-          {legendData.change >= 0 ? '+' : ''}{formatNum(legendData.change)} ({legendData.changePercent >= 0 ? '+' : ''}{formatNum(legendData.changePercent)}%)
+          {legendData.change >= 0 ? '+' : ''}{formatNum(legendData.change, pricePrecision)} ({legendData.changePercent >= 0 ? '+' : ''}{formatNum(legendData.changePercent, 2)}%)
         </span>
         <span class="metric-label">VOL</span>
         <span class="metric-val">{formatVolume(legendData.volume)}</span>
@@ -208,6 +214,12 @@
     background: var(--bg-active);
     color: var(--text-bright);
     font-weight: 700;
+  }
+
+  .tf-btn.disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    color: var(--text-muted);
   }
 
   .center-section {

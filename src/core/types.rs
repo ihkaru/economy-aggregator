@@ -55,6 +55,8 @@ pub enum TimeFrame {
     D1,
     #[serde(rename = "1w")]
     W1,
+    #[serde(rename = "1M")]
+    MN1,
 }
 
 impl TimeFrame {
@@ -69,21 +71,25 @@ impl TimeFrame {
             Self::H4 => "4h",
             Self::D1 => "1d",
             Self::W1 => "1w",
+            Self::MN1 => "1M",
         }
     }
 
     pub fn from_str_opt(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "tick" => Some(Self::Tick),
-            "1s" => Some(Self::S1),
+        match s {
+            "1M" | "1mo" | "1MO" | "1month" => Some(Self::MN1),
             "1m" => Some(Self::M1),
-            "5m" => Some(Self::M5),
-            "15m" => Some(Self::M15),
-            "1h" => Some(Self::H1),
-            "4h" => Some(Self::H4),
-            "1d" => Some(Self::D1),
-            "1w" => Some(Self::W1),
-            _ => None,
+            other => match other.to_lowercase().as_str() {
+                "tick" => Some(Self::Tick),
+                "1s" => Some(Self::S1),
+                "5m" => Some(Self::M5),
+                "15m" => Some(Self::M15),
+                "1h" => Some(Self::H1),
+                "4h" => Some(Self::H4),
+                "1d" => Some(Self::D1),
+                "1w" => Some(Self::W1),
+                _ => None,
+            },
         }
     }
 }

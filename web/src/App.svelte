@@ -23,6 +23,10 @@
   let isLoading: boolean = false;
   let errorMsg: string | null = null;
 
+  $: supportedTimeframes = (selectedInstrument.supported_timeframes as TimeframeOption[]) || ['1d', '1w', '1M'];
+  $: pricePrecision = typeof selectedInstrument.price_precision === 'number' ? selectedInstrument.price_precision : 2;
+  $: minMove = typeof selectedInstrument.min_tick === 'number' ? selectedInstrument.min_tick : 0.01;
+
   onMount(async () => {
     try {
       instruments = await fetchInstruments();
@@ -69,10 +73,15 @@
 
   function handleSelectInstrument(inst: InstrumentSummary) {
     selectedInstrument = inst;
+    const supported = (inst.supported_timeframes as TimeframeOption[]) || ['1d', '1w', '1M'];
+    if (!supported.includes(selectedTimeframe)) {
+      selectedTimeframe = (inst.default_timeframe as TimeframeOption) || '1d';
+    }
     loadCandles();
   }
 
   function handleTimeframeChange(tf: TimeframeOption) {
+    if (!supportedTimeframes.includes(tf)) return;
     selectedTimeframe = tf;
     loadCandles();
   }
@@ -82,6 +91,8 @@
   <HeaderBar
     {selectedInstrument}
     {selectedTimeframe}
+    {supportedTimeframes}
+    {pricePrecision}
     {legendData}
     {isLoading}
     onSelectTimeframe={handleTimeframeChange}
@@ -99,6 +110,9 @@
 
     <CandleChart
       {candles}
+      {pricePrecision}
+      {minMove}
+      timeframe={selectedTimeframe}
       onCrosshairData={(data) => (legendData = data)}
     />
   </div>

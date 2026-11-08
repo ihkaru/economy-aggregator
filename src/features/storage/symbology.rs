@@ -162,3 +162,53 @@ impl InstrumentRegistry {
         Ok(())
     }
 }
+
+pub fn friendly_symbol_name(sym: &str) -> &'static str {
+    match sym.trim().to_uppercase().as_str() {
+        "GSPC" => "S&P 500 Index",
+        "BBCA" => "Bank Central Asia",
+        "JKSE" => "Jakarta Composite Index (IHSG)",
+        "N225" => "Nikkei 225 Index",
+        "TLT" => "iShares 20+ Year Treasury Bond",
+        "IEF" => "iShares 7-10 Year Treasury Bond",
+        "LQD" => "iShares Investment Grade Corporate Bond",
+        "XAU_USD" | "XAU/USD" => "Gold Spot / US Dollar",
+        "USD_IDR" | "USD/IDR" => "US Dollar / Indonesian Rupiah",
+        "BTC_USDT" | "BTC/USDT" => "Bitcoin / Tether USD",
+        _ => "Market Instrument",
+    }
+}
+
+pub fn resolve_instrument_specs(sym: &str, asset_class: &str) -> (String, usize, f64, Vec<String>, bool) {
+    let clean = sym.to_uppercase();
+    let (currency, precision, min_tick) = match asset_class {
+        "crypto" => ("USDT".to_string(), 2, 0.01),
+        "forex" => {
+            if clean.contains("IDR") {
+                ("IDR".to_string(), 2, 0.5)
+            } else {
+                ("USD".to_string(), 4, 0.0001)
+            }
+        }
+        "commodities" => ("USD".to_string(), 2, 0.05),
+        "macro" => ("PCT".to_string(), 2, 0.01),
+        _ => {
+            if clean.ends_with(".JK") || clean == "BBCA" || clean == "JKSE" {
+                ("IDR".to_string(), 0, 25.0)
+            } else if clean == "N225" {
+                ("JPY".to_string(), 2, 0.01)
+            } else {
+                ("USD".to_string(), 2, 0.01)
+            }
+        }
+    };
+
+    let has_intraday = asset_class == "crypto";
+    let supported_tf = if has_intraday {
+        vec!["1m".into(), "5m".into(), "15m".into(), "1h".into(), "1d".into(), "1w".into(), "1M".into()]
+    } else {
+        vec!["1d".into(), "1w".into(), "1M".into()]
+    };
+
+    (currency, precision, min_tick, supported_tf, has_intraday)
+}
