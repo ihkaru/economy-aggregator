@@ -21,6 +21,7 @@
   $: firstDate = candles.length > 0 ? formatTimestamp(candles[0]) : '-';
   $: lastDate = candles.length > 0 ? formatTimestamp(candles[candles.length - 1]) : '-';
   $: settledCount = candles.filter((c) => c.is_settled).length;
+  $: settledPct = count > 0 ? Math.round((settledCount / count) * 100) : 0;
 </script>
 
 <footer class="inspection-bar tabular-nums">
@@ -41,7 +42,7 @@
     <div class="stat-pill">
       <span class="icon"><Icons name="activity" size={12} /></span>
       <span class="label">SETTLED:</span>
-      <span class="value">{settledCount}/{count} (100%)</span>
+      <span class="value">{settledCount}/{count} ({settledPct}%)</span>
     </div>
   </div>
 

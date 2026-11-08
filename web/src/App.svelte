@@ -131,6 +131,9 @@
     position: relative;
     flex: 1;
     width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 

@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import {
     createChart,
+    CandlestickSeries,
+    HistogramSeries,
     ColorType,
     CrosshairMode,
     type IChartApi,
@@ -11,6 +13,7 @@
     type Time,
   } from 'lightweight-charts';
   import type { AggregatorCandle, ChartLegendData } from '../lib/types';
+  import { prepareChartSeriesData } from '../lib/chart_utils';
 
   export let candles: AggregatorCandle[] = [];
   export let onCrosshairData: (data: ChartLegendData | null) => void;
@@ -19,7 +22,6 @@
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | null = null;
   let volumeSeries: ISeriesApi<'Histogram'> | null = null;
-  let resizeObserver: ResizeObserver | null = null;
 
   onMount(() => {
     initChart();
@@ -29,11 +31,9 @@
   });
 
   onDestroy(() => {
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-    }
     if (chart) {
       chart.remove();
+      chart = null;
     }
   });
 
@@ -45,6 +45,7 @@
     if (!chartContainer) return;
 
     chart = createChart(chartContainer, {
+      autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: '#08090d' },
         textColor: '#828ba2',
@@ -82,7 +83,7 @@
         borderVisible: true,
         scaleMargins: {
           top: 0.1,
-          bottom: 0.2, // leave 20% margin at bottom for volume
+          bottom: 0.22,
         },
       },
       handleScale: {
@@ -98,7 +99,7 @@
       },
     });
 
-    candleSeries = chart.addCandlestickSeries({
+    candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#089981',
       downColor: '#f23645',
       borderVisible: false,
@@ -106,19 +107,18 @@
       wickDownColor: '#f23645',
     });
 
-    volumeSeries = chart.addHistogramSeries({
+    volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
-      priceScaleId: 'volume', // separate internal price scale for volume overlay
+      priceScaleId: 'volume',
     });
 
     chart.priceScale('volume').applyOptions({
       scaleMargins: {
-        top: 0.82, // position volume strictly in lower 18% of chart
+        top: 0.82,
         bottom: 0,
       },
     });
 
-    // Crosshair listener for legend update
     chart.subscribeCrosshairMove((param) => {
       if (!param || !param.time || !param.seriesData || !candleSeries) {
         onCrosshairData(null);
@@ -131,9 +131,10 @@
       if (barData && 'open' in barData) {
         const change = barData.close - barData.open;
         const changePercent = barData.open !== 0 ? (change / barData.open) * 100 : 0;
-        const dateStr = typeof param.time === 'string'
+        const timeSec = typeof param.time === 'number'
           ? param.time
-          : new Date((param.time as number) * 1000).toISOString().split('T')[0];
+          : Math.floor(new Date(param.time as string).getTime() / 1000);
+        const dateStr = new Date(timeSec * 1000).toISOString().split('T')[0];
 
         onCrosshairData({
           time: dateStr,
@@ -150,57 +151,16 @@
         onCrosshairData(null);
       }
     });
-
-    // Resize handling
-    resizeObserver = new ResizeObserver((entries) => {
-      if (entries.length === 0 || !entries[0].contentRect) return;
-      const { width, height } = entries[0].contentRect;
-      chart?.applyOptions({ width, height });
-    });
-    resizeObserver.observe(chartContainer);
   }
 
   function updateSeriesData() {
     if (!candleSeries || !volumeSeries || candles.length === 0) return;
 
-    const seenSecs = new Set<number>();
-    const validPairs: { bar: CandlestickData<Time>; vol: HistogramData<Time> }[] = [];
+    const { candles: candleData, volumes: volumeData } = prepareChartSeriesData(candles);
+    if (candleData.length === 0) return;
 
-    for (const c of candles) {
-      if (typeof c.open !== 'number' || typeof c.close !== 'number' || isNaN(c.open) || isNaN(c.close)) continue;
-      
-      // Pure numeric UTC timestamp from backend
-      const sec = typeof c.time === 'number' && c.time > 0
-        ? c.time
-        : Math.floor(new Date(c.timestamp_utc).getTime() / 1000);
-
-      if (isNaN(sec) || seenSecs.has(sec)) continue;
-      seenSecs.add(sec);
-
-      const isUp = c.close >= c.open;
-      validPairs.push({
-        bar: {
-          time: sec as unknown as Time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        },
-        vol: {
-          time: sec as unknown as Time,
-          value: c.volume_base || 0,
-          color: isUp ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
-        },
-      });
-    }
-
-    // Lightweight charts requires strictly ascending order by time
-    validPairs.sort((a, b) => (a.bar.time as number) - (b.bar.time as number));
-    const chartBars = validPairs.map((p) => p.bar);
-    const volumeBars = validPairs.map((p) => p.vol);
-
-    candleSeries.setData(chartBars);
-    volumeSeries.setData(volumeBars);
+    candleSeries.setData(candleData);
+    volumeSeries.setData(volumeData);
     chart?.timeScale().fitContent();
   }
 </script>
@@ -212,14 +172,20 @@
 <style>
   .chart-wrapper {
     position: relative;
+    flex: 1;
     width: 100%;
     height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-main);
     overflow: hidden;
   }
 
   .chart-canvas {
+    flex: 1;
     width: 100%;
     height: 100%;
+    min-height: 0;
   }
 </style>

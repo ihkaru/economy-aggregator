@@ -116,6 +116,7 @@ fn test_deterministic_file_line_limits_under_400() {
     check_dir(&root.join("src"), 400, &mut violations);
     check_dir(&root.join("tests"), 400, &mut violations);
     check_dir(&root.join("web").join("src"), 400, &mut violations);
+    check_dir(&root.join("web").join("tests"), 400, &mut violations);
 
     if !violations.is_empty() {
         let msg = violations
