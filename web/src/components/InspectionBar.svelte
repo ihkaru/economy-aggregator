@@ -5,6 +5,7 @@
   export let instrument: InstrumentSummary;
   export let candles: AggregatorCandle[] = [];
   export let timeframe: string;
+  export let isLoading: boolean = false;
 
   function formatTimestamp(c: AggregatorCandle | undefined): string {
     if (!c) return '-';
@@ -57,6 +58,12 @@
 
   <!-- Right: Storage & Environment info -->
   <div class="right-stats">
+    {#if isLoading}
+      <span class="sync-tag">
+        <span class="sync-dot"></span>
+        SYNCING LAKE...
+      </span>
+    {/if}
     <span class="env-tag">PARQUET L1</span>
     <span class="source-tag">{instrument.source.toUpperCase()}</span>
     <span class="tf-tag">{timeframe.toUpperCase()}</span>
@@ -120,6 +127,31 @@
 
   .right-stats {
     gap: 6px;
+  }
+
+  .sync-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(41, 98, 255, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(41, 98, 255, 0.4);
+    padding: 1px 5px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .sync-dot {
+    width: 5px;
+    height: 5px;
+    background: #3b82f6;
+    animation: sync-pulse 1s infinite;
+  }
+
+  @keyframes sync-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
   }
 
   .env-tag {

@@ -4,6 +4,7 @@
   import CandleChart from './components/CandleChart.svelte';
   import TickerModal from './components/TickerModal.svelte';
   import InspectionBar from './components/InspectionBar.svelte';
+  import Icons from './components/Icons.svelte';
   import { fetchInstruments, fetchCandles } from './lib/api';
   import type { InstrumentSummary, TimeframeOption, AggregatorCandle, ChartLegendData } from './lib/types';
 
@@ -100,7 +101,26 @@
     onRefresh={loadCandles}
   />
 
-  <div class="chart-viewport">
+  <div class="chart-viewport" class:dimmed={isLoading}>
+    {#if isLoading}
+      <div class="progress-bar-container">
+        <div class="progress-bar-indicator"></div>
+      </div>
+      <div class="loading-hud-overlay">
+        <div class="loading-hud-box tabular-nums">
+          <div class="hud-spinner">
+            <Icons name="loader" size={15} classNames="spin-icon" />
+          </div>
+          <div class="hud-content">
+            <span class="hud-title">SYNCING LAKEHOUSE</span>
+            <span class="hud-meta">
+              {selectedInstrument.symbol} · {selectedTimeframe.toUpperCase()} [PARQUET PARTITIONS]
+            </span>
+          </div>
+        </div>
+      </div>
+    {/if}
+
     {#if errorMsg}
       <div class="error-banner">
         <span>ERROR: {errorMsg}</span>
@@ -121,6 +141,7 @@
     instrument={selectedInstrument}
     {candles}
     timeframe={selectedTimeframe}
+    {isLoading}
   />
 
   <TickerModal
@@ -149,6 +170,102 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .chart-viewport.dimmed :global(.chart-canvas) {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.15s ease-out;
+  }
+
+  :global(.chart-canvas) {
+    transition: opacity 0.15s ease-out;
+  }
+
+  /* Indeterminate Scan-Line Progress Bar */
+  .progress-bar-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: rgba(41, 98, 255, 0.12);
+    z-index: 50;
+    overflow: hidden;
+  }
+
+  .progress-bar-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 35%;
+    background: linear-gradient(90deg, transparent, #2962ff, #089981, #2962ff, transparent);
+    animation: scan-line 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes scan-line {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  /* Central High-Density Terminal Loading HUD */
+  .loading-hud-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    pointer-events: none;
+  }
+
+  .loading-hud-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(8, 9, 13, 0.88);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid #2962ff;
+    padding: 8px 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  }
+
+  .hud-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2962ff;
+  }
+
+  :global(.spin-icon) {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .hud-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .hud-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #60a5fa;
+  }
+
+  .hud-meta {
+    font-size: 9.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.4px;
   }
 
   .error-banner {
