@@ -191,3 +191,26 @@
   Data historis emiten sebelum dan sesudah rebranding tertaut sempurna ke satu identitas kanonikal, dan analisis volume/likuiditas pra-split mencerminkan nilai ekuivalen pasca-split secara deterministik.
 * **Risiko yang Muncul:**  
   `RISK-15` (Kebutuhan pemeliharaan tabel symbology master yang terus diperbarui seiring pengumuman aksi korporasi bursa).
+
+---
+
+### ADR-13: Rekonsiliasi Lilin Multi-Sumber dan Audit Integritas Data Lakehouse
+* **Status:** Diterima
+* **Konteks:**  
+  Data deret lilin (OHLCV) yang telah tersimpan di Parquet lakehouse berisiko mengalami drift atau inkonsistensi terhadap data pasar langsung akibat:
+  1. Revisi retroaktif vendor (misal Yahoo Finance memperbarui faktor dividen/split masa lalu secara diam-diam).
+  2. Perbedaan konvensi bursa dan vendor (misal Dukascopy FX BID/ASK mid price vs Yahoo Last traded price vs Binance crypto exchange execution).
+  3. Celah data (*gaps*) atau keterlambatan penarikan batch harian.
+  4. Kerusakan atau korupsi file Parquet akibat proses batch yang terputus di tengah jalan.  
+  Diperlukan mekanisme komparasi otomatis yang membandingkan lilin tersimpan di Parquet lakehouse dengan tarikan langsung (*live fetch*) maupun format vendor eksternal lainnya (Dukascopy, TradingView).
+* **Keputusan:**  
+  1. Membangun modul domain `ReconciliationEngine` di [`src/features/analytics/reconciliation.rs`](file:///root/projects/economy-aggregator/src/features/analytics/reconciliation.rs) yang mengomparasi candle-by-candle pada irisan jendela observasi bersama $[\max(T_1, T_3), \min(T_2, T_4)]$.
+  2. Mengklasifikasikan diskrepansi secara deterministik: `PriceDrift` ($> \text{tolerance}$, default $0.5\%$), `VolumeDrift`, `MissingInLake`, dan `MissingInLive`.
+  3. Menambahkan parser multi-sumber vendor: `DukascopyParser` (format array-of-arrays dan array-of-objects) dan `TradingViewParser` (spesifikasi UDF `/history`).
+  4. Menyediakan pembaca Parquet danau data terpadu `LakeReader::read_candles()` yang otomatis membaca partisi, mendekompresi Arrow batch, dan mendeduplikasi data dengan prioritas *settled records*.
+  5. Menambahkan sub-perintah CLI: `economy-aggregator reconcile --symbol <SYMBOL> --source <SOURCE> [--tolerance <PCT>] [--days <N>] [--json]`.
+  6. Menjadikan mekanisme ini sebagai test suite otomatis (`tests/test_lake_reconciliation.rs`) dengan 8 pengujian komprehensif termasuk pengujian live lakehouse riil.
+* **Konsekuensi Positif:**  
+  Integritas lakehouse dapat diaudit secara berkala tanpa menyentuh atau memutasi data Bronze asli, memberikan bukti empiris bahwa data yang tersimpan valid, bebas revisi liar, dan terdeteksi dini jika ada celah data.
+* **Risiko yang Muncul:**  
+  `RISK-16` (Perbedaan konvensi jam penutupan bursa / timezone antar vendor yang dapat menimbulkan selisih mikro toleransi harga).

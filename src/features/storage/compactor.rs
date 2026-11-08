@@ -3,14 +3,14 @@
 
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
 use uuid::Uuid;
 
-use crate::core::types::{AggregatorCandle, IngestionMode, TimeFrame};
+use crate::core::types::AggregatorCandle;
 use crate::features::storage::arrow_schema::candles_to_record_batch;
 
 #[derive(Debug, Clone)]
@@ -89,7 +89,7 @@ impl LakeCompactor {
 
             while let Some(batch_res) = reader.next() {
                 let batch = batch_res?;
-                let candles = Self::record_batch_to_candles(&batch)?;
+                let candles = crate::features::storage::arrow_schema::record_batch_to_candles(&batch)?;
                 all_candles.extend(candles);
             }
         }
@@ -195,105 +195,5 @@ impl LakeCompactor {
                 Self::collect_partition_dirs(&sub, out);
             }
         }
-    }
-
-    /// Converts an Arrow RecordBatch into domain AggregatorCandle structs.
-    fn record_batch_to_candles(
-        batch: &arrow::record_batch::RecordBatch,
-    ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
-        use arrow::array::*;
-        use arrow::datatypes::{DataType, TimeUnit};
-
-        let ts_col = batch.column(0);
-        let ts_micros: Vec<i64> = match ts_col.data_type() {
-            DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                let arr = ts_col.as_any().downcast_ref::<TimestampNanosecondArray>().ok_or("Failed downcast ts nanos")?;
-                (0..batch.num_rows()).map(|i| arr.value(i) / 1_000).collect()
-            }
-            DataType::Timestamp(TimeUnit::Microsecond, _) => {
-                let arr = ts_col.as_any().downcast_ref::<TimestampMicrosecondArray>().ok_or("Failed downcast ts micros")?;
-                (0..batch.num_rows()).map(|i| arr.value(i)).collect()
-            }
-            DataType::Timestamp(TimeUnit::Millisecond, _) => {
-                let arr = ts_col.as_any().downcast_ref::<TimestampMillisecondArray>().ok_or("Failed downcast ts millis")?;
-                (0..batch.num_rows()).map(|i| arr.value(i) * 1_000).collect()
-            }
-            dt => return Err(format!("Unexpected timestamp data type: {:?}", dt).into()),
-        };
-
-        let extract_str = |col_idx: usize, row_idx: usize| -> String {
-            let col = batch.column(col_idx);
-            if let Some(arr) = col.as_any().downcast_ref::<StringArray>() {
-                return arr.value(row_idx).to_string();
-            }
-            if let Some(arr) = col.as_any().downcast_ref::<LargeStringArray>() {
-                return arr.value(row_idx).to_string();
-            }
-            if let Some(dict) = col.as_any().downcast_ref::<DictionaryArray<arrow::datatypes::Int32Type>>() {
-                if let Some(values) = dict.values().as_any().downcast_ref::<StringArray>() {
-                    if let Some(key) = dict.key(row_idx) {
-                        return values.value(key).to_string();
-                    }
-                }
-            }
-            String::new()
-        };
-
-        let open_array = batch.column(3).as_any().downcast_ref::<Float64Array>().ok_or("Invalid open col")?;
-        let high_array = batch.column(4).as_any().downcast_ref::<Float64Array>().ok_or("Invalid high col")?;
-        let low_array = batch.column(5).as_any().downcast_ref::<Float64Array>().ok_or("Invalid low col")?;
-        let close_array = batch.column(6).as_any().downcast_ref::<Float64Array>().ok_or("Invalid close col")?;
-        let vol_base_array = batch.column(7).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vol_base col")?;
-        let vol_quote_array = batch.column(8).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vol_quote col")?;
-        let taker_base_array = batch.column(9).as_any().downcast_ref::<Float64Array>().ok_or("Invalid taker_base col")?;
-        let taker_quote_array = batch.column(10).as_any().downcast_ref::<Float64Array>().ok_or("Invalid taker_quote col")?;
-        let is_settled_array = batch.column(14).as_any().downcast_ref::<BooleanArray>().ok_or("Invalid is_settled col")?;
-        let sequence_id_array = batch.column(15).as_any().downcast_ref::<UInt64Array>().ok_or("Invalid seq col")?;
-        let vwap_array = batch.column(16).as_any().downcast_ref::<Float64Array>().ok_or("Invalid vwap col")?;
-        let trade_count_array = batch.column(17).as_any().downcast_ref::<UInt32Array>().ok_or("Invalid trade_count col")?;
-
-        let mut candles = Vec::with_capacity(batch.num_rows());
-        for i in 0..batch.num_rows() {
-            let ts = DateTime::from_timestamp_micros(ts_micros[i]).unwrap_or_else(Utc::now);
-            let tf_str = extract_str(2, i);
-            let timeframe = TimeFrame::from_str_opt(&tf_str).unwrap_or(TimeFrame::M1);
-
-            let mode_str = extract_str(13, i);
-            let ingestion_mode = match mode_str.as_str() {
-                "rest_batch" => IngestionMode::RestBatch,
-                "reconciliation" => IngestionMode::Reconciliation,
-                _ => IngestionMode::LiveWs,
-            };
-
-            candles.push(AggregatorCandle {
-                timestamp_utc: ts,
-                canonical_symbol: extract_str(1, i),
-                timeframe,
-                open: open_array.value(i),
-                high: high_array.value(i),
-                low: low_array.value(i),
-                close: close_array.value(i),
-                volume_base: vol_base_array.value(i),
-                volume_quote: vol_quote_array.value(i),
-                taker_buy_volume_base: if taker_base_array.is_null(i) { None } else { Some(taker_base_array.value(i)) },
-                taker_buy_volume_quote: if taker_quote_array.is_null(i) { None } else { Some(taker_quote_array.value(i)) },
-                source: extract_str(11, i),
-                raw_symbol: extract_str(12, i),
-                ingestion_mode,
-                is_settled: is_settled_array.value(i),
-                sequence_id: if sequence_id_array.is_null(i) { None } else { Some(sequence_id_array.value(i)) },
-                vwap: if vwap_array.is_null(i) { None } else { Some(vwap_array.value(i)) },
-                trade_count: if trade_count_array.is_null(i) { None } else { Some(trade_count_array.value(i)) },
-                price_type: extract_str(18, i),
-                raw_metadata: if batch.num_columns() > 19 && !batch.column(19).is_null(i) {
-                    let s = extract_str(19, i);
-                    if s.is_empty() { None } else { Some(s) }
-                } else {
-                    None
-                },
-            });
-        }
-
-        Ok(candles)
     }
 }

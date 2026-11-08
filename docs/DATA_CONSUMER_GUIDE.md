@@ -83,6 +83,8 @@ API publik kadang-kadang memancarkan *fat-finger glitch* (misal kurs USD/IDR ber
 | `PointInTimeEngine` | [`src/features/analytics/bitemporal.rs`](file:///root/projects/economy-aggregator/src/features/analytics/bitemporal.rs) | Kueri bitemporal untuk mencegah look-ahead bias makro. |
 | `FuturesRollEngine` | [`src/features/analytics/futures_roll.rs`](file:///root/projects/economy-aggregator/src/features/analytics/futures_roll.rs) | Penyambungan kontrak berjangka via Panama Ratio & Additive Diff. |
 | `PortfolioEngine` | [`src/features/analytics/portfolio.rs`](file:///root/projects/economy-aggregator/src/features/analytics/portfolio.rs) | Evaluasi CAGR, Volatilitas, Max Drawdown, Sharpe, & Korelasi. |
+| `LakeReader` | [`src/features/storage/reader.rs`](file:///root/projects/economy-aggregator/src/features/storage/reader.rs) | Pembacaan partisi Parquet lakehouse dengan deduplikasi settled records. |
+| `ReconciliationEngine` | [`src/features/analytics/reconciliation.rs`](file:///root/projects/economy-aggregator/src/features/analytics/reconciliation.rs) | Audit integritas candle lakehouse vs feed eksternal (Yahoo, Binance, Dukascopy, TradingView). |
 
 ---
 
@@ -92,9 +94,18 @@ API publik kadang-kadang memancarkan *fat-finger glitch* (misal kurs USD/IDR ber
 # 1. Analisis performa multi-aset 100% data empiris riil
 cargo run -- analyze --start-year 2004
 
-# 2. Padatkan partisi mikro-batch menjadi file konsolidasi bulanan
+# 2. Rekonsiliasi integritas data lakehouse terhadap feed live (misal BBCA via Yahoo)
+cargo run -- reconcile --symbol BBCA --asset equities --source yahoo --days 30
+
+# 3. Rekonsiliasi data kripto terhadap Binance REST API
+cargo run -- reconcile --symbol BTC/USDT --asset crypto --source binance --days 30
+
+# 4. Rekonsiliasi dengan toleransi kustom dan format JSON (ramah CI/CD & Agent)
+cargo run -- reconcile --symbol GSPC --source yahoo --tolerance 0.2 --days 60 --json
+
+# 5. Padatkan partisi mikro-batch menjadi file konsolidasi bulanan
 cargo run -- compact
 
-# 3. Status danau data & integritas disk
+# 6. Status danau data & integritas disk
 cargo run -- status
 ```

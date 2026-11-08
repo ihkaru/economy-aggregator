@@ -85,3 +85,17 @@
   Implemented `YahooFinanceFetcher::fetch_daily_bars_with_events()` parsing historical splits and dividends directly from exchange feeds.
 - [ ] **PHASE-290: Parquet Corporate Actions Metadata Table (`data/lake/meta/corporate_actions/`)**  
   Write persistent Parquet tables for declared corporate actions to feed the automated Silver pipeline.
+
+---
+
+#### F. Multi-Source Candle Reconciliation & Lakehouse Integrity Engine (Phases 291 – 295)
+- [x] **PHASE-291: Parquet Lakehouse Unified Reader (`LakeReader::read_candles`)**  
+  Implemented partition discovery, RecordBatch deserialization, and deterministic settled-precedence deduplication in `src/features/storage/reader.rs`.
+- [x] **PHASE-292: Domain Reconciliation Engine (`ReconciliationEngine::compare_candles`)**  
+  Built mathematical candle discrepancy classification (`PriceDrift`, `VolumeDrift`, `MissingInLake`, `MissingInLive`) on mutual observation windows in `src/features/analytics/reconciliation.rs`.
+- [x] **PHASE-293: External Vendor Format Parsers (Dukascopy & TradingView UDF)**  
+  Implemented `DukascopyParser` (array and object modes) and `TradingViewParser` (UDF `/history` parallel-array specs) in `src/features/ingestion/`.
+- [x] **PHASE-294: Agent-Ready CLI Command: `economy-aggregator reconcile`**  
+  Delivered CLI dispatcher with multi-vendor live fetching (Yahoo, Binance), custom tolerance bounds, terminal visual table reporter, and deterministic JSON output.
+- [x] **PHASE-295: Automated Multi-Source Reconciliation Test Suite (`test_lake_reconciliation.rs`)**  
+  Created 8 comprehensive tests proving zero drift on exact matches, price drift detection, missing bar detection, Dukascopy/TradingView parsing, and real Parquet lakehouse live tests.

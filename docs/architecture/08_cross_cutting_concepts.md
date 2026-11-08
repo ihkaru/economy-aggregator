@@ -67,3 +67,16 @@ Belajar dari evaluasi empiris simulasi portofolio, pemodelan instrumen derivatif
   2. *Injeksi Rahasia Mesin* via Infisical Universal Auth (`infisical run -- dev`) dan Environment Variables (`AGGREGATOR_*`).
   3. *File Konfigurasi Deklaratif* (`economy-aggregator.toml`) untuk kemudahan setup "one config away".
 - Token rahasia atau API key vendor tidak pernah disimpan ke git commit atau dicetak mentah di log terminal (wajib dimaskir: `sk_***`).
+
+## 8.9 Rekonsiliasi Lilin Multi-Sumber & Audit Integritas Data (Candle Reconciliation & Drift Auditing)
+- **Tujuan:** Memverifikasi secara matematis bahwa lilin pasar (OHLCV) yang tersimpan di Parquet lakehouse tetap valid, tidak mengalami revisi retroaktif liar oleh vendor, dan bebas dari celah waktu (*gaps*).
+- **Prinsip Jendela Observasi Bersama (Mutual Observation Window):**
+  Untuk mencegah penalti keliru (*false positive*) pada rentang historis di luar cakupan tarikan, komparasi dilakukan ketat pada irisan rentang waktu:
+  $$[\max(T_{lake\_start}, T_{live\_start}), \min(T_{lake\_end}, T_{live\_end})]$$
+- **Taksonomi Diskrepansi:**
+  1. `PriceDrift`: Selisih harga penutupan $|\text{Close}_{lake} - \text{Close}_{live}| / \text{Close}_{lake}$ melebihi ambang toleransi $\epsilon$ (default $\pm 0.5\%$).
+  2. `VolumeDrift`: Selisih volume antar bursa atau tipe transaksi.
+  3. `MissingInLake`: Bar perdagangan ada pada live vendor tetapi hilang dari danau data dalam rentang observasi.
+  4. `MissingInLive`: Bar perdagangan ada di danau data tetapi tidak disediakan oleh vendor live pada rentang kueri.
+- **Dukungan Multi-Sumber:** Mengakomodasi format vendor eksternal bursa, termasuk Binance klines, Yahoo Finance daily bars, Dukascopy FX/CFD JSON (format array dan objek), serta TradingView UDF response format (`s: "ok"`, `t`, `o`, `h`, `l`, `c`, `v`).
+- **Audit Non-Destruktif:** Pemeriksaan rekonsiliasi bersifat murni *read-only* tanpa pernah memutasi data Bronze mentah di disk.

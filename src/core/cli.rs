@@ -19,6 +19,7 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "compact" => handle_compact(&args[1..]).await,
         "calendar" => handle_calendar(&args[1..]).await,
         "analyze" => crate::features::analytics::handle_analyze(&args[1..]).await,
+        "reconcile" => crate::features::analytics::handle_reconcile(&args[1..]).await,
         "status" => handle_status().await,
         other => {
             eprintln!("{{\"success\":false,\"error\":\"Unknown subcommand '{}'. Use 'help' for usage.\"}}", other);
@@ -38,6 +39,7 @@ fn print_help() {
     "compact                    Compact micro-chunks into unified monthly Parquet files",
     "calendar                   Fetch live macroeconomic calendar releases",
     "analyze                    Run vectorized multi-asset portfolio and risk parity analytics",
+    "reconcile                  Reconcile lakehouse candles against live vendor feeds",
     "status                     Inspect lakehouse partitions, files, and disk footprint",
     "help                       Show this help message"
   ],

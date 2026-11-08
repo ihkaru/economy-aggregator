@@ -10,6 +10,8 @@ pub mod futures_roll;
 pub mod fx_normalizer;
 pub mod outlier;
 pub mod portfolio;
+pub mod reconciliation;
+pub mod reconcile_cli;
 pub mod runner;
 pub mod synthetic_bond;
 
@@ -21,5 +23,7 @@ pub use futures_roll::{ForexSessionNormalizer, FuturesRollEngine, FuturesRollEve
 pub use fx_normalizer::FxNormalizer;
 pub use outlier::HampelFilter;
 pub use portfolio::{PortfolioEngine, PortfolioMetrics, SingleAssetMetrics};
+pub use reconciliation::{CandleDiscrepancy, DiscrepancyType, ReconciliationEngine, ReconciliationReport};
+pub use reconcile_cli::handle_reconcile;
 pub use runner::handle_analyze;
 pub use synthetic_bond::{DayCountConvention, SyntheticBondAccumulator};
