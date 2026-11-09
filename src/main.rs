@@ -69,7 +69,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "1d",
                 None,
                 None,
-                Some(2000),
+                Some(300),
+                None,
             ).map(|candles| {
                 if !candles.is_empty() {
                     let key = format!("{}:{}:1d", ac, sym);

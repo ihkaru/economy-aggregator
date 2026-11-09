@@ -124,17 +124,16 @@ pub async fn query_candles_handler(
     let clean_symbol = query.symbol.to_uppercase().replace('/', "_");
     let cache_key = format!("{}:{}:{}", asset_class.as_str(), clean_symbol, timeframe.as_str());
 
-    // Check fast in-memory cache if no arbitrary historical date filter
-    if start_date.is_none() && end_date.is_none() {
+    // Check fast in-memory cache if no arbitrary historical date filter and no to cutoff
+    if start_date.is_none() && end_date.is_none() && query.to.is_none() {
         if let Ok(cache) = state.candle_cache.read() {
             if let Some((inserted_at, cached_candles)) = cache.get(&cache_key) {
                 if inserted_at.elapsed() < Duration::from_secs(60) {
                     let mut res = cached_candles.clone();
-                    if let Some(lim) = query.limit {
-                        if res.len() > lim {
-                            let start_idx = res.len() - lim;
-                            res = res.split_off(start_idx);
-                        }
+                    let lim = query.limit.unwrap_or(300);
+                    if res.len() > lim {
+                        let start_idx = res.len() - lim;
+                        res = res.split_off(start_idx);
                     }
                     return Ok(Json(res));
                 }
@@ -142,6 +141,7 @@ pub async fn query_candles_handler(
         }
     }
 
+    let default_limit = query.limit.or(Some(300));
     let mut candles = LakeReader::read_candles_with_limit(
         &state.config.lake_dir,
         Some(asset_class.as_str()),
@@ -149,12 +149,13 @@ pub async fn query_candles_handler(
         timeframe.as_str(),
         start_date,
         end_date,
-        query.limit,
+        default_limit,
+        query.to,
     ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Dynamic Resampling: If candles are empty for weekly or monthly, resample from 1d daily lake
     if candles.is_empty() && (timeframe == TimeFrame::W1 || timeframe == TimeFrame::MN1) {
-        let daily_limit = query.limit.map(|l| if timeframe == TimeFrame::MN1 { l * 31 } else { l * 7 });
+        let daily_limit = default_limit.map(|l| if timeframe == TimeFrame::MN1 { l * 31 } else { l * 7 });
         if let Ok(daily_candles) = LakeReader::read_candles_with_limit(
             &state.config.lake_dir,
             Some(asset_class.as_str()),
@@ -163,20 +164,21 @@ pub async fn query_candles_handler(
             start_date,
             end_date,
             daily_limit,
+            query.to,
         ) {
             candles = CandleResampler::resample(&daily_candles, timeframe);
         }
     }
 
-    // Cache resolved candles in memory
-    if start_date.is_none() && end_date.is_none() && !candles.is_empty() {
+    // Cache resolved candles in memory if full initial view
+    if start_date.is_none() && end_date.is_none() && query.to.is_none() && !candles.is_empty() {
         if let Ok(mut cache) = state.candle_cache.write() {
             cache.insert(cache_key, (Instant::now(), candles.clone()));
         }
     }
 
     // Apply limit: keep the most recent candles for charting
-    if let Some(lim) = query.limit {
+    if let Some(lim) = default_limit {
         if candles.len() > lim {
             let start_idx = candles.len() - lim;
             candles = candles.split_off(start_idx);

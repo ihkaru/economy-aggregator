@@ -26,6 +26,7 @@
   let isCalendarOpen: boolean = false;
   let isPredictionModalOpen: boolean = false;
   let isLoading: boolean = false;
+  let isBackfilling: boolean = false;
   let errorMsg: string | null = null;
 
   $: supportedTimeframes = (selectedInstrument.supported_timeframes as TimeframeOption[]) || ['1d', '1w', '1M'];
@@ -90,6 +91,26 @@
     selectedTimeframe = tf;
     loadCandles();
   }
+
+  async function handleLoadMoreHistory(oldestTime: number): Promise<boolean> {
+    try {
+      const older = await fetchCandles(
+        selectedInstrument.canonical_symbol || selectedInstrument.symbol,
+        selectedInstrument.asset_class,
+        selectedTimeframe,
+        300,
+        oldestTime
+      );
+      if (older.length === 0) return false;
+      const map = new Map<number, AggregatorCandle>();
+      for (const c of older) map.set(c.time, c);
+      for (const c of candles) map.set(c.time, c);
+      candles = Array.from(map.values()).sort((a, b) => a.time - b.time);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 </script>
 
 <main class="terminal-container">
@@ -108,6 +129,13 @@
   />
 
   <div class="chart-viewport" class:dimmed={isLoading}>
+    {#if isBackfilling}
+      <div class="backfill-hud tabular-nums">
+        <span class="backfill-dot"></span>
+        <span>FETCHING OLDER BARS...</span>
+      </div>
+    {/if}
+
     {#if isLoading}
       <div class="progress-bar-container">
         <div class="progress-bar-indicator"></div>
@@ -150,10 +178,13 @@
 
     <CandleChart
       {candles}
+      symbol={selectedInstrument.canonical_symbol || selectedInstrument.symbol}
       {pricePrecision}
       {minMove}
       timeframe={selectedTimeframe}
       onCrosshairData={(data) => (legendData = data)}
+      onLoadMoreHistory={handleLoadMoreHistory}
+      onBackfillStateChange={(b) => (isBackfilling = b)}
     />
   </div>
 
@@ -249,54 +280,48 @@
     z-index: 40;
     pointer-events: none;
   }
-
   .loading-hud-box {
     display: flex;
     align-items: center;
     gap: 12px;
     background: rgba(8, 9, 13, 0.88);
     backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     border: 1px solid #2962ff;
     padding: 8px 14px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
   }
+  .hud-spinner { display: flex; align-items: center; justify-content: center; color: #2962ff; }
+  :global(.spin-icon) { animation: spin 1s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-  .hud-spinner {
+  .hud-content { display: flex; flex-direction: column; gap: 2px; }
+  .hud-title { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; color: #60a5fa; }
+  .hud-meta { font-size: 9.5px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.4px; }
+
+  /* Backfill HUD (TradingView Infinite Scroll Indicator) */
+  .backfill-hud {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 30;
     display: flex;
     align-items: center;
-    justify-content: center;
-    color: #2962ff;
-  }
-
-  :global(.spin-icon) {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  .hud-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .hud-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
+    gap: 6px;
+    background: rgba(15, 18, 26, 0.88);
+    border: 1px solid #3b82f6;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 600;
     color: #60a5fa;
+    letter-spacing: 0.5px;
   }
-
-  .hud-meta {
-    font-size: 9.5px;
-    font-weight: 500;
-    color: var(--text-muted);
-    letter-spacing: 0.4px;
+  .backfill-dot {
+    width: 6px;
+    height: 6px;
+    background: #3b82f6;
+    animation: pulse 0.8s infinite alternate;
   }
+  @keyframes pulse { from { opacity: 0.2; } to { opacity: 1; } }
 
   /* Empty State Overlay */
   .empty-state-overlay {
@@ -308,7 +333,6 @@
     z-index: 35;
     background: rgba(8, 9, 13, 0.7);
   }
-
   .empty-state-box {
     display: flex;
     flex-direction: column;
@@ -320,20 +344,8 @@
     padding: 20px 28px;
     max-width: 360px;
   }
-
-  .empty-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--accent-amber);
-    letter-spacing: 0.8px;
-  }
-
-  .empty-desc {
-    font-size: 11px;
-    color: var(--text-muted);
-    line-height: 1.4;
-  }
-
+  .empty-title { font-size: 13px; font-weight: 700; color: var(--accent-amber); letter-spacing: 0.8px; }
+  .empty-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
   .empty-action-btn {
     margin-top: 6px;
     background: #2962ff;
@@ -345,10 +357,7 @@
     cursor: pointer;
     letter-spacing: 0.5px;
   }
-
-  .empty-action-btn:hover {
-    background: #1e4bd8;
-  }
+  .empty-action-btn:hover { background: #1e4bd8; }
 
   .error-banner {
     position: absolute;
@@ -366,13 +375,5 @@
     gap: 12px;
     border: 1px solid #f87171;
   }
-
-  .retry-btn {
-    background: #000;
-    color: #fff;
-    border: 1px solid #fff;
-    padding: 2px 6px;
-    font-size: 10px;
-    cursor: pointer;
-  }
+  .retry-btn { background: #000; color: #fff; border: 1px solid #fff; padding: 2px 6px; font-size: 10px; cursor: pointer; }
 </style>

@@ -293,27 +293,34 @@ async fn test_sla_rest_endpoint_latencies() {
         elapsed_meta
     );
 
-    // 4. Query Candles Endpoint SLA (Cold & Cached Read)
+    // 4. Query Candles Endpoint SLA: Viewport Windowing (300 bars) & Backward Pagination
     let t_candles_cold = Instant::now();
     let res_candles_cold = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/v1/market/candles?symbol=ETH/USDT&asset_class=crypto&timeframe=1m&limit=1000")
+                .uri("/v1/market/candles?symbol=ETH/USDT&asset_class=crypto&timeframe=1m&limit=300")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     let elapsed_candles_cold = t_candles_cold.elapsed();
-    println!("⏱️  REST GET /v1/market/candles (Cold): {:?}", elapsed_candles_cold);
+    println!("⏱️  REST GET /v1/market/candles Viewport 300 (Cold): {:?}", elapsed_candles_cold);
     assert_eq!(res_candles_cold.status(), StatusCode::OK);
+    assert!(
+        elapsed_candles_cold.as_millis() < 50,
+        "Cold viewport windowing (300 bars) took {:?}, exceeding 50ms SLA",
+        elapsed_candles_cold
+    );
 
+    // 5. Query Candles Cached Read SLA (< 5ms)
     let t_candles_cached = Instant::now();
     let res_candles_cached = app
+        .clone()
         .oneshot(
             Request::builder()
-                .uri("/v1/market/candles?symbol=ETH/USDT&asset_class=crypto&timeframe=1m&limit=1000")
+                .uri("/v1/market/candles?symbol=ETH/USDT&asset_class=crypto&timeframe=1m&limit=300")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -326,5 +333,25 @@ async fn test_sla_rest_endpoint_latencies() {
         elapsed_candles_cached.as_millis() < 5,
         "Cached GET /v1/market/candles took {:?}, exceeding 5ms SLA",
         elapsed_candles_cached
+    );
+
+    // 6. Backward Historical Pagination with `to` Cutoff SLA (< 50ms)
+    let t_backfill = Instant::now();
+    let res_backfill = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/market/candles?symbol=ETH/USDT&asset_class=crypto&timeframe=1m&limit=300&to=1704067200")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let elapsed_backfill = t_backfill.elapsed();
+    println!("⏱️  REST GET /v1/market/candles Backward `to` (Backfill): {:?}", elapsed_backfill);
+    assert_eq!(res_backfill.status(), StatusCode::OK);
+    assert!(
+        elapsed_backfill.as_millis() < 50,
+        "Backward pagination slice took {:?}, exceeding 50ms SLA",
+        elapsed_backfill
     );
 }

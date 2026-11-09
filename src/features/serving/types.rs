@@ -18,6 +18,7 @@ pub struct CandleQuery {
     pub year: Option<i32>,
     pub month: Option<u32>,
     pub limit: Option<usize>,
+    pub to: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]

@@ -30,10 +30,10 @@ impl LakeReader {
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
     ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
-        Self::read_candles_with_limit(lake_dir, asset_class, symbol, timeframe, start_date, end_date, None)
+        Self::read_candles_with_limit(lake_dir, asset_class, symbol, timeframe, start_date, end_date, None, None)
     }
 
-    /// Reads candles with parallel Rayon decompression and reverse partition pruning by limit.
+    /// Reads candles with parallel Rayon decompression, partition pruning, and backward timestamp cutoff.
     pub fn read_candles_with_limit(
         lake_dir: &Path,
         asset_class: Option<&str>,
@@ -42,6 +42,7 @@ impl LakeReader {
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         limit: Option<usize>,
+        to_timestamp: Option<i64>,
     ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
         let clean_symbol = symbol.to_uppercase().replace('/', "_").replace(':', "_");
         let sym_dir = Self::resolve_symbol_dir(lake_dir, asset_class, &clean_symbol, timeframe)?;
@@ -50,8 +51,14 @@ impl LakeReader {
             return Ok(Vec::new());
         }
 
+        let effective_end_date = end_date.or_else(|| {
+            to_timestamp.and_then(|ts| {
+                chrono::DateTime::from_timestamp(ts, 0).map(|dt| dt.date_naive())
+            })
+        });
+
         let mut partitions = Vec::new();
-        Self::collect_partitions(&sym_dir, start_date, end_date, &mut partitions);
+        Self::collect_partitions(&sym_dir, start_date, effective_end_date, &mut partitions);
 
         if partitions.is_empty() {
             return Ok(Vec::new());
@@ -110,13 +117,18 @@ impl LakeReader {
         let mut filtered: Vec<AggregatorCandle> = dedup_map
             .into_values()
             .filter(|c| {
+                if let Some(to_ts) = to_timestamp {
+                    if c.time >= to_ts {
+                        return false;
+                    }
+                }
                 let d = c.timestamp_utc.date_naive();
                 if let Some(s) = start_date {
                     if d < s {
                         return false;
                     }
                 }
-                if let Some(e) = end_date {
+                if let Some(e) = effective_end_date {
                     if d > e {
                         return false;
                     }

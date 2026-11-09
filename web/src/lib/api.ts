@@ -49,7 +49,8 @@ export async function fetchCandles(
   symbol: string,
   assetClass: string,
   timeframe: string = '1d',
-  limit: number = 2000
+  limit: number = 300,
+  to?: number
 ): Promise<AggregatorCandle[]> {
   const params = new URLSearchParams({
     symbol,
@@ -57,6 +58,9 @@ export async function fetchCandles(
     timeframe,
     limit: limit.toString(),
   });
+  if (to !== undefined) {
+    params.set('to', to.toString());
+  }
 
   const res = await fetch(`${API_BASE}/v1/market/candles?${params.toString()}`);
   if (!res.ok) {

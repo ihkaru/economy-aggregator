@@ -20,13 +20,29 @@
   export let pricePrecision: number = 2;
   export let minMove: number = 0.01;
   export let timeframe: string = '1d';
+  export let symbol: string = '';
+  export let onLoadMoreHistory: ((oldestTime: number) => Promise<boolean>) | null = null;
+  export let onBackfillStateChange: ((loading: boolean) => void) | null = null;
 
   let chartContainer: HTMLDivElement;
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<'Candlestick'> | null = null;
   let volumeSeries: ISeriesApi<'Histogram'> | null = null;
 
+  let isLoadingMore = false;
+  let hasMoreHistory = true;
+  let activeSymbol = '';
+  let activeTimeframe = '';
+  let prevCandlesCount = 0;
+
   $: isIntraday = timeframe === '1m' || timeframe === '5m' || timeframe === '15m' || timeframe === '1h';
+
+  $: if (symbol !== activeSymbol || timeframe !== activeTimeframe) {
+    activeSymbol = symbol;
+    activeTimeframe = timeframe;
+    hasMoreHistory = true;
+    prevCandlesCount = 0;
+  }
 
   $: if (chart) {
     chart.applyOptions({
@@ -182,6 +198,32 @@
         onCrosshairData(null);
       }
     });
+
+    // TradingView Best Practice: Lazy backfill when panning left towards historical boundary
+    chart.timeScale().subscribeVisibleLogicalRangeChange(async (logicalRange) => {
+      if (!logicalRange || !onLoadMoreHistory || isLoadingMore || !hasMoreHistory) return;
+      if (logicalRange.from < 15 && candles.length > 0) {
+        isLoadingMore = true;
+        onBackfillStateChange?.(true);
+        const oldestTime = candles[0].time;
+        const currentRange = chart?.timeScale().getVisibleLogicalRange();
+        const countBefore = candles.length;
+        const gotMore = await onLoadMoreHistory(oldestTime);
+        if (gotMore && chart && currentRange) {
+          const added = candles.length - countBefore;
+          if (added > 0) {
+            chart.timeScale().setVisibleLogicalRange({
+              from: currentRange.from + added,
+              to: currentRange.to + added,
+            });
+          }
+        } else {
+          hasMoreHistory = false;
+        }
+        isLoadingMore = false;
+        onBackfillStateChange?.(false);
+      }
+    });
   }
 
   function updateSeriesData() {
@@ -190,6 +232,7 @@
     if (candles.length === 0) {
       candleSeries.setData([]);
       volumeSeries.setData([]);
+      prevCandlesCount = 0;
       return;
     }
 
@@ -197,19 +240,25 @@
     if (candleData.length === 0) {
       candleSeries.setData([]);
       volumeSeries.setData([]);
+      prevCandlesCount = 0;
       return;
     }
 
+    const isPrepend = prevCandlesCount > 0 && candles.length > prevCandlesCount;
     candleSeries.setData(candleData);
     volumeSeries.setData(volumeData);
 
-    // TradingView Best Practice: Display the latest ~90 to 120 bars so candles have natural size
-    const totalBars = candleData.length;
-    const visibleCount = Math.min(100, totalBars);
-    chart?.timeScale().setVisibleLogicalRange({
-      from: totalBars - visibleCount,
-      to: totalBars + 2,
-    });
+    if (!isPrepend) {
+      // Initial Load / Viewport: Display latest ~100 bars
+      const totalBars = candleData.length;
+      const visibleCount = Math.min(100, totalBars);
+      chart?.timeScale().setVisibleLogicalRange({
+        from: totalBars - visibleCount,
+        to: totalBars + 2,
+      });
+    }
+
+    prevCandlesCount = candles.length;
   }
 </script>
 
