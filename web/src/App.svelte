@@ -92,23 +92,17 @@
     loadCandles();
   }
 
-  async function handleLoadMoreHistory(oldestTime: number): Promise<boolean> {
+  async function handleLoadMoreHistory(oldestTime: number): Promise<AggregatorCandle[]> {
     try {
-      const older = await fetchCandles(
+      return await fetchCandles(
         selectedInstrument.canonical_symbol || selectedInstrument.symbol,
         selectedInstrument.asset_class,
         selectedTimeframe,
-        300,
+        500,
         oldestTime
       );
-      if (older.length === 0) return false;
-      const map = new Map<number, AggregatorCandle>();
-      for (const c of older) map.set(c.time, c);
-      for (const c of candles) map.set(c.time, c);
-      candles = Array.from(map.values()).sort((a, b) => a.time - b.time);
-      return true;
     } catch {
-      return false;
+      return [];
     }
   }
 </script>

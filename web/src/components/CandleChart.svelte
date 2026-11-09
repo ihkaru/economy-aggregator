@@ -21,7 +21,7 @@
   export let minMove: number = 0.01;
   export let timeframe: string = '1d';
   export let symbol: string = '';
-  export let onLoadMoreHistory: ((oldestTime: number) => Promise<boolean>) | null = null;
+  export let onLoadMoreHistory: ((oldestTime: number) => Promise<AggregatorCandle[]>) | null = null;
   export let onBackfillStateChange: ((loading: boolean) => void) | null = null;
 
   let chartContainer: HTMLDivElement;
@@ -30,10 +30,10 @@
   let volumeSeries: ISeriesApi<'Histogram'> | null = null;
 
   let isLoadingMore = false;
+  let isBackfillingData = false;
   let hasMoreHistory = true;
   let activeSymbol = '';
   let activeTimeframe = '';
-  let prevCandlesCount = 0;
 
   $: isIntraday = timeframe === '1m' || timeframe === '5m' || timeframe === '15m' || timeframe === '1h';
 
@@ -41,7 +41,6 @@
     activeSymbol = symbol;
     activeTimeframe = timeframe;
     hasMoreHistory = true;
-    prevCandlesCount = 0;
   }
 
   $: if (chart) {
@@ -77,7 +76,9 @@
   });
 
   $: if (candles && candleSeries) {
-    updateSeriesData();
+    if (!isBackfillingData) {
+      updateSeriesData();
+    }
   }
 
   function initChart() {
@@ -118,6 +119,8 @@
         barSpacing: 9,
         minBarSpacing: 3,
         rightOffset: 3,
+        fixLeftEdge: true,
+        shiftVisibleRangeOnNewBar: false,
       },
       rightPriceScale: {
         borderColor: '#1c202d',
@@ -199,27 +202,49 @@
       }
     });
 
-    // TradingView Best Practice: Lazy backfill when panning left towards historical boundary
+    // TradingView Best Practice: Predictive Pre-fetch threshold (50 bars in advance)
     chart.timeScale().subscribeVisibleLogicalRangeChange(async (logicalRange) => {
-      if (!logicalRange || !onLoadMoreHistory || isLoadingMore || !hasMoreHistory) return;
-      if (logicalRange.from < 15 && candles.length > 0) {
+      if (!logicalRange || !onLoadMoreHistory || isLoadingMore || !hasMoreHistory || !chart) return;
+      if (logicalRange.from < 50 && candles.length > 0) {
         isLoadingMore = true;
         onBackfillStateChange?.(true);
+
+        const currentLogicalRange = chart.timeScale().getVisibleLogicalRange();
         const oldestTime = candles[0].time;
-        const currentRange = chart?.timeScale().getVisibleLogicalRange();
-        const countBefore = candles.length;
-        const gotMore = await onLoadMoreHistory(oldestTime);
-        if (gotMore && chart && currentRange) {
-          const added = candles.length - countBefore;
-          if (added > 0) {
-            chart.timeScale().setVisibleLogicalRange({
-              from: currentRange.from + added,
-              to: currentRange.to + added,
-            });
+
+        const olderData = await onLoadMoreHistory(oldestTime);
+        if (olderData && olderData.length > 0 && chart) {
+          isBackfillingData = true;
+
+          // Merge & Deduplicate
+          const map = new Map<number, AggregatorCandle>();
+          for (const c of olderData) map.set(c.time, c);
+          for (const c of candles) map.set(c.time, c);
+          const combined = Array.from(map.values()).sort((a, b) => a.time - b.time);
+          const addedCount = combined.length - candles.length;
+
+          if (addedCount > 0) {
+            candles = combined;
+            const { candles: candleData, volumes: volumeData } = prepareChartSeriesData(candles);
+
+            // Synchronously update data AND shift logical range in the exact same execution tick
+            candleSeries?.setData(candleData);
+            volumeSeries?.setData(volumeData);
+
+            if (currentLogicalRange) {
+              chart.timeScale().setVisibleLogicalRange({
+                from: currentLogicalRange.from + addedCount,
+                to: currentLogicalRange.to + addedCount,
+              });
+            }
+          } else {
+            hasMoreHistory = false;
           }
+          isBackfillingData = false;
         } else {
           hasMoreHistory = false;
         }
+
         isLoadingMore = false;
         onBackfillStateChange?.(false);
       }
@@ -232,7 +257,6 @@
     if (candles.length === 0) {
       candleSeries.setData([]);
       volumeSeries.setData([]);
-      prevCandlesCount = 0;
       return;
     }
 
@@ -240,25 +264,19 @@
     if (candleData.length === 0) {
       candleSeries.setData([]);
       volumeSeries.setData([]);
-      prevCandlesCount = 0;
       return;
     }
 
-    const isPrepend = prevCandlesCount > 0 && candles.length > prevCandlesCount;
     candleSeries.setData(candleData);
     volumeSeries.setData(volumeData);
 
-    if (!isPrepend) {
-      // Initial Load / Viewport: Display latest ~100 bars
-      const totalBars = candleData.length;
-      const visibleCount = Math.min(100, totalBars);
-      chart?.timeScale().setVisibleLogicalRange({
-        from: totalBars - visibleCount,
-        to: totalBars + 2,
-      });
-    }
-
-    prevCandlesCount = candles.length;
+    // Initial Viewport Display: Focus on latest ~100 bars
+    const totalBars = candleData.length;
+    const visibleCount = Math.min(100, totalBars);
+    chart?.timeScale().setVisibleLogicalRange({
+      from: totalBars - visibleCount,
+      to: totalBars + 2,
+    });
   }
 </script>
 
