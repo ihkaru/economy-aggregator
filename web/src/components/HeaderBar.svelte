@@ -13,15 +13,14 @@
   export let onRefresh: () => void;
   export let onOpenCalendar: () => void = () => {};
   export let onOpenPredictions: () => void = () => {};
+  export let onOpenLauncher: () => void = () => {};
+  export let activeView: string = 'terminal';
 
   const timeframes: TimeframeOption[] = ['1m', '5m', '15m', '1h', '1d', '1w', '1M'];
 
   function formatNum(val: number | undefined, decimals: number = 2): string {
     if (val === undefined || isNaN(val)) return '-';
-    return val.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
+    return val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   }
 
   function formatVolume(val: number | undefined): string {
@@ -34,8 +33,18 @@
 </script>
 
 <header class="header-bar">
-  <!-- Left: Symbol Selector & Asset Class -->
+  <!-- Left: App Launcher, Symbol Selector & Asset Class -->
   <div class="left-section">
+    <button class="launcher-btn" on:click={onOpenLauncher} title="Open App Launcher (Android Homescreen)">
+      <Icons name="grid" size={13} />
+      <span class="launcher-label">APPS</span>
+      {#if activeView !== 'terminal'}
+        <span class="view-tag">{activeView.toUpperCase()}</span>
+      {/if}
+    </button>
+
+    <div class="divider"></div>
+
     <button class="ticker-btn" on:click={onOpenSearch} title="Select Ticker (Shortcut: / or Ctrl+K)">
       <Icons name="search" size={14} classNames="icon" />
       <span class="ticker-symbol">{selectedInstrument.canonical_symbol || selectedInstrument.symbol}</span>
@@ -133,17 +142,60 @@
     gap: 8px;
     font-size: 11px;
     flex-shrink: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .header-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .left-section, .right-section, .center-section {
     display: flex;
     align-items: center;
     height: 100%;
+    flex-shrink: 0;
   }
 
   .left-section {
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .launcher-btn {
+    background: #1e222d;
+    border: 1px solid var(--border-contrast);
+    color: #60a5fa;
+    height: 26px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 10.5px;
+    letter-spacing: 0.5px;
+    outline: none;
+    border-radius: 0px;
+  }
+
+  .launcher-btn:hover {
+    background: #2a2e39;
+    border-color: #3b82f6;
+    color: #93c5fd;
+  }
+
+  .view-tag {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid #3b82f6;
+    color: #93c5fd;
+    font-size: 9px;
+    padding: 0 4px;
+    font-weight: 700;
   }
 
   .ticker-btn {
@@ -222,50 +274,14 @@
     color: var(--text-main);
   }
 
-  .tf-btn.active {
-    background: var(--bg-active);
-    color: var(--text-bright);
-    font-weight: 700;
-  }
-
-  .tf-btn.disabled {
-    opacity: 0.25;
-    cursor: not-allowed;
-    color: var(--text-muted);
-  }
-
-  .center-section {
-    flex: 1;
-    overflow: hidden;
-    padding: 0 8px;
-  }
-
-  .ohlcv-legend {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10.5px;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .metric-label {
-    color: var(--text-muted);
-    font-weight: 600;
-  }
-
-  .metric-val {
-    color: var(--text-bright);
-    font-weight: 500;
-  }
-
-  .bull {
-    color: var(--bull-color) !important;
-  }
-
-  .bear {
-    color: var(--bear-color) !important;
-  }
+  .tf-btn.active { background: var(--bg-active); color: var(--text-bright); font-weight: 700; }
+  .tf-btn.disabled { opacity: 0.25; cursor: not-allowed; color: var(--text-muted); }
+  .center-section { flex: 1; overflow: hidden; padding: 0 8px; }
+  .ohlcv-legend { display: flex; align-items: center; gap: 6px; font-size: 10.5px; white-space: nowrap; overflow: hidden; }
+  .metric-label { color: var(--text-muted); font-weight: 600; }
+  .metric-val { color: var(--text-bright); font-weight: 500; }
+  .bull { color: var(--bull-color) !important; }
+  .bear { color: var(--bear-color) !important; }
 
   .change-tag {
     font-weight: 600;

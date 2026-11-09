@@ -185,7 +185,7 @@ fn test_macro_prediction_bridge_divergence() {
     let divergence = MacroPredictionBridge::compute_divergence(&event, &[contract]);
     assert_eq!(divergence.indicator_code, "cpi");
     assert_eq!(divergence.linked_markets_count, 1);
-    assert_eq!(divergence.surprise_direction, Some("above_consensus"));
+    assert_eq!(divergence.surprise_direction.as_deref(), Some("above_consensus"));
     assert_eq!(divergence.economist_forecast, Some(0.030));
     assert_eq!(divergence.actual_released_value, Some(0.032));
 }

@@ -85,12 +85,24 @@
     font-size: 10px;
     color: var(--text-muted);
     flex-shrink: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+  }
+
+  .inspection-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .left-stats, .right-stats, .center-guide {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .stat-pill {

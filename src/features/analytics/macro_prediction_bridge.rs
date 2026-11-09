@@ -24,7 +24,7 @@ pub struct MacroPredictionDivergence {
     
     // Post-release resolution
     pub actual_released_value: Option<f64>,
-    pub surprise_direction: Option<&'static str>, // "above_consensus", "below_consensus", "in_line"
+    pub surprise_direction: Option<String>, // "above_consensus", "below_consensus", "in_line"
 }
 
 pub struct MacroPredictionBridge;
@@ -59,11 +59,11 @@ impl MacroPredictionBridge {
             (Some(act), Some(fcst)) => {
                 let diff = act - fcst;
                 if diff.abs() < 1e-4 {
-                    Some("in_line")
+                    Some("in_line".to_string())
                 } else if diff > 0.0 {
-                    Some("above_consensus")
+                    Some("above_consensus".to_string())
                 } else {
-                    Some("below_consensus")
+                    Some("below_consensus".to_string())
                 }
             }
             _ => None,

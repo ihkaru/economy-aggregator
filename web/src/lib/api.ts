@@ -5,6 +5,9 @@ import type {
   RichEconomicEvent,
   PredictionMarketContract,
   PredictionMarketCandle,
+  PartitionItem,
+  IntegrityAuditResult,
+  MacroPredictionDivergence,
 } from './types';
 
 const API_BASE = ''; // relative to serving host
@@ -109,6 +112,30 @@ export async function fetchPredictionCandles(
   );
   if (!res.ok) {
     throw new Error(`Failed to fetch prediction candles: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchStoragePartitions(): Promise<PartitionItem[]> {
+  const res = await fetch(`${API_BASE}/v1/storage/partitions`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch lakehouse partitions: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchConsensusDivergence(): Promise<MacroPredictionDivergence[]> {
+  const res = await fetch(`${API_BASE}/v1/analytics/divergence`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch consensus divergence: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchIntegrityAudit(): Promise<IntegrityAuditResult> {
+  const res = await fetch(`${API_BASE}/v1/integrity/audit`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch integrity audit: HTTP ${res.status}`);
   }
   return await res.json();
 }

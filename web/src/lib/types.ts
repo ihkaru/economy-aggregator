@@ -151,3 +151,43 @@ export interface PredictionMarketCandle {
   price_source: string;
   venue: string;
 }
+
+export type AppViewId = 'terminal' | 'macro' | 'predictions' | 'consensus' | 'lakehouse' | 'integrity';
+
+export interface PartitionItem {
+  domain: string;
+  identifier: string;
+  timeframe: string;
+  year: number;
+  month: number;
+  file_name: string;
+  size_bytes: number;
+  row_count: number;
+}
+
+export interface IntegrityAuditResult {
+  passed: boolean;
+  checked_instruments_count: number;
+  checked_candles_count: number;
+  inverted_high_low_violations: number;
+  negative_price_violations: number;
+  hampel_outliers_flagged: number;
+  cross_source_drift_pct: number;
+  status_summary: string;
+  audit_timestamp_utc: string;
+}
+
+export interface MacroPredictionDivergence {
+  indicator_code: string;
+  title: string;
+  country: string;
+  scheduled_utc: string;
+  economist_forecast?: number | null;
+  previous_value?: number | null;
+  unit_symbol: string;
+  linked_markets_count: number;
+  average_implied_prob_yes?: number | null;
+  venues_represented: string[];
+  actual_released_value?: number | null;
+  surprise_direction?: string | null;
+}

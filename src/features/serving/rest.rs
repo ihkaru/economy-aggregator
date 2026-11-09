@@ -16,6 +16,7 @@ use crate::core::config::LakehouseConfig;
 use crate::core::macro_types::RichEconomicEvent;
 use crate::core::prediction_types::PredictionMarketContract;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
+use crate::features::serving::analytics_routes::*;
 use crate::features::serving::catalog_routes::*;
 use crate::features::serving::macro_routes::query_macro_calendar_handler;
 use crate::features::serving::prediction_routes::{
@@ -63,9 +64,12 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/market/metadata", get(market_metadata_handler))
         .route("/v1/market/candles", get(query_candles_handler))
         .route("/v1/storage/stats", get(storage_stats_handler))
+        .route("/v1/storage/partitions", get(storage_partitions_handler))
         .route("/v1/macro/calendar", get(query_macro_calendar_handler))
         .route("/v1/prediction-markets/events", get(query_prediction_contracts_handler))
         .route("/v1/prediction-markets/markets/:id/candles", get(query_prediction_candles_handler))
+        .route("/v1/analytics/divergence", get(query_divergence_handler))
+        .route("/v1/integrity/audit", get(integrity_audit_handler))
         .with_state(state);
 
     let web_dist = Path::new("web/dist");
