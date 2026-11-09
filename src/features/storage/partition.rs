@@ -14,6 +14,10 @@ impl PartitionResolver {
         Self { base_lake_dir }
     }
 
+    pub fn base_lake_dir(&self) -> &PathBuf {
+        &self.base_lake_dir
+    }
+
     /// Resolves: base/market/asset_class=<ac>/symbol=<sym>/timeframe=<tf>/year=<YYYY>/month=<MM>
     pub fn resolve_candle_partition(
         &self,
@@ -38,6 +42,7 @@ impl PartitionResolver {
             .join(format!("month={}", month_str))
     }
 
+    /// Resolves glob pattern for market candles.
     pub fn resolve_glob_pattern(
         &self,
         asset_class: AssetClass,
@@ -59,5 +64,47 @@ impl PartitionResolver {
             .join(format!("year={}", year))
             .join(format!("month={}", month));
         format!("{}/chunk_*.parquet", target.display())
+    }
+
+    /// Resolves: base/macro/calendar/country=<CC>/year=<YYYY>/month=<MM>
+    pub fn resolve_macro_partition(&self, country: &str, year: i32, month: u32) -> PathBuf {
+        let clean_country = country.to_uppercase().replace(['/', ':', ' '], "_");
+        self.base_lake_dir
+            .join("macro")
+            .join("calendar")
+            .join(format!("country={}", clean_country))
+            .join(format!("year={:04}", year))
+            .join(format!("month={:02}", month))
+    }
+
+    /// Resolves: base/prediction_markets/contracts/venue=<venue>/year=<YYYY>
+    pub fn resolve_prediction_contracts_partition(&self, venue: &str, year: i32) -> PathBuf {
+        let clean_venue = venue.to_lowercase().replace(['/', ':', ' '], "_");
+        self.base_lake_dir
+            .join("prediction_markets")
+            .join("contracts")
+            .join(format!("venue={}", clean_venue))
+            .join(format!("year={:04}", year))
+    }
+
+    /// Resolves: base/prediction_markets/candles/venue=<venue>/market=<id>/timeframe=<tf>/year=<YYYY>/month=<MM>
+    pub fn resolve_prediction_candles_partition(
+        &self,
+        venue: &str,
+        market_id: &str,
+        timeframe: &str,
+        year: i32,
+        month: u32,
+    ) -> PathBuf {
+        let clean_venue = venue.to_lowercase().replace(['/', ':', ' '], "_");
+        let clean_market = market_id.to_uppercase().replace(['/', ':', ' '], "_");
+        self.base_lake_dir
+            .join("prediction_markets")
+            .join("candles")
+            .join(format!("venue={}", clean_venue))
+            .join(format!("market={}", clean_market))
+            .join(format!("timeframe={}", timeframe.to_lowercase()))
+            .join(format!("year={:04}", year))
+            .join(format!("month={:02}", month))
     }
 }

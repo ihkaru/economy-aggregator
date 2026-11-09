@@ -1,4 +1,4 @@
-export type AssetClass = 'equities' | 'crypto' | 'commodities' | 'forex' | 'macro';
+export type AssetClass = 'equities' | 'crypto' | 'commodities' | 'forex' | 'macro' | 'prediction_market';
 
 export type TimeframeOption = '1m' | '5m' | '15m' | '1h' | '1d' | '1w' | '1M';
 
@@ -67,4 +67,87 @@ export interface ChartLegendData {
   change: number;
   changePercent: number;
   isUp: boolean;
+}
+
+export interface SourceAttribution {
+  provider: string;
+  original_id: string;
+  source_url?: string | null;
+  agency_name?: string | null;
+  agency_url?: string | null;
+  observed_at_utc: string;
+}
+
+export interface RichEconomicEvent {
+  event_id: string;
+  scheduled_utc: string;
+  country: string;
+  currency: string;
+  category: string;
+  indicator_code: string;
+  title: string;
+  impact_tier: number; // 0: None, 1: Low, 2: Medium, 3: High
+  is_all_day: boolean;
+  is_tentative: boolean;
+  raw_actual?: string | null;
+  raw_forecast?: string | null;
+  raw_previous?: string | null;
+  normalized_actual?: number | null;
+  normalized_forecast?: number | null;
+  normalized_previous?: number | null;
+  unit_type: string;
+  unit_multiplier: number;
+  unit_symbol: string;
+  better_than_expected?: boolean | null;
+  attribution: SourceAttribution;
+  revision_count: number;
+}
+
+export interface ResolutionOracleSpec {
+  oracle_type: string;
+  source_name: string;
+  source_url: string;
+  resolution_criteria: string;
+}
+
+export interface PredictionMarketContract {
+  market_id: string;
+  venue: string;
+  venue_market_id: string;
+  parent_event_id: string;
+  title: string;
+  outcome_label: string;
+  status: string;
+  is_active: boolean;
+  market_type: string;
+  book_model: string;
+  outcomes: string[];
+  winning_outcome?: string | null;
+  face_value: number;
+  tick_size: number;
+  close_time_utc: string;
+  settlement_time_utc?: string | null;
+  linked_macro_indicator?: string | null;
+  oracle: ResolutionOracleSpec;
+  venue_url?: string | null;
+}
+
+export interface PredictionMarketCandle {
+  time: number;
+  timestamp_utc: string;
+  market_id: string;
+  outcome: string;
+  timeframe: string;
+  prob_open?: number | null;
+  prob_high?: number | null;
+  prob_low?: number | null;
+  prob_close?: number | null;
+  book_bid_close?: number | null;
+  book_ask_close?: number | null;
+  volume_contracts?: number | null;
+  volume_usd?: number | null;
+  open_interest_usd?: number | null;
+  trade_count?: number | null;
+  price_source: string;
+  venue: string;
 }

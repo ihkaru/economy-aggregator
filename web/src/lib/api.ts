@@ -1,4 +1,11 @@
-import type { AggregatorCandle, InstrumentSummary, InstrumentMetadata } from './types';
+import type {
+  AggregatorCandle,
+  InstrumentSummary,
+  InstrumentMetadata,
+  RichEconomicEvent,
+  PredictionMarketContract,
+  PredictionMarketCandle,
+} from './types';
 
 const API_BASE = ''; // relative to serving host
 
@@ -54,6 +61,50 @@ export async function fetchCandles(
   const res = await fetch(`${API_BASE}/v1/market/candles?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch candles: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchMacroCalendar(
+  country: string = 'US',
+  importance?: string,
+  limit: number = 50
+): Promise<RichEconomicEvent[]> {
+  const params = new URLSearchParams({ country, limit: limit.toString() });
+  if (importance) params.set('importance', importance);
+
+  const res = await fetch(`${API_BASE}/v1/macro/calendar?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch macro calendar: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchPredictionMarkets(
+  venue?: string,
+  limit: number = 50
+): Promise<PredictionMarketContract[]> {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (venue) params.set('venue', venue);
+
+  const res = await fetch(`${API_BASE}/v1/prediction-markets/events?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch prediction markets: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchPredictionCandles(
+  marketId: string,
+  timeframe: string = '1m',
+  limit: number = 500
+): Promise<PredictionMarketCandle[]> {
+  const params = new URLSearchParams({ timeframe, limit: limit.toString() });
+  const res = await fetch(
+    `${API_BASE}/v1/prediction-markets/markets/${encodeURIComponent(marketId)}/candles?${params.toString()}`
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch prediction candles: HTTP ${res.status}`);
   }
   return await res.json();
 }

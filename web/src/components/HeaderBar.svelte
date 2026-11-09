@@ -11,6 +11,8 @@
   export let onSelectTimeframe: (tf: TimeframeOption) => void;
   export let onOpenSearch: () => void;
   export let onRefresh: () => void;
+  export let onOpenCalendar: () => void = () => {};
+  export let onOpenPredictions: () => void = () => {};
 
   const timeframes: TimeframeOption[] = ['1m', '5m', '15m', '1h', '1d', '1w', '1M'];
 
@@ -93,6 +95,16 @@
 
   <!-- Right: Integrity Badge & Controls -->
   <div class="right-section">
+    <button class="nav-tool-btn" on:click={onOpenCalendar} title="Macroeconomic Calendar (SDMX / Point-in-Time)">
+      <Icons name="calendar" size={12} />
+      <span>CALENDAR</span>
+    </button>
+
+    <button class="nav-tool-btn" on:click={onOpenPredictions} title="Prediction Markets (Kalshi / Polymarket)">
+      <Icons name="activity" size={12} />
+      <span>PREDICTIONS</span>
+    </button>
+
     <div class="status-badge">
       <Icons name="check" size={13} classNames="badge-icon" />
       <span class="badge-text">LAKE SETTLED</span>
@@ -287,6 +299,28 @@
     font-size: 9.5px;
     font-weight: 700;
     letter-spacing: 0.5px;
+  }
+
+  .nav-tool-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    height: 26px;
+    padding: 0 7px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 0px;
+    outline: none;
+  }
+
+  .nav-tool-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-bright);
+    border-color: var(--border-contrast);
   }
 
   .action-btn {

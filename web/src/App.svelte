@@ -3,6 +3,8 @@
   import HeaderBar from './components/HeaderBar.svelte';
   import CandleChart from './components/CandleChart.svelte';
   import TickerModal from './components/TickerModal.svelte';
+  import MacroCalendarDrawer from './components/MacroCalendarDrawer.svelte';
+  import PredictionMarketModal from './components/PredictionMarketModal.svelte';
   import InspectionBar from './components/InspectionBar.svelte';
   import Icons from './components/Icons.svelte';
   import { fetchInstruments, fetchCandles } from './lib/api';
@@ -21,6 +23,8 @@
   let candles: AggregatorCandle[] = [];
   let legendData: ChartLegendData | null = null;
   let isModalOpen: boolean = false;
+  let isCalendarOpen: boolean = false;
+  let isPredictionModalOpen: boolean = false;
   let isLoading: boolean = false;
   let errorMsg: string | null = null;
 
@@ -98,6 +102,8 @@
     {isLoading}
     onSelectTimeframe={handleTimeframeChange}
     onOpenSearch={() => (isModalOpen = true)}
+    onOpenCalendar={() => (isCalendarOpen = !isCalendarOpen)}
+    onOpenPredictions={() => (isPredictionModalOpen = true)}
     onRefresh={loadCandles}
   />
 
@@ -163,6 +169,16 @@
     isOpen={isModalOpen}
     onSelect={handleSelectInstrument}
     onClose={() => (isModalOpen = false)}
+  />
+
+  <MacroCalendarDrawer
+    isOpen={isCalendarOpen}
+    onClose={() => (isCalendarOpen = false)}
+  />
+
+  <PredictionMarketModal
+    isOpen={isPredictionModalOpen}
+    onClose={() => (isPredictionModalOpen = false)}
   />
 </main>
 
