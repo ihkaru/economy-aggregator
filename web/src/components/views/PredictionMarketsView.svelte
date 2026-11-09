@@ -150,22 +150,29 @@
             <div class="outcome-title">Outcome: <span class="highlight">{c.outcome_label}</span></div>
 
             <!-- Implied Probability Bar -->
-            <div class="prob-section">
-              <div class="prob-header">
-                <span class="prob-label">IMPLIED PROBABILITY</span>
-                <span class="prob-pct">68.0%</span>
+            {#if c.implied_probability !== null && c.implied_probability !== undefined}
+              {@const probPct = (c.implied_probability * 100).toFixed(1)}
+              <div class="prob-section">
+                <div class="prob-header">
+                  <span class="prob-label">IMPLIED PROBABILITY</span>
+                  <span class="prob-pct">{probPct}%</span>
+                </div>
+                <div class="prob-bar-track">
+                  <div class="prob-bar-fill" style="width: {probPct}%;"></div>
+                </div>
               </div>
-              <div class="prob-bar-track">
-                <div class="prob-bar-fill" style="width: 68%;"></div>
+            {:else}
+              <div class="prob-pending">
+                <span>ORDERBOOK QUOTE PENDING</span>
               </div>
-            </div>
+            {/if}
 
             <!-- Specs Grid -->
             <div class="specs-grid">
-              <div class="spec-item"><span class="sk">TICK SIZE:</span><span class="sv">${c.tick_size}</span></div>
-              <div class="spec-item"><span class="sk">FACE VALUE:</span><span class="sv">${c.face_value}</span></div>
-              <div class="spec-item"><span class="sk">CLOSES:</span><span class="sv">{c.close_time_utc.split('T')[0]}</span></div>
-              <div class="spec-item"><span class="sk">ORACLE:</span><span class="sv">{c.oracle.oracle_type.toUpperCase()}</span></div>
+              <div class="spec-item"><span class="sk">LAST / MID:</span><span class="sv">{c.last_price !== null && c.last_price !== undefined ? `$${c.last_price.toFixed(3)}` : '-'}</span></div>
+              <div class="spec-item"><span class="sk">SPREAD (B/A):</span><span class="sv">{c.best_bid && c.best_ask ? `$${c.best_bid.toFixed(2)} / $${c.best_ask.toFixed(2)}` : '-'}</span></div>
+              <div class="spec-item"><span class="sk">VOLUME:</span><span class="sv">{c.volume_usd ? `$${Math.round(c.volume_usd).toLocaleString()}` : '-'}</span></div>
+              <div class="spec-item"><span class="sk">OPEN INT:</span><span class="sv">{c.open_interest_usd ? `$${Math.round(c.open_interest_usd).toLocaleString()}` : '-'}</span></div>
             </div>
 
             <div class="card-footer">
@@ -257,6 +264,7 @@
   .prob-pct { color: #60a5fa; }
   .prob-bar-track { height: 6px; background: #2a2e39; overflow: hidden; }
   .prob-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+  .prob-pending { margin-bottom: 12px; background: rgba(0, 0, 0, 0.2); padding: 8px; border: 1px dashed var(--border-subtle); text-align: center; color: var(--text-muted); font-size: 9.5px; }
   .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 10px; font-size: 9px; }
   .spec-item { display: flex; justify-content: space-between; }
   .sk { color: var(--text-muted); }

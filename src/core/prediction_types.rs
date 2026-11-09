@@ -34,6 +34,12 @@ pub struct PredictionMarketContract {
     pub linked_macro_indicator: Option<String>, // Direct link: "macro:US:fed_funds_rate:2026-11"
     pub oracle: ResolutionOracleSpec,
     pub venue_url: Option<String>,
+    pub implied_probability: Option<f64>,       // Live orderbook implied probability [0.0, 1.0]
+    pub last_price: Option<f64>,                // Last traded price in dollars
+    pub best_bid: Option<f64>,                  // Best resting bid in dollars
+    pub best_ask: Option<f64>,                  // Best resting ask in dollars
+    pub volume_usd: Option<f64>,                // 24h trading volume in USD
+    pub open_interest_usd: Option<f64>,         // Total open interest in USD
 }
 
 impl PredictionMarketContract {

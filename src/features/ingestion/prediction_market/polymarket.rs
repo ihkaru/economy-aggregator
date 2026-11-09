@@ -86,6 +86,12 @@ impl PolymarketFetcher {
                     resolution_criteria: "Resolves to Yes if the FOMC announces target rate reduction".to_string(),
                 },
                 venue_url: Some("https://polymarket.com/event/16183".to_string()),
+                implied_probability: Some(0.71),
+                last_price: Some(0.71),
+                best_bid: Some(0.70),
+                best_ask: Some(0.72),
+                volume_usd: Some(892000.0),
+                open_interest_usd: Some(2140000.0),
             },
             PredictionMarketContract {
                 market_id: "polymarket:482011".to_string(),
@@ -112,6 +118,12 @@ impl PolymarketFetcher {
                     resolution_criteria: "Resolves to Yes if BLS reports monthly CPI increase >= 0.3%".to_string(),
                 },
                 venue_url: Some("https://polymarket.com/event/12094".to_string()),
+                implied_probability: Some(0.38),
+                last_price: Some(0.38),
+                best_bid: Some(0.37),
+                best_ask: Some(0.39),
+                volume_usd: Some(340000.0),
+                open_interest_usd: Some(890000.0),
             },
         ]
     }
@@ -184,6 +196,16 @@ impl PolymarketFetcher {
                     "unopened"
                 };
 
+                let outcome_prices: Vec<f64> = m
+                    .outcome_prices
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
+                    .map(|vec| vec.iter().filter_map(|p| p.parse::<f64>().ok()).collect())
+                    .unwrap_or_default();
+                let implied_probability = outcome_prices.first().copied();
+                let last_price = implied_probability;
+                let volume_usd = m.volume.as_deref().and_then(|v| v.parse::<f64>().ok());
+
                 contracts.push(PredictionMarketContract {
                     market_id: format!("polymarket:{}", m.id),
                     venue: "polymarket".to_string(),
@@ -204,6 +226,12 @@ impl PolymarketFetcher {
                     linked_macro_indicator: None,
                     oracle,
                     venue_url: Some(format!("https://polymarket.com/event/{}", e.id)),
+                    implied_probability,
+                    last_price,
+                    best_bid: None,
+                    best_ask: None,
+                    volume_usd,
+                    open_interest_usd: None,
                 });
             }
         }

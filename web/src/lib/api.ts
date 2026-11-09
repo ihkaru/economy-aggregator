@@ -13,28 +13,11 @@ import type {
 const API_BASE = ''; // relative to serving host
 
 export async function fetchInstruments(): Promise<InstrumentSummary[]> {
-  try {
-    const res = await fetch(`${API_BASE}/v1/market/catalog`);
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch {
-    // fallback if catalog endpoint is not available
+  const res = await fetch(`${API_BASE}/v1/market/catalog`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch catalog: HTTP ${res.status}`);
   }
-
-  // Fallback to core instruments detected in lakehouse
-  return [
-    { symbol: 'BBCA', canonical_symbol: 'BBCA', name: 'Bank Central Asia', asset_class: 'equities', currency: 'IDR', price_precision: 0, min_tick: 25.0, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'GSPC', canonical_symbol: 'GSPC', name: 'S&P 500 Index', asset_class: 'equities', currency: 'USD', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'JKSE', canonical_symbol: 'JKSE', name: 'Jakarta Composite Index', asset_class: 'equities', currency: 'IDR', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'N225', canonical_symbol: 'N225', name: 'Nikkei 225 Index', asset_class: 'equities', currency: 'JPY', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'TLT', canonical_symbol: 'TLT', name: 'iShares 20+ Year Treasury Bond', asset_class: 'equities', currency: 'USD', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'IEF', canonical_symbol: 'IEF', name: 'iShares 7-10 Year Treasury Bond', asset_class: 'equities', currency: 'USD', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'LQD', canonical_symbol: 'LQD', name: 'iShares Investment Grade Corporate Bond', asset_class: 'equities', currency: 'USD', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'XAU_USD', canonical_symbol: 'XAU/USD', name: 'Gold Spot / US Dollar', asset_class: 'commodities', currency: 'USD', price_precision: 2, min_tick: 0.05, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'USD_IDR', canonical_symbol: 'USD/IDR', name: 'US Dollar / Indonesian Rupiah', asset_class: 'forex', currency: 'IDR', price_precision: 2, min_tick: 0.5, supported_timeframes: ['1d', '1w', '1M'], timeframes: ['1d', '1w', '1M'], default_timeframe: '1d', source: 'yahoo' },
-    { symbol: 'BTC_USDT', canonical_symbol: 'BTC/USDT', name: 'Bitcoin / Tether USD', asset_class: 'crypto', currency: 'USDT', price_precision: 2, min_tick: 0.01, supported_timeframes: ['1m', '5m', '15m', '1h', '1d', '1w', '1M'], timeframes: ['1m', '5m', '15m', '1h', '1d', '1w', '1M'], default_timeframe: '1d', source: 'binance' },
-  ];
+  return await res.json();
 }
 
 export async function fetchMetadata(symbol: string, assetClass?: string): Promise<InstrumentMetadata> {

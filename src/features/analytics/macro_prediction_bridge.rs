@@ -69,9 +69,13 @@ impl MacroPredictionBridge {
             _ => None,
         };
 
-        // For binary markets, face value is 1.0; estimate probability from matching contracts
-        let avg_prob = if !matching_contracts.is_empty() {
-            Some(0.65) // Default synthetic normalized estimate if contracts present
+        // Average implied probabilities from matching real contracts (strictly None if unquoted)
+        let probs: Vec<f64> = matching_contracts
+            .iter()
+            .filter_map(|c| c.implied_probability)
+            .collect();
+        let avg_prob = if !probs.is_empty() {
+            Some(probs.iter().sum::<f64>() / probs.len() as f64)
         } else {
             None
         };

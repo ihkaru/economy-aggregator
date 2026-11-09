@@ -130,6 +130,12 @@ export interface PredictionMarketContract {
   linked_macro_indicator?: string | null;
   oracle: ResolutionOracleSpec;
   venue_url?: string | null;
+  implied_probability?: number | null;
+  last_price?: number | null;
+  best_bid?: number | null;
+  best_ask?: number | null;
+  volume_usd?: number | null;
+  open_interest_usd?: number | null;
 }
 
 export interface PredictionMarketCandle {
@@ -171,6 +177,8 @@ export interface IntegrityAuditResult {
   checked_candles_count: number;
   inverted_high_low_violations: number;
   negative_price_violations: number;
+  volume_violations: number;
+  temporal_ordering_violations: number;
   hampel_outliers_flagged: number;
   cross_source_drift_pct: number;
   status_summary: string;

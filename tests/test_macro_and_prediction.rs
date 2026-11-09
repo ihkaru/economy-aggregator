@@ -180,6 +180,12 @@ fn test_macro_prediction_bridge_divergence() {
             resolution_criteria: "Resolves per BLS release".to_string(),
         },
         venue_url: None,
+        implied_probability: Some(0.68),
+        last_price: Some(0.68),
+        best_bid: Some(0.67),
+        best_ask: Some(0.69),
+        volume_usd: Some(150000.0),
+        open_interest_usd: Some(500000.0),
     };
 
     let divergence = MacroPredictionBridge::compute_divergence(&event, &[contract]);

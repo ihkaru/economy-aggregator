@@ -106,6 +106,12 @@ impl KalshiFetcher {
                     resolution_criteria: "Resolves to Yes if FOMC announces target rate reduction >= 25 bps".to_string(),
                 },
                 venue_url: Some("https://kalshi.com/markets/KXFEDDECISION".to_string()),
+                implied_probability: Some(0.74),
+                last_price: Some(0.74),
+                best_bid: Some(0.73),
+                best_ask: Some(0.75),
+                volume_usd: Some(428500.0),
+                open_interest_usd: Some(1250000.0),
             },
             PredictionMarketContract {
                 market_id: "kalshi:KXCPI-26NOV-3.0".to_string(),
@@ -132,6 +138,12 @@ impl KalshiFetcher {
                     resolution_criteria: "Resolves to Yes if BLS publishes CPI YoY >= 3.0%".to_string(),
                 },
                 venue_url: Some("https://kalshi.com/markets/KXCPI".to_string()),
+                implied_probability: Some(0.42),
+                last_price: Some(0.42),
+                best_bid: Some(0.41),
+                best_ask: Some(0.43),
+                volume_usd: Some(192300.0),
+                open_interest_usd: Some(680000.0),
             },
         ]
     }
@@ -178,6 +190,18 @@ impl KalshiFetcher {
                 resolution_criteria: format!("Resolves per CFTC certified contract specs for {}", m.ticker),
             };
 
+            let last_price = m.last_price_dollars.as_deref().and_then(|p| p.parse::<f64>().ok());
+            let best_bid = m.yes_bid_dollars.as_deref().and_then(|p| p.parse::<f64>().ok());
+            let best_ask = m.yes_ask_dollars.as_deref().and_then(|p| p.parse::<f64>().ok());
+            let implied_probability = last_price.or_else(|| match (best_bid, best_ask) {
+                (Some(b), Some(a)) => Some((b + a) / 2.0),
+                (Some(b), None) => Some(b),
+                (None, Some(a)) => Some(a),
+                _ => None,
+            });
+            let volume_usd = m.volume_fp.as_deref().and_then(|v| v.parse::<f64>().ok());
+            let open_interest_usd = m.open_interest_fp.as_deref().and_then(|v| v.parse::<f64>().ok());
+
             contracts.push(PredictionMarketContract {
                 market_id: format!("kalshi:{}", m.ticker),
                 venue: "kalshi".to_string(),
@@ -198,6 +222,12 @@ impl KalshiFetcher {
                 linked_macro_indicator: None,
                 oracle,
                 venue_url: Some(format!("https://kalshi.com/markets/{}", m.event_ticker)),
+                implied_probability,
+                last_price,
+                best_bid,
+                best_ask,
+                volume_usd,
+                open_interest_usd,
             });
         }
 
