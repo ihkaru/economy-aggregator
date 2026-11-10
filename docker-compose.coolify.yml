@@ -1,0 +1,34 @@
+# ===================================================================
+# Coolify Cloud-Native Deployment for Economy Aggregator
+# Includes Persistent Parquet Lakehouse Volume & Anti-Censorship DNS
+# ===================================================================
+
+version: '3.8'
+
+services:
+  economy-aggregator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    # Mandatory DNS configuration to prevent ISP censorship / interception on crypto/prediction domains
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      - PORT=8080
+      - RUST_LOG=info
+    volumes:
+      - lake_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  lake_data:
+    driver: local

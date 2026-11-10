@@ -50,7 +50,14 @@ async fn test_rest_api_health_endpoint() {
     config.base_dir = tmp.path().to_path_buf();
 
     let resolver = PartitionResolver::new(tmp.path().to_path_buf());
-    let state = Arc::new(AppState::new(config, resolver, InstrumentRegistry::new()));
+    let sub_manager = Arc::new(economy_aggregator::core::subscription::SubscriptionManager::new(
+        config.base_dir.join("config").join("subscriptions.json"),
+    ));
+    let orchestrator = Arc::new(economy_aggregator::features::ingestion::orchestrator::IngestionOrchestrator::new(
+        config.clone(),
+        sub_manager.clone(),
+    ));
+    let state = Arc::new(AppState::new(config, resolver, InstrumentRegistry::new(), sub_manager, orchestrator));
 
     let app = create_router(state);
     let response = app
@@ -105,7 +112,14 @@ async fn test_rest_api_instruments_and_candles_query() {
     let candle = create_sample_candle("ETH/USDT");
     writer.write_candles(&[candle], AssetClass::Crypto).unwrap();
 
-    let state = Arc::new(AppState::new(config, resolver, registry));
+    let sub_manager = Arc::new(economy_aggregator::core::subscription::SubscriptionManager::new(
+        config.base_dir.join("config").join("subscriptions.json"),
+    ));
+    let orchestrator = Arc::new(economy_aggregator::features::ingestion::orchestrator::IngestionOrchestrator::new(
+        config.clone(),
+        sub_manager.clone(),
+    ));
+    let state = Arc::new(AppState::new(config, resolver, registry, sub_manager, orchestrator));
 
     let app = create_router(state);
 

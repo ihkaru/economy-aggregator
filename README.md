@@ -67,7 +67,20 @@ Repositori ini menyertakan mesin pengolahan downstream berbasis Rust murni tanpa
 # 1. Cek status danau data
 cargo run -- status
 
-# 2. Tarik data historis multi-dekade (disimpan apa adanya di Parquet lake)
+# 2. Cari simbol/pasar multi-sumber (Yahoo, Binance, Polymarket, Kalshi)
+cargo run -- search --query "bank mandiri" --limit 3
+cargo run -- search --query "SOLUSDT" --source crypto --json
+
+# 3. Kelola langganan ingesti otomatis (Subscriptions Manager)
+cargo run -- subscriptions list
+cargo run -- subscribe --symbol BMRI.JK --canonical BMRI --asset equities --tf 1d
+cargo run -- unsubscribe --canonical BMRI
+
+# 4. Kejar ketertinggalan data secara otomatis (Lakehouse High-Watermark Catch-Up)
+cargo run -- catch-up
+cargo run -- catch-up --symbol BBCA --force
+
+# 5. Tarik data historis multi-dekade secara ad-hoc (disimpan apa adanya di Parquet lake)
 cargo run -- pull --symbol BBCA.JK --canonical BBCA --asset equities --range max
 cargo run -- pull --symbol ^GSPC --canonical GSPC --asset equities --range max
 cargo run -- pull --symbol TLT --canonical TLT --asset equities --range max
@@ -76,16 +89,36 @@ cargo run -- pull --symbol LQD --canonical LQD --asset equities --range max
 cargo run -- pull --symbol GC=F --canonical XAU_USD --asset commodities --range max
 cargo run -- pull --symbol USDIDR=X --canonical USD/IDR --asset forex --range max
 
-# 3. Eksekusi simulasi portofolio All-Weather 100% empiris riil
+# 6. Eksekusi simulasi portofolio All-Weather 100% empiris riil
 cargo run -- analyze --start-year 2004
 
-# 4. Padatkan potongan partisi kecil menjadi file Parquet bulanan terkonsolidasi
+# 7. Padatkan potongan partisi kecil menjadi file Parquet bulanan terkonsolidasi
 cargo run -- compact
+
+# 8. Jalankan serving layer & daemon ingesti otonom (Coolify ready)
+cargo run -- serve
 ```
 
 ---
 
-## 5. Roadmap & Kepatuhan Arsitektur
-- 🗺️ **[Master Implementation Roadmap (260 Fase)](docs/roadmap/ROADMAP.md)**
+## 5. Deployment Mandiri via Kontainer (Coolify & Docker)
+
+Sistem telah dilengkapi dengan `Dockerfile` multi-stage dan `docker-compose.coolify.yml` yang siap dideploy 1-klik di Coolify dengan konfigurasi volume persisten:
+
+```bash
+# Jalankan via Docker Compose dengan volume persisten & DNS anti-sensor:
+docker compose -f docker-compose.coolify.yml up -d
+```
+
+Saat kontainer booting di Coolify:
+1. Engine memindai seluruh partisi Parquet untuk mendeteksi *high-watermark* terakhir.
+2. Jika kontainer sempat mati berhari-hari atau berbulan-bulan, engine secara otomatis mengejar seluruh lilin yang tertinggal (*gap catch-up*).
+3. Setelah *gap* tertutup, engine langsung beralih ke *live loop* (WebSocket streaming dan polling terjadwal).
+
+---
+
+## 6. Roadmap & Kepatuhan Arsitektur
+- 🗺️ **[Master Implementation Roadmap (291 Fase)](docs/roadmap/ROADMAP.md)**
+- 🚀 **[Milestone 11: Autonomous Ingest, Multi-Source Search & Gap Catch-Up](docs/roadmap/milestone_11_autonomous_ingest_and_discovery.md)**
 - 🏛️ **[Dokumentasi Arsitektur arc42 (Seksi 01 - 12)](docs/architecture/)**
 - 📋 **[Pedoman & Invarian Teknis GEMINI.md](GEMINI.md)**

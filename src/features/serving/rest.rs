@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use chrono::NaiveDate;
 use tower_http::services::{ServeDir, ServeFile};
@@ -15,13 +15,16 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::core::config::LakehouseConfig;
 use crate::core::macro_types::RichEconomicEvent;
 use crate::core::prediction_types::PredictionMarketContract;
+use crate::core::subscription::SubscriptionManager;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
+use crate::features::ingestion::orchestrator::IngestionOrchestrator;
 use crate::features::serving::analytics_routes::*;
 use crate::features::serving::catalog_routes::*;
 use crate::features::serving::macro_routes::query_macro_calendar_handler;
 use crate::features::serving::prediction_routes::{
     query_prediction_candles_handler, query_prediction_contracts_handler,
 };
+use crate::features::serving::subscription_routes::*;
 use crate::features::serving::types::*;
 use crate::features::storage::{
     CandleResampler, InstrumentRegistry, LakeReader, PartitionResolver,
@@ -31,6 +34,8 @@ pub struct AppState {
     pub config: LakehouseConfig,
     pub resolver: PartitionResolver,
     pub registry: RwLock<InstrumentRegistry>,
+    pub sub_manager: Arc<SubscriptionManager>,
+    pub orchestrator: Arc<IngestionOrchestrator>,
     pub start_time: Instant,
     pub candle_cache: RwLock<HashMap<String, (Instant, Vec<AggregatorCandle>)>>,
     pub macro_cache: RwLock<HashMap<String, (Instant, Vec<RichEconomicEvent>)>>,
@@ -42,11 +47,15 @@ impl AppState {
         config: LakehouseConfig,
         resolver: PartitionResolver,
         registry: InstrumentRegistry,
+        sub_manager: Arc<SubscriptionManager>,
+        orchestrator: Arc<IngestionOrchestrator>,
     ) -> Self {
         Self {
             config,
             resolver,
             registry: RwLock::new(registry),
+            sub_manager,
+            orchestrator,
             start_time: Instant::now(),
             candle_cache: RwLock::new(HashMap::new()),
             macro_cache: RwLock::new(HashMap::new()),
@@ -70,6 +79,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/prediction-markets/markets/:id/candles", get(query_prediction_candles_handler))
         .route("/v1/analytics/divergence", get(query_divergence_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
+        .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
+        .route("/v1/subscriptions/:canonical", delete(delete_subscription_handler))
+        .route("/v1/ingestion/status", get(ingestion_status_handler))
+        .route("/v1/ingestion/catch-up", post(trigger_catch_up_handler))
+        .route("/v1/discovery/search", get(search_symbols_handler))
         .with_state(state);
 
     let web_dist = Path::new("web/dist");

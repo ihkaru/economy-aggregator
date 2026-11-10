@@ -16,7 +16,7 @@ pub struct BinanceRestFetcher {
 
 impl Default for BinanceRestFetcher {
     fn default() -> Self {
-        Self::new("https://api.binance.com".to_string())
+        Self::new("https://data-api.binance.vision".to_string())
     }
 }
 

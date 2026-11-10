@@ -221,7 +221,14 @@ async fn test_sla_rest_endpoint_latencies() {
         aliases: Vec::new(),
     });
 
-    let state = Arc::new(AppState::new(config, resolver, registry));
+    let sub_manager = Arc::new(economy_aggregator::core::subscription::SubscriptionManager::new(
+        config.base_dir.join("config").join("subscriptions.json"),
+    ));
+    let orchestrator = Arc::new(economy_aggregator::features::ingestion::orchestrator::IngestionOrchestrator::new(
+        config.clone(),
+        sub_manager.clone(),
+    ));
+    let state = Arc::new(AppState::new(config, resolver, registry, sub_manager, orchestrator));
 
     let app = create_router(state);
 

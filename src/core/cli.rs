@@ -14,6 +14,11 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
     }
 
     match args[0].as_str() {
+        "search" => crate::core::cli_search::handle_search(&args[1..]).await,
+        "subscribe" => crate::core::cli_subscription::handle_subscribe(&args[1..]).await,
+        "unsubscribe" => crate::core::cli_subscription::handle_unsubscribe(&args[1..]).await,
+        "subscriptions" => crate::core::cli_subscription::handle_subscriptions_list(&args[1..]).await,
+        "catch-up" => crate::core::cli_catch_up::handle_catch_up(&args[1..]).await,
         "pull" => handle_pull(&args[1..]).await,
         "backfill-all-weather" => handle_backfill_all_weather(&args[1..]).await,
         "compact" => handle_compact(&args[1..]).await,
@@ -34,6 +39,11 @@ fn print_help() {
   "version": "0.1.0",
   "subcommands": [
     "serve                      Start REST HTTP serving layer",
+    "search                     Search multi-source symbols across equities, crypto, macro, and predictions",
+    "subscribe                  Subscribe to a symbol for autonomous live ingestion",
+    "unsubscribe                Remove an active ingestion subscription",
+    "subscriptions              List active data subscriptions",
+    "catch-up                   Scan lakehouse high-watermark and pull missing historical ranges",
     "pull                       Pull candles from external source into Parquet lake",
     "backfill-all-weather       Backfill 7 core All-Weather assets & benchmarks into Parquet lake",
     "compact                    Compact micro-chunks into unified monthly Parquet files",

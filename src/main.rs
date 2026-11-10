@@ -48,8 +48,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("🌱 Seeded {} canonical instruments with authentic vendor symbology", registry.len());
     }
 
+    // Initialize Subscription Manager & Ingestion Orchestrator
+    let sub_manager = Arc::new(economy_aggregator::core::subscription::SubscriptionManager::new(
+        economy_aggregator::core::subscription::SubscriptionManager::default_path(&config.base_dir),
+    ));
+    let _ = sub_manager.load(); // Ensure defaults generated if first boot
+
+    let orchestrator = Arc::new(economy_aggregator::features::ingestion::orchestrator::IngestionOrchestrator::new(
+        config.clone(),
+        sub_manager.clone(),
+    ));
+    orchestrator.start();
+    info!("🚀 Autonomous Ingestion Orchestrator started with container boot");
+
     let resolver = PartitionResolver::new(config.lake_dir.clone());
-    let state = Arc::new(AppState::new(config.clone(), resolver, registry));
+    let state = Arc::new(AppState::new(config.clone(), resolver, registry, sub_manager, orchestrator));
 
     // Asynchronous background cache pre-warmer for core instruments
     let prewarm_state = state.clone();
