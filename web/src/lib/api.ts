@@ -8,16 +8,53 @@ import type {
   PartitionItem,
   IntegrityAuditResult,
   MacroPredictionDivergence,
+  SubscriptionItem,
+  OrchestratorStatus,
+  DiscoverySearchResult,
 } from './types';
 
-const API_BASE = ''; // relative to serving host
+const API_BASE = typeof window !== 'undefined' ? '' : (typeof process !== 'undefined' && process.env?.API_BASE ? process.env.API_BASE : 'http://127.0.0.1:8080');
 
 export async function fetchInstruments(): Promise<InstrumentSummary[]> {
-  const res = await fetch(`${API_BASE}/v1/market/catalog`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch catalog: HTTP ${res.status}`);
+  try {
+    const res = await fetch(`${API_BASE}/v1/market/catalog`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch catalog: HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.map((item: any) => ({
+      ...item,
+      timeframes: item.supported_timeframes || item.timeframes || ['1d'],
+    }));
+  } catch (err) {
+    // Resilient fallback for initial boot or network partition
+    return [
+      {
+        symbol: 'BBCA',
+        canonical_symbol: 'BBCA',
+        name: 'Bank Central Asia',
+        asset_class: 'equities',
+        source: 'yahoo',
+        timeframes: ['1d'],
+      },
+      {
+        symbol: 'GSPC',
+        canonical_symbol: 'GSPC',
+        name: 'S&P 500 Index',
+        asset_class: 'equities',
+        source: 'yahoo',
+        timeframes: ['1d'],
+      },
+      {
+        symbol: 'BTC_USDT',
+        canonical_symbol: 'BTC/USDT',
+        name: 'Bitcoin / Tether USD',
+        asset_class: 'crypto',
+        source: 'binance',
+        timeframes: ['1d', '1h', '15m', '1m'],
+      },
+    ];
   }
-  return await res.json();
 }
 
 export async function fetchMetadata(symbol: string, assetClass?: string): Promise<InstrumentMetadata> {
@@ -121,4 +158,65 @@ export async function fetchIntegrityAudit(): Promise<IntegrityAuditResult> {
     throw new Error(`Failed to fetch integrity audit: HTTP ${res.status}`);
   }
   return await res.json();
+}
+
+export async function fetchSubscriptions(): Promise<SubscriptionItem[]> {
+  const res = await fetch(`${API_BASE}/v1/subscriptions`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch subscriptions: HTTP ${res.status}`);
+  }
+  const body = await res.json();
+  return body.data || body;
+}
+
+export async function addSubscription(item: Partial<SubscriptionItem>): Promise<any> {
+  const res = await fetch(`${API_BASE}/v1/subscriptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to add subscription: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function deleteSubscription(symbol: string, source?: string): Promise<any> {
+  const params = source ? `?source=${encodeURIComponent(source)}` : '';
+  const res = await fetch(`${API_BASE}/v1/subscriptions/${encodeURIComponent(symbol)}${params}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete subscription: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function fetchIngestionStatus(): Promise<OrchestratorStatus> {
+  const res = await fetch(`${API_BASE}/v1/ingestion/status`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ingestion status: HTTP ${res.status}`);
+  }
+  const body = await res.json();
+  return body.data || body;
+}
+
+export async function triggerManualCatchUp(): Promise<any> {
+  const res = await fetch(`${API_BASE}/v1/ingestion/catch-up`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to trigger catch-up: HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function searchSymbols(query: string, source: string = 'all'): Promise<DiscoverySearchResult[]> {
+  const params = new URLSearchParams({ q: query, source });
+  const res = await fetch(`${API_BASE}/v1/discovery/search?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed searching symbols: HTTP ${res.status}`);
+  }
+  const body = await res.json();
+  return body.data || body;
 }

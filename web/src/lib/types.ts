@@ -158,7 +158,36 @@ export interface PredictionMarketCandle {
   venue: string;
 }
 
-export type AppViewId = 'terminal' | 'macro' | 'predictions' | 'consensus' | 'lakehouse' | 'integrity';
+export type AppViewId = 'terminal' | 'macro' | 'predictions' | 'consensus' | 'lakehouse' | 'integrity' | 'subscriptions';
+
+export interface SubscriptionItem {
+  source: string;
+  symbol: string;
+  asset_class: string;
+  timeframes: string[];
+  enabled: boolean;
+  poll_interval_secs?: number | null;
+  created_at_utc: string;
+}
+
+export interface OrchestratorStatus {
+  is_running: boolean;
+  boot_timestamp_utc: string;
+  last_catch_up_utc: string | null;
+  total_candles_ingested_session: number;
+  active_subscriptions_count: number;
+  active_streams: string[];
+  active_pollers: string[];
+}
+
+export interface DiscoverySearchResult {
+  source: string;
+  raw_symbol: string;
+  canonical_symbol: string;
+  name: string;
+  asset_class: string;
+  exchange?: string | null;
+}
 
 export interface PartitionItem {
   domain: string;

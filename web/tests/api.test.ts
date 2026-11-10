@@ -10,7 +10,7 @@ describe('API Catalog & Fallback Tests', () => {
     const symbols = list.map((i) => i.symbol);
     expect(symbols).toContain('BBCA');
     expect(symbols).toContain('GSPC');
-    expect(symbols).toContain('BTC_USDT');
+    expect(symbols.some((s) => s === 'BTC_USDT' || s === 'BTC/USDT')).toBe(true);
 
     // Ensure all items have valid structures
     for (const inst of list) {

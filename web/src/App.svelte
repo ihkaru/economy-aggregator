@@ -12,6 +12,7 @@
   import ConsensusMatrixView from './components/views/ConsensusMatrixView.svelte';
   import LakehouseExplorerView from './components/views/LakehouseExplorerView.svelte';
   import IntegrityGauntletView from './components/views/IntegrityGauntletView.svelte';
+  import SubscriptionsView from './components/views/SubscriptionsView.svelte';
   import Icons from './components/Icons.svelte';
   import { fetchInstruments, fetchCandles } from './lib/api';
   import type { InstrumentSummary, TimeframeOption, AggregatorCandle, ChartLegendData, AppViewId } from './lib/types';
@@ -189,6 +190,8 @@
     <div class="view-viewport"><LakehouseExplorerView /></div>
   {:else if activeView === 'integrity'}
     <div class="view-viewport"><IntegrityGauntletView /></div>
+  {:else if activeView === 'subscriptions'}
+    <div class="view-viewport"><SubscriptionsView /></div>
   {/if}
 
   <InspectionBar

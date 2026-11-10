@@ -14,7 +14,7 @@
     category: string;
     description: string;
     badge: string;
-    icon: 'activity' | 'calendar' | 'trending' | 'layers' | 'folder' | 'shield';
+    icon: 'activity' | 'calendar' | 'trending' | 'layers' | 'folder' | 'shield' | 'refresh';
     accentColor: string;
     shortcut: string;
   }
@@ -79,6 +79,16 @@
       icon: 'shield',
       accentColor: '#ef4444',
       shortcut: '6',
+    },
+    {
+      id: 'subscriptions',
+      title: 'Autonomous Ingestion',
+      category: 'DATA PIPELINE',
+      description: 'Manage active feeds, multi-source discovery search, and background gap catch-up.',
+      badge: 'DAEMON',
+      icon: 'refresh',
+      accentColor: '#10b981',
+      shortcut: '7',
     },
   ];
 
