@@ -80,7 +80,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/analytics/divergence", get(query_divergence_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
         .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
-        .route("/v1/subscriptions/:canonical", delete(delete_subscription_handler))
+        .route("/v1/subscriptions/:symbol", delete(delete_subscription_handler))
         .route("/v1/ingestion/status", get(ingestion_status_handler))
         .route("/v1/ingestion/catch-up", post(trigger_catch_up_handler))
         .route("/v1/discovery/search", get(search_symbols_handler))

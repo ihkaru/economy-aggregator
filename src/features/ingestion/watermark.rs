@@ -8,7 +8,7 @@ use crate::features::storage::LakeReader;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatermarkStatus {
-    pub canonical_symbol: String,
+    pub symbol: String,
     pub asset_class: String,
     pub timeframe: String,
     pub latest_timestamp_utc: Option<DateTime<Utc>>,
@@ -25,13 +25,13 @@ impl WatermarkScanner {
     pub fn scan_watermark(
         lake_dir: &Path,
         asset_class: &str,
-        canonical_symbol: &str,
+        symbol: &str,
         timeframe: &str,
     ) -> WatermarkStatus {
         let bounds = LakeReader::read_metadata_bounds(
             lake_dir,
             Some(asset_class),
-            canonical_symbol,
+            symbol,
             timeframe,
         );
 
@@ -60,11 +60,11 @@ impl WatermarkScanner {
 
         debug!(
             "Watermark scan for {}: latest={:?}, total_rows={}, has_gap={}, days={}",
-            canonical_symbol, latest_date, total_rows, has_gap, gap_duration_days
+            symbol, latest_date, total_rows, has_gap, gap_duration_days
         );
 
         WatermarkStatus {
-            canonical_symbol: canonical_symbol.to_string(),
+            symbol: symbol.to_string(),
             asset_class: asset_class.to_string(),
             timeframe: timeframe.to_string(),
             latest_timestamp_utc,

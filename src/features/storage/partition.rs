@@ -22,21 +22,39 @@ impl PartitionResolver {
     pub fn resolve_candle_partition(
         &self,
         asset_class: AssetClass,
-        canonical_symbol: &str,
+        symbol: &str,
         timeframe: TimeFrame,
         timestamp_utc: DateTime<Utc>,
     ) -> PathBuf {
-        let clean_symbol = canonical_symbol
+        let clean_symbol = symbol
             .to_uppercase()
             .replace('/', "_")
             .replace(':', "_");
+        let base = self.base_lake_dir
+            .join("market")
+            .join(format!("asset_class={}", asset_class.as_str()));
+
+        let sym_name = if base.join(format!("symbol={}", clean_symbol)).exists() {
+            clean_symbol
+        } else {
+            let stripped = clean_symbol.trim_start_matches('^').replace(".JK", "").replace("=X", "");
+            if base.join(format!("symbol={}", stripped)).exists() {
+                stripped
+            } else if clean_symbol == "BTCUSDT" && base.join("symbol=BTC_USDT").exists() {
+                "BTC_USDT".to_string()
+            } else if clean_symbol == "GC=F" && base.join("symbol=XAU_USD").exists() {
+                "XAU_USD".to_string()
+            } else if clean_symbol == "USDIDR=X" && base.join("symbol=USD_IDR").exists() {
+                "USD_IDR".to_string()
+            } else {
+                clean_symbol
+            }
+        };
+
         let year_str = format!("{:04}", timestamp_utc.year());
         let month_str = format!("{:02}", timestamp_utc.month());
 
-        self.base_lake_dir
-            .join("market")
-            .join(format!("asset_class={}", asset_class.as_str()))
-            .join(format!("symbol={}", clean_symbol))
+        base.join(format!("symbol={}", sym_name))
             .join(format!("timeframe={}", timeframe.as_str()))
             .join(format!("year={}", year_str))
             .join(format!("month={}", month_str))
@@ -46,20 +64,38 @@ impl PartitionResolver {
     pub fn resolve_glob_pattern(
         &self,
         asset_class: AssetClass,
-        canonical_symbol: &str,
+        symbol: &str,
         timeframe: TimeFrame,
         year: &str,
         month: &str,
     ) -> String {
-        let clean_symbol = canonical_symbol
+        let clean_symbol = symbol
             .to_uppercase()
             .replace('/', "_")
             .replace(':', "_");
-        let target = self
-            .base_lake_dir
+        let base = self.base_lake_dir
             .join("market")
-            .join(format!("asset_class={}", asset_class.as_str()))
-            .join(format!("symbol={}", clean_symbol))
+            .join(format!("asset_class={}", asset_class.as_str()));
+
+        let sym_name = if base.join(format!("symbol={}", clean_symbol)).exists() {
+            clean_symbol
+        } else {
+            let stripped = clean_symbol.trim_start_matches('^').replace(".JK", "").replace("=X", "");
+            if base.join(format!("symbol={}", stripped)).exists() {
+                stripped
+            } else if clean_symbol == "BTCUSDT" && base.join("symbol=BTC_USDT").exists() {
+                "BTC_USDT".to_string()
+            } else if clean_symbol == "GC=F" && base.join("symbol=XAU_USD").exists() {
+                "XAU_USD".to_string()
+            } else if clean_symbol == "USDIDR=X" && base.join("symbol=USD_IDR").exists() {
+                "USD_IDR".to_string()
+            } else {
+                clean_symbol
+            }
+        };
+
+        let target = base
+            .join(format!("symbol={}", sym_name))
             .join(format!("timeframe={}", timeframe.as_str()))
             .join(format!("year={}", year))
             .join(format!("month={}", month));

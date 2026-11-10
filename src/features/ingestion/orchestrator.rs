@@ -85,7 +85,7 @@ impl IngestionOrchestrator {
                 {
                     if let Ok(mut st) = status_arc.write() {
                         st.active_subscriptions_count = active_subs.len();
-                        st.active_pollers = active_subs.iter().map(|s| s.canonical.clone()).collect();
+                        st.active_pollers = active_subs.iter().map(|s| format!("{}:{}", s.source, s.symbol)).collect();
                     }
                 }
 

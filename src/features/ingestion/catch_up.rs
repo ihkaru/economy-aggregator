@@ -15,10 +15,9 @@ use crate::features::storage::writer::LakeWriter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CatchUpSummary {
-    pub canonical_symbol: String,
-    pub raw_symbol: String,
-    pub asset_class: String,
     pub source: String,
+    pub symbol: String,
+    pub asset_class: String,
     pub timeframe: String,
     pub gap_days: i64,
     pub candles_ingested: usize,
@@ -55,16 +54,15 @@ impl CatchUpEngine {
             let watermark = WatermarkScanner::scan_watermark(
                 &self.config.lake_dir,
                 &sub.asset_class,
-                &sub.canonical,
+                &sub.symbol,
                 tf,
             );
 
             if !watermark.has_gap && !force {
                 summaries.push(CatchUpSummary {
-                    canonical_symbol: sub.canonical.clone(),
-                    raw_symbol: sub.raw_symbol.clone(),
-                    asset_class: sub.asset_class.clone(),
                     source: sub.source.clone(),
+                    symbol: sub.symbol.clone(),
+                    asset_class: sub.asset_class.clone(),
                     timeframe: tf.clone(),
                     gap_days: 0,
                     candles_ingested: 0,
@@ -102,8 +100,8 @@ impl CatchUpEngine {
                     .map(|ts| ts.timestamp_millis() + 1000);
                 fetcher
                     .fetch_klines(
-                        &sub.raw_symbol,
-                        &sub.canonical,
+                        &sub.symbol,
+                        &sub.symbol,
                         timeframe,
                         start_time,
                         None,
@@ -127,7 +125,7 @@ impl CatchUpEngine {
                     "2y"
                 };
                 fetcher
-                    .fetch_daily_bars(&sub.raw_symbol, &sub.canonical, range)
+                    .fetch_daily_bars(&sub.symbol, &sub.symbol, range)
                     .await
             }
         };
@@ -139,13 +137,12 @@ impl CatchUpEngine {
                     Ok(paths) => {
                         info!(
                             "🚀 Catch-up SUCCESS for {} ({}): {} candles saved to {} chunk files",
-                            sub.canonical, timeframe, candles.len(), paths.len()
+                            sub.symbol, timeframe, candles.len(), paths.len()
                         );
                         CatchUpSummary {
-                            canonical_symbol: sub.canonical.clone(),
-                            raw_symbol: sub.raw_symbol.clone(),
-                            asset_class: sub.asset_class.clone(),
                             source: sub.source.clone(),
+                            symbol: sub.symbol.clone(),
+                            asset_class: sub.asset_class.clone(),
                             timeframe: timeframe.to_string(),
                             gap_days: watermark.gap_duration_days,
                             candles_ingested: candles.len(),
@@ -154,10 +151,9 @@ impl CatchUpEngine {
                         }
                     }
                     Err(e) => CatchUpSummary {
-                        canonical_symbol: sub.canonical.clone(),
-                        raw_symbol: sub.raw_symbol.clone(),
-                        asset_class: sub.asset_class.clone(),
                         source: sub.source.clone(),
+                        symbol: sub.symbol.clone(),
+                        asset_class: sub.asset_class.clone(),
                         timeframe: timeframe.to_string(),
                         gap_days: watermark.gap_duration_days,
                         candles_ingested: 0,
@@ -167,10 +163,9 @@ impl CatchUpEngine {
                 }
             }
             Ok(_) => CatchUpSummary {
-                canonical_symbol: sub.canonical.clone(),
-                raw_symbol: sub.raw_symbol.clone(),
-                asset_class: sub.asset_class.clone(),
                 source: sub.source.clone(),
+                symbol: sub.symbol.clone(),
+                asset_class: sub.asset_class.clone(),
                 timeframe: timeframe.to_string(),
                 gap_days: watermark.gap_duration_days,
                 candles_ingested: 0,
@@ -178,12 +173,11 @@ impl CatchUpEngine {
                 error: None,
             },
             Err(e) => {
-                warn!("⚠️ Catch-up fetch failed for {}: {}", sub.canonical, e);
+                warn!("⚠️ Catch-up fetch failed for {}: {}", sub.symbol, e);
                 CatchUpSummary {
-                    canonical_symbol: sub.canonical.clone(),
-                    raw_symbol: sub.raw_symbol.clone(),
-                    asset_class: sub.asset_class.clone(),
                     source: sub.source.clone(),
+                    symbol: sub.symbol.clone(),
+                    asset_class: sub.asset_class.clone(),
                     timeframe: timeframe.to_string(),
                     gap_days: watermark.gap_duration_days,
                     candles_ingested: 0,
@@ -196,13 +190,12 @@ impl CatchUpEngine {
 
     async fn catch_up_macro(&self, sub: &SubscriptionItem) -> CatchUpSummary {
         let fetcher = EconomicCalendarFetcher::default();
-        match fetcher.fetch_rich_events(Some(&sub.raw_symbol), None).await {
+        match fetcher.fetch_rich_events(Some(&sub.symbol), None).await {
             Ok(events) => match EconomicCalendarFetcher::persist_to_lake(&events, &self.resolver) {
                 Ok(saved) => CatchUpSummary {
-                    canonical_symbol: sub.canonical.clone(),
-                    raw_symbol: sub.raw_symbol.clone(),
-                    asset_class: "macro".to_string(),
                     source: sub.source.clone(),
+                    symbol: sub.symbol.clone(),
+                    asset_class: "macro".to_string(),
                     timeframe: "events".to_string(),
                     gap_days: 0,
                     candles_ingested: saved,
@@ -210,10 +203,9 @@ impl CatchUpEngine {
                     error: None,
                 },
                 Err(e) => CatchUpSummary {
-                    canonical_symbol: sub.canonical.clone(),
-                    raw_symbol: sub.raw_symbol.clone(),
-                    asset_class: "macro".to_string(),
                     source: sub.source.clone(),
+                    symbol: sub.symbol.clone(),
+                    asset_class: "macro".to_string(),
                     timeframe: "events".to_string(),
                     gap_days: 0,
                     candles_ingested: 0,
@@ -222,10 +214,9 @@ impl CatchUpEngine {
                 },
             },
             Err(e) => CatchUpSummary {
-                canonical_symbol: sub.canonical.clone(),
-                raw_symbol: sub.raw_symbol.clone(),
-                asset_class: "macro".to_string(),
                 source: sub.source.clone(),
+                symbol: sub.symbol.clone(),
+                asset_class: "macro".to_string(),
                 timeframe: "events".to_string(),
                 gap_days: 0,
                 candles_ingested: 0,

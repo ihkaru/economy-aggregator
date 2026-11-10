@@ -61,16 +61,16 @@ pub struct DeleteSubscriptionQuery {
 
 pub async fn delete_subscription_handler(
     State(state): State<Arc<AppState>>,
-    Path(canonical): Path<String>,
+    Path(symbol): Path<String>,
     Query(query): Query<DeleteSubscriptionQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let removed = state.sub_manager.unsubscribe(query.source.as_deref(), &canonical).map_err(|e| {
+    let removed = state.sub_manager.unsubscribe(query.source.as_deref(), &symbol).map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed removing subscription: {}", e))
     })?;
 
     Ok(Json(serde_json::json!({
         "success": removed,
-        "canonical": canonical,
+        "symbol": symbol,
         "source": query.source,
         "message": if removed { "Subscription deleted" } else { "Subscription not found" }
     })))

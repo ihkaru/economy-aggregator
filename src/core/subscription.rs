@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SubscriptionItem {
-    pub canonical: String,
-    pub raw_symbol: String,
-    pub asset_class: String,
     pub source: String,
+    #[serde(alias = "raw_symbol")]
+    pub symbol: String,
+    pub asset_class: String,
     #[serde(default = "default_timeframes")]
     pub timeframes: Vec<String>,
     #[serde(default = "default_true")]
@@ -106,14 +106,14 @@ impl SubscriptionManager {
         Ok(())
     }
 
-    /// Adds or updates a subscription idempotently by composite key (source, canonical).
+    /// Adds or updates a subscription idempotently by composite key (source, symbol).
     pub fn subscribe(&self, mut item: SubscriptionItem) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut current = self.load()?;
         item.created_at_utc = Utc::now().to_rfc3339();
         
         let mut replaced = false;
         for existing in current.iter_mut() {
-            if existing.canonical.eq_ignore_ascii_case(&item.canonical)
+            if existing.symbol.eq_ignore_ascii_case(&item.symbol)
                 && existing.source.eq_ignore_ascii_case(&item.source)
             {
                 *existing = item.clone();
@@ -130,25 +130,25 @@ impl SubscriptionManager {
         Ok(replaced)
     }
 
-    /// Removes an existing subscription by canonical symbol, optionally filtered by source.
-    /// If source is None, removes all subscriptions matching canonical across all sources.
+    /// Removes an existing subscription by symbol, optionally filtered by source.
+    /// If source is None, removes all subscriptions matching symbol across all sources.
     pub fn unsubscribe(
         &self,
         source: Option<&str>,
-        canonical: &str,
+        symbol: &str,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut current = self.load()?;
         let initial_len = current.len();
 
         current.retain(|s| {
-            if !s.canonical.eq_ignore_ascii_case(canonical) {
+            if !s.symbol.eq_ignore_ascii_case(symbol) {
                 return true; // Keep other symbols
             }
             if let Some(src) = source {
                 // Keep if source does not match
                 !s.source.eq_ignore_ascii_case(src)
             } else {
-                // If no source specified, remove all matches for this canonical
+                // If no source specified, remove all matches for this symbol
                 false
             }
         });
@@ -172,70 +172,63 @@ impl SubscriptionManager {
         let now = Utc::now().to_rfc3339();
         vec![
             SubscriptionItem {
-                canonical: "BBCA".to_string(),
-                raw_symbol: "BBCA.JK".to_string(),
-                asset_class: "equities".to_string(),
                 source: "yahoo".to_string(),
+                symbol: "BBCA.JK".to_string(),
+                asset_class: "equities".to_string(),
                 timeframes: vec!["1d".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(300),
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "GSPC".to_string(),
-                raw_symbol: "^GSPC".to_string(),
-                asset_class: "equities".to_string(),
                 source: "yahoo".to_string(),
+                symbol: "^GSPC".to_string(),
+                asset_class: "equities".to_string(),
                 timeframes: vec!["1d".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(300),
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "BTC/USDT".to_string(),
-                raw_symbol: "BTCUSDT".to_string(),
-                asset_class: "crypto".to_string(),
                 source: "binance".to_string(),
+                symbol: "BTCUSDT".to_string(),
+                asset_class: "crypto".to_string(),
                 timeframes: vec!["1d".to_string(), "1h".to_string()],
                 enabled: true,
                 poll_interval_secs: None,
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "USD/IDR".to_string(),
-                raw_symbol: "USDIDR=X".to_string(),
+                source: "yahoo".to_string(),
+                symbol: "USDIDR=X".to_string(),
                 asset_class: "forex".to_string(),
-                source: "yahoo".to_string(),
                 timeframes: vec!["1d".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(60),
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "XAU/USD".to_string(),
-                raw_symbol: "GC=F".to_string(),
+                source: "yahoo".to_string(),
+                symbol: "GC=F".to_string(),
                 asset_class: "commodities".to_string(),
-                source: "yahoo".to_string(),
                 timeframes: vec!["1d".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(60),
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "TLT".to_string(),
-                raw_symbol: "TLT".to_string(),
-                asset_class: "equities".to_string(),
                 source: "yahoo".to_string(),
+                symbol: "TLT".to_string(),
+                asset_class: "equities".to_string(),
                 timeframes: vec!["1d".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(300),
                 created_at_utc: now.clone(),
             },
             SubscriptionItem {
-                canonical: "MACRO_GLOBAL".to_string(),
-                raw_symbol: "US,ID,EU,GB".to_string(),
-                asset_class: "macro".to_string(),
                 source: "biquote".to_string(),
+                symbol: "US,ID,EU,GB".to_string(),
+                asset_class: "macro".to_string(),
                 timeframes: vec!["events".to_string()],
                 enabled: true,
                 poll_interval_secs: Some(600),

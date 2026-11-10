@@ -2,7 +2,7 @@
 
 **Scope:** Production-Ready Autonomous Data Ingestion, Discovery & Gap Catch-Up Engine for Containerized Environments (Coolify, Docker).  
 **Runtime:** 100% Native Rust (Async Tokio, Axum, Rayon, Parquet ZSTD).  
-**Status:** In Progress.
+**Status:** Completed & Verified.
 
 ---
 
@@ -10,7 +10,7 @@
 
 Milestone 11 provides an autonomous, self-healing ingestion pipeline that:
 1. Enables multi-source discovery (Search APIs) across global equities (Yahoo Finance), crypto (Binance), macroeconomic indicators (Biquote/SDMX), and prediction markets (Polymarket & Kalshi).
-2. Manages subscriptions via an Agent-First CLI (`economy-aggregator search`, `subscribe`, `unsubscribe`, `subscriptions list`).
+2. Manages subscriptions strictly via natural instrument coordinates: **`(source, symbol)`** (e.g. `source: yahoo`, `symbol: BBCA.JK` or `source: binance`, `symbol: BTCUSDT`), completely eliminating artificial vendor name translations (`canonical_symbol`) from the ingestion gate.
 3. Automatically scans the Lakehouse high-watermark on container startup to detect missing historical ranges when the container was offline for days or months.
 4. Executes deterministic historical catch-up via REST batch paginators, writes deduplicated Parquet chunks, and seamlessly transitions into continuous live WebSocket streaming and scheduled polling.
 5. Fully containerized with DNS resilience (Cloudflare/Google resolvers) for deployment on Coolify and bare-metal nodes.
@@ -29,16 +29,17 @@ Milestone 11 provides an autonomous, self-healing ingestion pipeline that:
   - Unified search aggregator mapping external results to standardized `SearchResultItem` records.
   - CLI subcommand: `economy-aggregator search --query <query> [--source <source>] [--limit N] [--json]`.
 
-### Phase 287: Persistent Subscription Configuration & CLI Manager
+### Phase 287: Persistent Subscription Configuration & CLI Manager (Pure (source, symbol) Identity)
 - **Files:** `src/core/subscription.rs`, `src/core/cli_subscription.rs`, `src/features/serving/subscription_routes.rs`
 - **Capabilities:**
-  - Schema `SubscriptionConfig` and `SubscriptionItem` serialized to `data/config/subscriptions.json`.
+  - Schema `SubscriptionConfig` and `SubscriptionItem` serialized to `data/config/subscriptions.json` keyed by composite `(source, symbol)`.
+  - Zero artificial `canonical` mangling: Canonical mapping is strictly a downstream concern.
   - Atomic file write with backup and read/write lock for concurrent safety.
   - CLI subcommands:
-    - `economy-aggregator subscribe --source <src> --symbol <raw> --canonical <canon> --asset <class> [--tf <tf>]`
-    - `economy-aggregator unsubscribe --canonical <canon>`
+    - `economy-aggregator subscribe --source <src> --symbol <symbol> [--asset <class>] [--timeframes <tf>] [--interval <sec>] [--json]`
+    - `economy-aggregator unsubscribe --source <src> --symbol <symbol> [--json]`
     - `economy-aggregator subscriptions list [--json]`
-  - REST endpoints: `GET /v1/subscriptions`, `POST /v1/subscriptions`, `DELETE /v1/subscriptions/:canonical`.
+  - REST endpoints: `GET /v1/subscriptions`, `POST /v1/subscriptions`, `DELETE /v1/subscriptions/:symbol?source=<src>`.
 
 ### Phase 288: High-Watermark Lakehouse Scanner & Gap Detection
 - **Files:** `src/features/ingestion/watermark.rs`
@@ -52,10 +53,10 @@ Milestone 11 provides an autonomous, self-healing ingestion pipeline that:
 - **Capabilities:**
   - Historical range pagination for Yahoo Finance (`period1`, `period2`) and Binance (`startTime`, `endTime`).
   - Batching and writing into Parquet lakehouse via `LakeWriter` with natural-key deduplication.
-  - CLI subcommand: `economy-aggregator catch-up [--canonical <sym>] [--dry-run] [--json]`.
+  - CLI subcommand: `economy-aggregator catch-up [--source <src>] [--symbol <sym>] [--force] [--json]`.
 
 ### Phase 290: Container Autonomous Ingestion Orchestrator & Live Loop
-- **Files:** `src/features/ingestion/orchestrator.rs`, `src/features/serving/ingestion_routes.rs`, `Dockerfile`, `docker-compose.coolify.yml`
+- **Files:** `src/features/ingestion/orchestrator.rs`, `src/features/serving/subscription_routes.rs`, `Dockerfile`, `docker-compose.coolify.yml`
 - **Capabilities:**
   - Background orchestrator spawned on `economy-aggregator serve`.
   - Asynchronous startup sequence:
@@ -67,7 +68,7 @@ Milestone 11 provides an autonomous, self-healing ingestion pipeline that:
   - Coolify Docker setup with persistent volume mounting and Cloudflare DNS resolvers (`1.1.1.1`, `8.8.8.8`).
 
 ### Phase 291: Verification Gauntlet, Unit & Integration Tests
-- **Files:** `tests/test_search_and_discovery.rs`, `tests/test_subscriptions.rs`, `tests/test_watermark_and_catch_up.rs`
+- **Files:** `tests/test_search_subscription_and_catchup.rs`, `tests/test_sanity.rs`, `tests/test_latency_sla.rs`
 - **Capabilities:**
   - End-to-end tests for discovery search, subscription lifecycle, gap detection, and batch catch-up.
-  - Static code analysis (deterministic line limit check $\le 400$ lines).
+  - Static code analysis (deterministic line limit check $\le 400$ lines, zero mocks, zero dummy stubs).

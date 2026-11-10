@@ -71,14 +71,14 @@ cargo run -- status
 cargo run -- search --query "bank mandiri" --limit 3
 cargo run -- search --query "SOLUSDT" --source crypto --json
 
-# 3. Kelola langganan ingesti otomatis (Subscriptions Manager)
+# 3. Kelola langganan ingesti otomatis (Subscriptions Manager - identitas natural (source, symbol))
 cargo run -- subscriptions list
-cargo run -- subscribe --symbol BMRI.JK --canonical BMRI --asset equities --tf 1d
-cargo run -- unsubscribe --canonical BMRI
+cargo run -- subscribe --source yahoo --symbol BMRI.JK --asset equities --tf 1d
+cargo run -- unsubscribe --source yahoo --symbol BMRI.JK
 
 # 4. Kejar ketertinggalan data secara otomatis (Lakehouse High-Watermark Catch-Up)
 cargo run -- catch-up
-cargo run -- catch-up --symbol BBCA --force
+cargo run -- catch-up --source yahoo --symbol BBCA.JK --force
 
 # 5. Tarik data historis multi-dekade secara ad-hoc (disimpan apa adanya di Parquet lake)
 cargo run -- pull --symbol BBCA.JK --canonical BBCA --asset equities --range max

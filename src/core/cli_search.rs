@@ -64,19 +64,19 @@ pub async fn handle_search(args: &[String]) -> Result<(), Box<dyn std::error::Er
             "count": results.len(),
             "results": results,
             "next_steps": [
-                "To subscribe to an instrument: economy-aggregator subscribe --source <source> --symbol <raw_symbol> --canonical <canonical_symbol> --asset <asset_class>",
+                "To subscribe to an instrument: economy-aggregator subscribe --source <source> --symbol <symbol> --asset <asset_class>",
                 "To inspect lake data: economy-aggregator status"
             ]
         });
         println!("{}", serde_json::to_string_pretty(&envelope)?);
     } else {
         println!("🔍 Search Results for '{}' (Source: {}, Found: {}):", query, source, results.len());
-        println!("{:-<100}", "");
+        println!("{:-<85}", "");
         println!(
-            "{:<16} {:<16} {:<12} {:<12} {:<10} {:<30}",
-            "CANONICAL", "RAW SYMBOL", "ASSET", "SOURCE", "EXCHANGE", "NAME"
+            "{:<10} {:<16} {:<12} {:<12} {:<30}",
+            "SOURCE", "SYMBOL", "ASSET", "EXCHANGE", "NAME"
         );
-        println!("{:-<100}", "");
+        println!("{:-<85}", "");
         for r in &results {
             let ex = r.exchange.as_deref().unwrap_or("-");
             let truncated_name = if r.name.len() > 30 {
@@ -85,11 +85,11 @@ pub async fn handle_search(args: &[String]) -> Result<(), Box<dyn std::error::Er
                 r.name.clone()
             };
             println!(
-                "{:<16} {:<16} {:<12} {:<12} {:<10} {:<30}",
-                r.canonical_symbol, r.raw_symbol, r.asset_class, r.source, ex, truncated_name
+                "{:<10} {:<16} {:<12} {:<12} {:<30}",
+                r.source, r.raw_symbol, r.asset_class, ex, truncated_name
             );
         }
-        println!("{:-<100}", "");
+        println!("{:-<85}", "");
     }
 
     Ok(())

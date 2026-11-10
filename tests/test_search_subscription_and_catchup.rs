@@ -24,14 +24,13 @@ async fn test_subscription_manager_lifecycle() {
     // 1. Initial load generates defaults
     let items = manager.load().unwrap();
     assert!(!items.is_empty(), "Defaults should be generated");
-    assert!(items.iter().any(|i| i.canonical == "BBCA"));
+    assert!(items.iter().any(|i| i.symbol == "BBCA.JK"));
 
-    // 2. Add new subscription (BBRI)
+    // 2. Add new subscription (BBRI.JK)
     let bbri = SubscriptionItem {
-        canonical: "BBRI".to_string(),
-        raw_symbol: "BBRI.JK".to_string(),
-        asset_class: "equities".to_string(),
         source: "yahoo".to_string(),
+        symbol: "BBRI.JK".to_string(),
+        asset_class: "equities".to_string(),
         timeframes: vec!["1d".to_string()],
         enabled: true,
         poll_interval_secs: Some(300),
@@ -48,24 +47,22 @@ async fn test_subscription_manager_lifecycle() {
 
     // 4. Verify listed items
     let active = manager.list_active().unwrap();
-    assert!(active.iter().any(|i| i.canonical == "BBRI"));
+    assert!(active.iter().any(|i| i.symbol == "BBRI.JK"));
 
-    // 5. Test multi-source co-existence: subscribe to BTC/USDT from both binance and yahoo
+    // 5. Test multi-source co-existence: subscribe to BTC feeds from both binance and yahoo
     let btc_binance = SubscriptionItem {
-        canonical: "BTC/USDT".to_string(),
-        raw_symbol: "BTCUSDT".to_string(),
-        asset_class: "crypto".to_string(),
         source: "binance".to_string(),
+        symbol: "BTCUSDT".to_string(),
+        asset_class: "crypto".to_string(),
         timeframes: vec!["1d".to_string()],
         enabled: true,
         poll_interval_secs: None,
         created_at_utc: Utc::now().to_rfc3339(),
     };
     let btc_yahoo = SubscriptionItem {
-        canonical: "BTC/USDT".to_string(),
-        raw_symbol: "BTC-USD".to_string(),
-        asset_class: "crypto".to_string(),
         source: "yahoo".to_string(),
+        symbol: "BTC-USD".to_string(),
+        asset_class: "crypto".to_string(),
         timeframes: vec!["1d".to_string()],
         enabled: true,
         poll_interval_secs: Some(300),
@@ -74,21 +71,21 @@ async fn test_subscription_manager_lifecycle() {
     manager.subscribe(btc_binance).unwrap();
     manager.subscribe(btc_yahoo).unwrap();
     let subs = manager.load().unwrap();
-    let btc_subs: Vec<_> = subs.iter().filter(|s| s.canonical == "BTC/USDT").collect();
-    assert_eq!(btc_subs.len(), 2, "Both Binance and Yahoo feeds for BTC/USDT should co-exist");
+    assert!(subs.iter().any(|s| s.symbol == "BTCUSDT" && s.source == "binance"));
+    assert!(subs.iter().any(|s| s.symbol == "BTC-USD" && s.source == "yahoo"));
 
     // 6. Targeted Unsubscribe by source: remove only binance feed
-    let removed_binance = manager.unsubscribe(Some("binance"), "BTC/USDT").unwrap();
+    let removed_binance = manager.unsubscribe(Some("binance"), "BTCUSDT").unwrap();
     assert!(removed_binance);
     let subs_after_one = manager.load().unwrap();
-    assert!(subs_after_one.iter().any(|s| s.canonical == "BTC/USDT" && s.source == "yahoo"));
-    assert!(!subs_after_one.iter().any(|s| s.canonical == "BTC/USDT" && s.source == "binance"));
+    assert!(subs_after_one.iter().any(|s| s.symbol == "BTC-USD" && s.source == "yahoo"));
+    assert!(!subs_after_one.iter().any(|s| s.symbol == "BTCUSDT" && s.source == "binance"));
 
-    // 7. Unsubscribe without source (removes all BBRI subscriptions)
-    let removed = manager.unsubscribe(None, "BBRI").unwrap();
+    // 7. Unsubscribe without source (removes all BBRI.JK subscriptions)
+    let removed = manager.unsubscribe(None, "BBRI.JK").unwrap();
     assert!(removed);
     let active_after = manager.list_active().unwrap();
-    assert!(!active_after.iter().any(|i| i.canonical == "BBRI"));
+    assert!(!active_after.iter().any(|i| i.symbol == "BBRI.JK"));
 }
 
 #[tokio::test]
@@ -109,7 +106,7 @@ async fn test_watermark_scanner_with_lakehouse_candles() {
     let candle = AggregatorCandle {
         time: 1794182400,
         timestamp_utc: DateTime::parse_from_rfc3339("2026-11-08T00:00:00Z").unwrap().with_timezone(&Utc),
-        canonical_symbol: "BTC/USDT".to_string(),
+        canonical_symbol: "BTC_USDT".to_string(),
         timeframe: TimeFrame::D1,
         open: 80000.0,
         high: 81000.0,
@@ -172,10 +169,9 @@ async fn test_rest_api_subscription_and_orchestrator_routes() {
 
     // 3. POST /v1/subscriptions
     let new_sub = serde_json::json!({
-        "canonical": "TEST_ASSET",
-        "raw_symbol": "TEST.JK",
-        "asset_class": "equities",
         "source": "yahoo",
+        "symbol": "TEST.JK",
+        "asset_class": "equities",
         "timeframes": ["1d"],
         "enabled": true,
         "created_at_utc": Utc::now().to_rfc3339()
@@ -190,11 +186,11 @@ async fn test_rest_api_subscription_and_orchestrator_routes() {
     ).await.unwrap();
     assert_eq!(res_add.status(), StatusCode::OK);
 
-    // 4. DELETE /v1/subscriptions/TEST_ASSET
+    // 4. DELETE /v1/subscriptions/TEST.JK
     let res_del = app.clone().oneshot(
         Request::builder()
             .method("DELETE")
-            .uri("/v1/subscriptions/TEST_ASSET")
+            .uri("/v1/subscriptions/TEST.JK")
             .body(Body::empty())
             .unwrap(),
     ).await.unwrap();

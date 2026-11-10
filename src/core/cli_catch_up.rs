@@ -6,6 +6,7 @@ use crate::features::ingestion::catch_up::CatchUpEngine;
 
 pub async fn handle_catch_up(args: &[String]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut symbol_filter = String::new();
+    let mut source_filter = String::new();
     let mut force = false;
     let mut json_mode = false;
 
@@ -14,6 +15,16 @@ pub async fn handle_catch_up(args: &[String]) -> Result<(), Box<dyn std::error::
         match args[i].as_str() {
             "--symbol" | "-s" if i + 1 < args.len() => {
                 symbol_filter = args[i + 1].clone();
+                i += 2;
+            }
+            "--source" if i + 1 < args.len() => {
+                source_filter = args[i + 1].to_lowercase();
+                i += 2;
+            }
+            "--canonical" | "-c" if i + 1 < args.len() => {
+                if symbol_filter.is_empty() {
+                    symbol_filter = args[i + 1].clone();
+                }
                 i += 2;
             }
             "--force" | "-f" => {
@@ -37,20 +48,24 @@ pub async fn handle_catch_up(args: &[String]) -> Result<(), Box<dyn std::error::
     let sub_manager = SubscriptionManager::new(SubscriptionManager::default_path(&config.base_dir));
     let subscriptions = sub_manager.list_active()?;
 
-    let filtered: Vec<_> = if symbol_filter.is_empty() {
-        subscriptions
-    } else {
-        subscriptions
-            .into_iter()
-            .filter(|s| s.canonical.eq_ignore_ascii_case(&symbol_filter))
-            .collect()
-    };
+    let filtered: Vec<_> = subscriptions
+        .into_iter()
+        .filter(|s| {
+            if !symbol_filter.is_empty() && !s.symbol.eq_ignore_ascii_case(&symbol_filter) {
+                return false;
+            }
+            if !source_filter.is_empty() && !s.source.eq_ignore_ascii_case(&source_filter) {
+                return false;
+            }
+            true
+        })
+        .collect();
 
     if filtered.is_empty() {
         if json_mode {
             println!("{{\"success\":false,\"error\":\"No active subscriptions found matching filter\"}}");
         } else {
-            println!("⚠️  No active subscriptions found matching filter '{}'", symbol_filter);
+            println!("⚠️  No active subscriptions found matching filter (symbol: '{}', source: '{}')", symbol_filter, source_filter);
         }
         return Ok(());
     }
@@ -62,8 +77,8 @@ pub async fn handle_catch_up(args: &[String]) -> Result<(), Box<dyn std::error::
         println!("🚀 Executing Autonomous Gap Catch-Up across {} subscriptions...", filtered.len());
         println!("{:-<95}", "");
         println!(
-            "{:<14} {:<12} {:<10} {:<6} {:<10} {:<10} {:<20}",
-            "CANONICAL", "ASSET", "SOURCE", "TF", "GAP (DAYS)", "INGESTED", "STATUS"
+            "{:<10} {:<16} {:<12} {:<6} {:<10} {:<10} {:<20}",
+            "SOURCE", "SYMBOL", "ASSET", "TF", "GAP (DAYS)", "INGESTED", "STATUS"
         );
         println!("{:-<95}", "");
     }
@@ -78,8 +93,8 @@ pub async fn handle_catch_up(args: &[String]) -> Result<(), Box<dyn std::error::
                     s.status.clone()
                 };
                 println!(
-                    "{:<14} {:<12} {:<10} {:<6} {:<10} {:<10} {:<20}",
-                    s.canonical_symbol, s.asset_class, s.source, s.timeframe, s.gap_days, s.candles_ingested, status_display
+                    "{:<10} {:<16} {:<12} {:<6} {:<10} {:<10} {:<20}",
+                    s.source, s.symbol, s.asset_class, s.timeframe, s.gap_days, s.candles_ingested, status_display
                 );
             }
         }

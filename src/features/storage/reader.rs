@@ -226,26 +226,43 @@ impl LakeReader {
         timeframe: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
         let market_dir = lake_dir.join("market");
-        if let Some(ac) = asset_class {
-            return Ok(market_dir
-                .join(format!("asset_class={}", ac))
-                .join(format!("symbol={}", clean_symbol))
-                .join(format!("timeframe={}", timeframe)));
+        let search_classes: Vec<&str> = if let Some(ac) = asset_class {
+            vec![ac]
+        } else {
+            vec!["equities", "commodities", "forex", "crypto"]
+        };
+
+        // Candidate symbols to check: clean_symbol first, then common vendor stripped aliases
+        let mut candidates = vec![clean_symbol.to_string()];
+        let stripped = clean_symbol.trim_start_matches('^').replace(".JK", "").replace("=X", "");
+        if stripped != clean_symbol {
+            candidates.push(stripped);
+        }
+        if clean_symbol == "BTCUSDT" {
+            candidates.push("BTC_USDT".to_string());
+        }
+        if clean_symbol == "GC=F" {
+            candidates.push("XAU_USD".to_string());
+        }
+        if clean_symbol == "USDIDR=X" {
+            candidates.push("USD_IDR".to_string());
         }
 
-        let known_classes = ["equities", "commodities", "forex", "crypto"];
-        for ac in known_classes {
-            let target = market_dir
-                .join(format!("asset_class={}", ac))
-                .join(format!("symbol={}", clean_symbol))
-                .join(format!("timeframe={}", timeframe));
-            if target.exists() {
-                return Ok(target);
+        for ac in &search_classes {
+            for cand in &candidates {
+                let target = market_dir
+                    .join(format!("asset_class={}", ac))
+                    .join(format!("symbol={}", cand))
+                    .join(format!("timeframe={}", timeframe));
+                if target.exists() {
+                    return Ok(target);
+                }
             }
         }
 
+        let default_ac = asset_class.unwrap_or("equities");
         Ok(market_dir
-            .join("asset_class=equities")
+            .join(format!("asset_class={}", default_ac))
             .join(format!("symbol={}", clean_symbol))
             .join(format!("timeframe={}", timeframe)))
     }
