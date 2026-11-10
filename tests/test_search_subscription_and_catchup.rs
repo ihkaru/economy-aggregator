@@ -50,8 +50,42 @@ async fn test_subscription_manager_lifecycle() {
     let active = manager.list_active().unwrap();
     assert!(active.iter().any(|i| i.canonical == "BBRI"));
 
-    // 5. Unsubscribe
-    let removed = manager.unsubscribe("BBRI").unwrap();
+    // 5. Test multi-source co-existence: subscribe to BTC/USDT from both binance and yahoo
+    let btc_binance = SubscriptionItem {
+        canonical: "BTC/USDT".to_string(),
+        raw_symbol: "BTCUSDT".to_string(),
+        asset_class: "crypto".to_string(),
+        source: "binance".to_string(),
+        timeframes: vec!["1d".to_string()],
+        enabled: true,
+        poll_interval_secs: None,
+        created_at_utc: Utc::now().to_rfc3339(),
+    };
+    let btc_yahoo = SubscriptionItem {
+        canonical: "BTC/USDT".to_string(),
+        raw_symbol: "BTC-USD".to_string(),
+        asset_class: "crypto".to_string(),
+        source: "yahoo".to_string(),
+        timeframes: vec!["1d".to_string()],
+        enabled: true,
+        poll_interval_secs: Some(300),
+        created_at_utc: Utc::now().to_rfc3339(),
+    };
+    manager.subscribe(btc_binance).unwrap();
+    manager.subscribe(btc_yahoo).unwrap();
+    let subs = manager.load().unwrap();
+    let btc_subs: Vec<_> = subs.iter().filter(|s| s.canonical == "BTC/USDT").collect();
+    assert_eq!(btc_subs.len(), 2, "Both Binance and Yahoo feeds for BTC/USDT should co-exist");
+
+    // 6. Targeted Unsubscribe by source: remove only binance feed
+    let removed_binance = manager.unsubscribe(Some("binance"), "BTC/USDT").unwrap();
+    assert!(removed_binance);
+    let subs_after_one = manager.load().unwrap();
+    assert!(subs_after_one.iter().any(|s| s.canonical == "BTC/USDT" && s.source == "yahoo"));
+    assert!(!subs_after_one.iter().any(|s| s.canonical == "BTC/USDT" && s.source == "binance"));
+
+    // 7. Unsubscribe without source (removes all BBRI subscriptions)
+    let removed = manager.unsubscribe(None, "BBRI").unwrap();
     assert!(removed);
     let active_after = manager.list_active().unwrap();
     assert!(!active_after.iter().any(|i| i.canonical == "BBRI"));

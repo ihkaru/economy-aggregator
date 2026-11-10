@@ -94,6 +94,7 @@ pub async fn handle_subscribe(args: &[String]) -> Result<(), Box<dyn std::error:
 
 pub async fn handle_unsubscribe(args: &[String]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut canonical = String::new();
+    let mut source: Option<String> = None;
     let mut json_mode = false;
 
     let mut i = 0;
@@ -101,6 +102,10 @@ pub async fn handle_unsubscribe(args: &[String]) -> Result<(), Box<dyn std::erro
         match args[i].as_str() {
             "--canonical" | "-c" if i + 1 < args.len() => {
                 canonical = args[i + 1].clone();
+                i += 2;
+            }
+            "--source" | "-s" if i + 1 < args.len() => {
+                source = Some(args[i + 1].to_lowercase());
                 i += 2;
             }
             "--json" => {
@@ -117,25 +122,38 @@ pub async fn handle_unsubscribe(args: &[String]) -> Result<(), Box<dyn std::erro
     }
 
     if canonical.is_empty() {
-        eprintln!("Error: Missing required canonical symbol. Example: economy-aggregator unsubscribe --canonical BBRI");
+        eprintln!("Error: Missing required canonical symbol. Example: economy-aggregator unsubscribe --canonical BBRI [--source yahoo]");
         std::process::exit(1);
     }
 
     let config = LakehouseConfig::default();
     let sub_manager = SubscriptionManager::new(SubscriptionManager::default_path(&config.base_dir));
-    let removed = sub_manager.unsubscribe(&canonical)?;
+    let removed = sub_manager.unsubscribe(source.as_deref(), &canonical)?;
 
     if json_mode {
         let envelope = serde_json::json!({
             "success": removed,
             "canonical": canonical,
-            "message": if removed { "Subscription removed successfully" } else { "Subscription not found" }
+            "source": source,
+            "message": if removed {
+                if let Some(src) = &source {
+                    format!("Subscription for canonical '{}' (source: {}) removed successfully", canonical, src)
+                } else {
+                    format!("All subscriptions for canonical '{}' removed successfully", canonical)
+                }
+            } else {
+                "Subscription not found".to_string()
+            }
         });
         println!("{}", serde_json::to_string_pretty(&envelope)?);
     } else if removed {
-        println!("🗑️  Successfully unsubscribed from canonical '{}'", canonical);
+        if let Some(src) = &source {
+            println!("🗑️  Successfully unsubscribed from canonical '{}' (source: {})", canonical, src);
+        } else {
+            println!("🗑️  Successfully unsubscribed from canonical '{}' across all sources", canonical);
+        }
     } else {
-        println!("⚠️  Subscription for canonical '{}' not found", canonical);
+        println!("⚠️  Subscription for canonical '{}' (source: {:?}) not found", canonical, source);
     }
 
     Ok(())

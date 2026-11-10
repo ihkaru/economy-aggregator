@@ -106,14 +106,16 @@ impl SubscriptionManager {
         Ok(())
     }
 
-    /// Adds or updates a subscription idempotently by canonical symbol.
+    /// Adds or updates a subscription idempotently by composite key (source, canonical).
     pub fn subscribe(&self, mut item: SubscriptionItem) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut current = self.load()?;
         item.created_at_utc = Utc::now().to_rfc3339();
         
         let mut replaced = false;
         for existing in current.iter_mut() {
-            if existing.canonical.eq_ignore_ascii_case(&item.canonical) {
+            if existing.canonical.eq_ignore_ascii_case(&item.canonical)
+                && existing.source.eq_ignore_ascii_case(&item.source)
+            {
                 *existing = item.clone();
                 replaced = true;
                 break;
@@ -128,11 +130,28 @@ impl SubscriptionManager {
         Ok(replaced)
     }
 
-    /// Removes an existing subscription by canonical symbol.
-    pub fn unsubscribe(&self, canonical: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    /// Removes an existing subscription by canonical symbol, optionally filtered by source.
+    /// If source is None, removes all subscriptions matching canonical across all sources.
+    pub fn unsubscribe(
+        &self,
+        source: Option<&str>,
+        canonical: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let mut current = self.load()?;
         let initial_len = current.len();
-        current.retain(|s| !s.canonical.eq_ignore_ascii_case(canonical));
+
+        current.retain(|s| {
+            if !s.canonical.eq_ignore_ascii_case(canonical) {
+                return true; // Keep other symbols
+            }
+            if let Some(src) = source {
+                // Keep if source does not match
+                !s.source.eq_ignore_ascii_case(src)
+            } else {
+                // If no source specified, remove all matches for this canonical
+                false
+            }
+        });
 
         if current.len() != initial_len {
             self.save(&current)?;
