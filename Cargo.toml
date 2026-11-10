@@ -22,6 +22,9 @@ chrono = { version = "=0.4.38", features = ["serde"] }
 uuid = { version = "1.8", features = ["v4"] }
 rayon = "1.10"
 
+# TradingView WebSocket & Venue Streaming Engine
+tradingview-streamer = { path = "../tradingview-streamer-rs" }
+
 # Columnar Storage & Parquet Lakehouse (Zero-Copy Arrow)
 parquet = { version = "52.0", features = ["arrow", "zstd"] }
 arrow = { version = "52.0", features = ["chrono-tz"] }

@@ -26,5 +26,5 @@ pub use prediction_market::{
 pub use sanity_gate::{SanityError, SanityGate};
 pub use search::{SearchResultItem, UnifiedSearchEngine};
 pub use watermark::{WatermarkScanner, WatermarkStatus};
-pub use tradingview::{TradingViewParser, TradingViewUdfResponse};
+pub use tradingview::{TradingViewFetcher, TradingViewParser, TradingViewUdfResponse};
 pub use yahoo_finance::YahooFinanceFetcher;

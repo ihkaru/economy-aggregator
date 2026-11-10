@@ -109,6 +109,7 @@ pub async fn search_symbols_handler(
         "binance" | "crypto" => engine.search_binance(&params.q, limit).await,
         "polymarket" => engine.search_polymarket(&params.q, limit).await,
         "kalshi" => engine.search_kalshi(&params.q, limit).await,
+        "tradingview" | "tv" => engine.search_tradingview(&params.q, limit).await,
         _ => engine.search_all(&params.q, limit).await,
     };
 

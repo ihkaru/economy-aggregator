@@ -109,6 +109,28 @@ impl CatchUpEngine {
                     )
                     .await
             }
+            "tradingview" | "tv" => {
+                let fetcher = crate::features::ingestion::tradingview::TradingViewFetcher::default();
+                let tf_enum = match timeframe {
+                    "1m" => crate::core::types::TimeFrame::M1,
+                    "5m" => crate::core::types::TimeFrame::M5,
+                    "15m" => crate::core::types::TimeFrame::M15,
+                    "1h" => crate::core::types::TimeFrame::H1,
+                    "1w" => crate::core::types::TimeFrame::W1,
+                    "1M" => crate::core::types::TimeFrame::MN1,
+                    _ => crate::core::types::TimeFrame::D1,
+                };
+                let count = if watermark.gap_duration_days <= 5 {
+                    50
+                } else if watermark.gap_duration_days <= 30 {
+                    100
+                } else if watermark.gap_duration_days <= 90 {
+                    300
+                } else {
+                    500
+                };
+                fetcher.fetch_bars(&sub.symbol, tf_enum, count).await
+            }
             _ => {
                 let fetcher = YahooFinanceFetcher::default();
                 let range = if watermark.gap_duration_days <= 5 {

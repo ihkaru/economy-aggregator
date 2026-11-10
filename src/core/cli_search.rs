@@ -53,6 +53,7 @@ pub async fn handle_search(args: &[String]) -> Result<(), Box<dyn std::error::Er
         "binance" | "crypto" => engine.search_binance(&query, limit).await,
         "polymarket" => engine.search_polymarket(&query, limit).await,
         "kalshi" => engine.search_kalshi(&query, limit).await,
+        "tradingview" | "tv" => engine.search_tradingview(&query, limit).await,
         _ => engine.search_all(&query, limit).await,
     };
 

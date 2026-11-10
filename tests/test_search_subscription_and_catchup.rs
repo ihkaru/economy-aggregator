@@ -13,7 +13,7 @@ use economy_aggregator::core::types::{AggregatorCandle, AssetClass, IngestionMod
 use economy_aggregator::features::ingestion::orchestrator::IngestionOrchestrator;
 use economy_aggregator::features::ingestion::watermark::WatermarkScanner;
 use economy_aggregator::features::serving::{create_router, AppState};
-use economy_aggregator::features::storage::{InstrumentRegistry, LakeWriter, PartitionResolver};
+use economy_aggregator::features::storage::{InstrumentRegistry, LakeReader, LakeWriter, PartitionResolver};
 
 #[tokio::test]
 async fn test_subscription_manager_lifecycle() {
@@ -195,4 +195,100 @@ async fn test_rest_api_subscription_and_orchestrator_routes() {
             .unwrap(),
     ).await.unwrap();
     assert_eq!(res_del.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_tradingview_multi_venue_lakehouse_persistence_and_zero_loss() {
+    let tmp = tempdir().unwrap();
+    let lake_dir = tmp.path().join("lake");
+    std::fs::create_dir_all(&lake_dir).unwrap();
+
+    let resolver = PartitionResolver::new(lake_dir.clone());
+    let writer = LakeWriter::new(resolver);
+
+    let ts = DateTime::parse_from_rfc3339("2026-11-10T15:00:00Z").unwrap().with_timezone(&Utc);
+
+    // 1. Ingest candle from Coinbase (COINBASE:BTCUSD)
+    let candle_cb = AggregatorCandle {
+        time: ts.timestamp(),
+        timestamp_utc: ts,
+        canonical_symbol: "COINBASE:BTCUSD".to_string(),
+        timeframe: TimeFrame::D1,
+        open: 80000.0,
+        high: 80500.0,
+        low: 79800.0,
+        close: 80200.0,
+        volume_base: 150.0,
+        volume_quote: 12030000.0,
+        source: "tradingview".to_string(),
+        raw_symbol: "COINBASE:BTCUSD".to_string(),
+        ingestion_mode: IngestionMode::RestBatch,
+        is_settled: true,
+        sequence_id: None,
+        taker_buy_volume_base: None,
+        taker_buy_volume_quote: None,
+        vwap: None,
+        trade_count: None,
+        price_type: "last".to_string(),
+        raw_metadata: Some("{\"venue\":\"COINBASE\",\"ticker\":\"BTCUSD\"}".to_string()),
+    };
+
+    // 2. Ingest candle from Binance (BINANCE:BTCUSDT)
+    let candle_bn = AggregatorCandle {
+        time: ts.timestamp(),
+        timestamp_utc: ts,
+        canonical_symbol: "BINANCE:BTCUSDT".to_string(),
+        timeframe: TimeFrame::D1,
+        open: 80050.0,
+        high: 80600.0,
+        low: 79850.0,
+        close: 80250.0,
+        volume_base: 950.0,
+        volume_quote: 76237500.0,
+        source: "tradingview".to_string(),
+        raw_symbol: "BINANCE:BTCUSDT".to_string(),
+        ingestion_mode: IngestionMode::RestBatch,
+        is_settled: true,
+        sequence_id: None,
+        taker_buy_volume_base: None,
+        taker_buy_volume_quote: None,
+        vwap: None,
+        trade_count: None,
+        price_type: "last".to_string(),
+        raw_metadata: Some("{\"venue\":\"BINANCE\",\"ticker\":\"BTCUSDT\"}".to_string()),
+    };
+
+    writer.write_candles(&[candle_cb, candle_bn], AssetClass::Crypto).unwrap();
+
+    // 3. Verify distinct partition directories exist on disk (zero collision / zero folding)
+    let cb_dir = lake_dir
+        .join("market")
+        .join("asset_class=crypto")
+        .join("symbol=COINBASE_BTCUSD")
+        .join("timeframe=1d")
+        .join("year=2026")
+        .join("month=11");
+    let bn_dir = lake_dir
+        .join("market")
+        .join("asset_class=crypto")
+        .join("symbol=BINANCE_BTCUSDT")
+        .join("timeframe=1d")
+        .join("year=2026")
+        .join("month=11");
+
+    assert!(cb_dir.exists(), "Coinbase partition directory must exist");
+    assert!(bn_dir.exists(), "Binance partition directory must exist");
+
+    // 4. Read back and verify zero loss of venue metadata and price divergence
+    let cb_read = LakeReader::read_candles(&lake_dir, Some("crypto"), "COINBASE:BTCUSD", "1d", None, None).unwrap();
+    let bn_read = LakeReader::read_candles(&lake_dir, Some("crypto"), "BINANCE:BTCUSDT", "1d", None, None).unwrap();
+
+    assert_eq!(cb_read.len(), 1);
+    assert_eq!(bn_read.len(), 1);
+    assert_eq!(cb_read[0].raw_symbol, "COINBASE:BTCUSD");
+    assert_eq!(bn_read[0].raw_symbol, "BINANCE:BTCUSDT");
+    assert_eq!(cb_read[0].close, 80200.0);
+    assert_eq!(bn_read[0].close, 80250.0);
+    assert!(cb_read[0].raw_metadata.as_ref().unwrap().contains("COINBASE"));
+    assert!(bn_read[0].raw_metadata.as_ref().unwrap().contains("BINANCE"));
 }

@@ -73,6 +73,10 @@ src/
 11. **Prinsip Preservasi Data Mentah (Bronze Layer As-Is Invariant & Downstream Decoupling):**
    - **Data Mentah Disimpan Apa Adanya:** Lapisan ingesti dan penyimpanan Parquet dilarang keras melakukan manipulasi *lossy*, pemotongan split, atau penghapusan harga anomali/negatif pada saat penulisan ke danau data (*Bronze Tier*). Danau data wajib merekam kebenaran mentah bursa (*ground truth*).
    - **Pemisahan Tanggung Jawab Downstream:** Semua transformasi, pembersihan anomali statistik (*Hampel filter*), penyesuaian pemecahan saham (*Corporate Actions*), perataan kontrak berjangka (*Futures Roll*), dan pencegahan *Look-Ahead Bias* (*Point-in-Time*) adalah tanggung jawab konsumen data hilir (*downstream processing / Silver-Gold tier*) menggunakan modul analitika bawaan, BUKAN filter destruktif pada saat ingesti.
+12. **Preservasi Keragaman Multi-Venue & Anti-Normalisasi Implisit (Zero Lossy Canonicalization):**
+   - **Venue/Bursa Tetap Utuh:** Pada sumber data multi-bursa seperti TradingView (misalnya `COINBASE:BTCUSD`, `BINANCE:BTCUSDT`, `BITSTAMP:BTCUSD`, `NASDAQ:AAPL`, `IDX:BBCA`), namespace bursa/venue **wajib dipertahankan secara utuh** di level persistensi (`symbol`, `raw_symbol`, partisi Hive `symbol=COINBASE_BTCUSD`, dan metadata bursa).
+   - **Dilarang Normalisasi/Folding Implisit:** Sistem dilarang keras memotong prefix bursa secara sepihak atau melipat instrumen dari bursa berbeda ke dalam satu ticker generik (seperti melipat `COINBASE:BTCUSD` dan `BINANCE:BTCUSDT` menjadi `BTCUSD`). Keragaman harga, likuiditas, spread antar-bursa, dan atribut mikrostruktur pasar adalah fakta empiris berharga yang tidak boleh hilang.
+   - **Identitas Berbasis Natural Tuple `(source, symbol)`:** Seluruh alur ingesti, langganan (*subscriptions*), dan penyimpanan danau data hanya mengenali instrumen berdasarkan pasangan alami `(source, symbol)`. Penyatuan simbol atau pemetaan kanonikal (*canonical mapping*) adalah hak prerogatif konsumen analitika hilir (*downstream*), bukan urusan ingesti hulu.
 
 ---
 

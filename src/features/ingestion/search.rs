@@ -231,13 +231,20 @@ impl UnifiedSearchEngine {
         results
     }
 
+    /// Discovers multi-exchange trading venues via TradingView scanner and discovery gateway.
+    pub async fn search_tradingview(&self, query: &str, limit: usize) -> Vec<SearchResultItem> {
+        let fetcher = crate::features::ingestion::tradingview::TradingViewFetcher::default();
+        fetcher.discover_venues(query, limit).await
+    }
+
     /// Dispatches multi-source search in parallel across all supported vendors.
     pub async fn search_all(&self, query: &str, limit_per_source: usize) -> Vec<SearchResultItem> {
-        let (yahoo_res, binance_res, poly_res, kalshi_res) = tokio::join!(
+        let (yahoo_res, binance_res, poly_res, kalshi_res, tv_res) = tokio::join!(
             self.search_yahoo(query, limit_per_source),
             self.search_binance(query, limit_per_source),
             self.search_polymarket(query, limit_per_source),
             self.search_kalshi(query, limit_per_source),
+            self.search_tradingview(query, limit_per_source),
         );
 
         let mut combined = Vec::new();
@@ -245,6 +252,7 @@ impl UnifiedSearchEngine {
         combined.extend(binance_res);
         combined.extend(poly_res);
         combined.extend(kalshi_res);
+        combined.extend(tv_res);
         combined
     }
 }
