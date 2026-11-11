@@ -80,8 +80,8 @@ src/
 
 ---
 
-## 3. Implementation Roadmap (260 Granular Phases)
-Pengembangan jangka panjang diorganisasi ke dalam 9 Milestone yang mencakup 260 fase atomik terukur:
+## 3. Implementation Roadmap (297 Granular Phases across 12 Milestones)
+Pengembangan jangka panjang diorganisasi ke dalam 12 Milestone yang mencakup 297 fase atomik terukur:
 - Master Index: [`docs/roadmap/ROADMAP.md`](docs/roadmap/ROADMAP.md)
   - **M1 (Phase 001 - 025):** Core Lakehouse & Storage Engine ([docs/roadmap/milestone_1_core_storage.md](docs/roadmap/milestone_1_core_storage.md))
   - **M2 (Phase 026 - 055):** Cryptocurrency High-Frequency Engine ([docs/roadmap/milestone_2_crypto.md](docs/roadmap/milestone_2_crypto.md))
@@ -92,6 +92,9 @@ Pengembangan jangka panjang diorganisasi ke dalam 9 Milestone yang mencakup 260 
   - **M7 (Phase 176 - 200):** Serving Layer (REST, WS & Arrow Flight) ([docs/roadmap/milestone_7_serving_streaming.md](docs/roadmap/milestone_7_serving_streaming.md))
   - **M8 (Phase 201 - 225):** Observability, Replay & Production Ops ([docs/roadmap/milestone_8_operations_replay.md](docs/roadmap/milestone_8_operations_replay.md))
   - **M9 (Phase 226 - 260):** One-Config Setup, Deep Backfill 2020 & Agent CLI ([docs/roadmap/milestone_9_one_config_deep_backfill_agent_cli.md](docs/roadmap/milestone_9_one_config_deep_backfill_agent_cli.md))
+  - **M10 (Phase 261 - 285):** Native Silver Pipeline, Pure Rust HRP & Lake Catalog ([docs/roadmap/milestone_10_silver_analytics_and_hrp.md](docs/roadmap/milestone_10_silver_analytics_and_hrp.md))
+  - **M11 (Phase 286 - 291):** Autonomous Ingest, Multi-Source Search & Gap Catch-Up ([docs/roadmap/milestone_11_autonomous_ingest_and_discovery.md](docs/roadmap/milestone_11_autonomous_ingest_and_discovery.md))
+  - **M12 (Phase 292 - 297):** External Access, Search & High-Precision Filter Parity ([docs/roadmap/milestone_12_external_access_search_and_filter.md](docs/roadmap/milestone_12_external_access_search_and_filter.md))
 
 ---
 
