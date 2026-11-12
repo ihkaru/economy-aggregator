@@ -19,6 +19,18 @@ pub struct CandleQuery {
     pub month: Option<u32>,
     pub limit: Option<usize>,
     pub to: Option<i64>,
+    pub from: Option<i64>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct CatalogQuery {
+    pub q: Option<String>,
+    pub asset_class: Option<String>,
+    pub source: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -28,7 +40,7 @@ pub struct StorageStatsResponse {
     pub total_bytes: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstrumentCatalogItem {
     pub symbol: String,
     pub canonical_symbol: String,

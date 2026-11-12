@@ -1,8 +1,8 @@
 # 2. Architecture Constraints
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -14,7 +14,9 @@ Agar sistem selalu cepat, tidak rakus RAM, dan tidak membebani prosesor mesin lo
 | :--- | :--- | :--- |
 | **Bahasa & Runtime** | 100% Rust (Edisi 2021) | Menghilangkan beban runtime besar dan menghindari jeda pembersihan memori (*Garbage Collection pause*). |
 | **Batas Memori RAM (Idle)** | $\le$ 50 MB | Aplikasi harus ramah untuk laptop atau server berspesifikasi hemat. |
-| **Batas Memori RAM (Load)** | $\le$ 150 MB (saat 50.000 tick/detik) | Memori dibatasi dengan antrean terukur (*bounded buffer*), tidak boleh membengkak tanpa batas. |
+| **Batas Memori RAM (Load)** | $\le$ 150 MB (saat 50.000 tick/detik atau kueri big data) | Memori dibatasi dengan antrean terukur (*bounded buffer*) dan limit kueri keras, tidak boleh membengkak tanpa batas. |
+| **Batas Kueri Lilin Eksternal** | Capped Limit: $\le$ 5.000 bar per HTTP request | Menghindari lonjakan alokasi heap `serde_json` melebihi 150 MB dan mempertahankan latensi p99 < 50ms. |
+| **TTL Caching Katalog & Partisi** | 60 detik in-memory cache | Mencegah penipisan I/O file descriptors saat ribuan file Parquet di danau data dipindai ulang. |
 | **Kapasitas Buffer Penampung** | Maksimal 50.000 record per buffer | Mencegah penumpukan data di RAM jika proses penulisan ke disk melambat. |
 | **Alokasi Heap Hot-Path** | Zero-Allocation di jalur parsing tick | Menggunakan *borrowing* (`&str`) dan array tipe data tetap tanpa membuat alokasi string baru saat membaca WebSocket. |
 | **Format File Disk** | Apache Parquet (`ZSTD` level 3) | Format tabel kolumnar terbuka; file terkompresi hemat tempat dan sangat cepat dibaca oleh Polars, DuckDB, dan Python. |

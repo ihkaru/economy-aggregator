@@ -1,8 +1,8 @@
 # 1. Introduction and Goals
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 

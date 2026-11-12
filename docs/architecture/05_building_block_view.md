@@ -1,8 +1,8 @@
 # 5. Building Block View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -22,10 +22,12 @@ graph TD
         BUF[Micro-Batch Buffer]
         WRITER[Parquet Lake Writer]
         RESOLVER[Partition Resolver]
+        READERS[Lake Readers: Candles, Macro, Prediction]
     end
 
     subgraph ServingSlice["Fitur Pelayanan (src/features/serving)"]
-        API[Axum REST Server]
+        API[Axum REST Server & GZIP/ZSTD Compression]
+        CACHE[In-Memory TTL Caches]
         BC[WebSocket Broadcaster]
         UI[High-Density Svelte Web Terminal (web/)]
     end
@@ -91,9 +93,9 @@ src/
 │   └── cli.rs                # Agent-First CLI dispatcher & argument parser
 ├── features/                 # Vertical Slice Architecture
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
-│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, Symbology
+│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, LakeMacroReader, LakePredictionReader
 │   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, PortfolioSpec, Portfolio Engine
-│   └── serving/              # Axum REST endpoints (/health, /candles, /catalog, /stats) & UI static server
+│   └── serving/              # Axum REST endpoints, in-memory TTL caching, HTTP compression, catalog & analytics routes
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/
 │   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons

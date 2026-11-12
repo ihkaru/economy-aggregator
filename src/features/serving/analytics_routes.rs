@@ -78,6 +78,7 @@ pub async fn query_divergence_handler(
 #[derive(Debug, Deserialize)]
 pub struct PartitionQuery {
     pub domain: Option<String>,
+    pub q: Option<String>,
     pub limit: Option<usize>,
 }
 
@@ -96,7 +97,47 @@ pub async fn storage_partitions_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<PartitionQuery>,
 ) -> Json<Vec<PartitionItem>> {
-    let lake_dir = &state.config.lake_dir;
+    // 1. In-memory TTL Cache (60s) to prevent opening 4,000+ files on every request
+    let all_items = {
+        let is_valid = if let Ok(guard) = state.partitions_cache.read() {
+            guard.as_ref().map(|(t, items)| (t.elapsed() < std::time::Duration::from_secs(60), items.clone()))
+        } else {
+            None
+        };
+
+        if let Some((true, cached)) = is_valid {
+            cached
+        } else {
+            let fresh = scan_all_partitions(&state.config.lake_dir);
+            if let Ok(mut guard) = state.partitions_cache.write() {
+                *guard = Some((std::time::Instant::now(), fresh.clone()));
+            }
+            fresh
+        }
+    };
+
+    // 2. Filter by domain and keyword query
+    let mut filtered = all_items;
+
+    if let Some(domain_filter) = &query.domain {
+        if domain_filter != "ALL" && !domain_filter.is_empty() {
+            filtered.retain(|i| i.domain.eq_ignore_ascii_case(domain_filter));
+        }
+    }
+
+    if let Some(q) = query.q.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()) {
+        filtered.retain(|i| {
+            i.identifier.to_lowercase().contains(&q) || i.file_name.to_lowercase().contains(&q)
+        });
+    }
+
+    let limit = query.limit.unwrap_or(300).min(1000);
+    filtered.truncate(limit);
+
+    Json(filtered)
+}
+
+fn scan_all_partitions(lake_dir: &Path) -> Vec<PartitionItem> {
     let mut raw_items = Vec::new();
 
     fn scan_lake(dir: &Path, base: &Path, out: &mut Vec<RawPartitionEntry>) {
@@ -141,19 +182,9 @@ pub async fn storage_partitions_handler(
     }
 
     scan_lake(lake_dir, lake_dir, &mut raw_items);
-
-    if let Some(domain_filter) = &query.domain {
-        if domain_filter != "ALL" && !domain_filter.is_empty() {
-            raw_items.retain(|i| i.domain.eq_ignore_ascii_case(domain_filter));
-        }
-    }
-
     raw_items.sort_by(|a, b| (&b.domain, &b.identifier, b.year, b.month).cmp(&(&a.domain, &a.identifier, a.year, a.month)));
 
-    let limit = query.limit.unwrap_or(300).min(1000);
-    raw_items.truncate(limit);
-
-    let items = raw_items.into_iter().map(|raw| {
+    raw_items.into_iter().map(|raw| {
         let row_count = File::open(&raw.path).ok().and_then(|f| {
             SerializedFileReader::new(f).ok().map(|r| r.metadata().file_metadata().num_rows() as usize)
         }).unwrap_or(0);
@@ -168,9 +199,7 @@ pub async fn storage_partitions_handler(
             size_bytes: raw.size_bytes,
             row_count,
         }
-    }).collect();
-
-    Json(items)
+    }).collect()
 }
 
 pub async fn integrity_audit_handler(

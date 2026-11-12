@@ -28,7 +28,18 @@ src/
     │   ├── mod.rs
     │   ├── buffer.rs         # Bounded micro-batch buffer thread-safe
     │   ├── partition.rs      # Resolver path partisi Hive
+    │   ├── reader.rs         # Market OHLCV Lake Reader (pruning & range filtering)
+    │   ├── macro_reader.rs   # Archival Macro Lakehouse Parquet Reader
+    │   ├── prediction_reader.rs # Historical Prediction Markets Reader
     │   └── writer.rs         # Writer data Parquet ZSTD & deduplikator
+    ├── serving/              # Slice Pelayanan Eksternal
+    │   ├── mod.rs
+    │   ├── rest.rs           # Axum HTTP router, compression layer, memory guardrails
+    │   ├── types.rs          # Query DTOs (CandleQuery, CatalogQuery, MacroCalendarQuery)
+    │   ├── catalog_routes.rs # In-memory TTL cache & instrument search
+    │   ├── macro_routes.rs   # Offline-first & hybrid macro calendar serving
+    │   ├── prediction_routes.rs # Prediction contracts search & time-series
+    │   └── analytics_routes.rs # Storage partition explorer & TTL cache
     └── analytics/            # Slice Analitika Portofolio & Risiko
         ├── mod.rs
         ├── bitemporal.rs     # Point-in-Time (PIT) Macro Vintage Engine (Zero Lookahead)

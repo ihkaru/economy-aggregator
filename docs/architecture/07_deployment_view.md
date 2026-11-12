@@ -1,8 +1,8 @@
 # 7. Deployment View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -15,7 +15,7 @@ flowchart TD
     subgraph Host["Host Machine (Linux / macOS / Termux)"]
         subgraph Process["Rust Binary Process (economy-aggregator)"]
             T1[Tokio Async Runtime]
-            T2[Axum HTTP & WS Server :8080]
+            T2[Axum HTTP & WS Server :8080 (GZIP/ZSTD Compression & TTL Caches)]
             T3[Ingestion Worker Threads]
             T4[Disk Blocking Pool]
         end

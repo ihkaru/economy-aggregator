@@ -42,7 +42,7 @@ flowchart TD
 | **M9** | **One-Config Bootstrap, 2020 Backfill & Agent CLI** | Phase 226 – 260 | In Progress (0/35) | [milestone_9_one_config_deep_backfill_agent_cli.md](milestone_9_one_config_deep_backfill_agent_cli.md) |
 | **M10** | **Native Silver Pipeline, Pure Rust HRP & Lake Catalog** | Phase 261 – 285 | In Progress (0/25) | [milestone_10_silver_analytics_and_hrp.md](milestone_10_silver_analytics_and_hrp.md) |
 | **M11** | **Autonomous Ingest, Multi-Source Search & Gap Catch-Up** | Phase 286 – 291 | Completed (6/6) | [milestone_11_autonomous_ingest_and_discovery.md](milestone_11_autonomous_ingest_and_discovery.md) |
-| **M12** | **External Access, Search & High-Precision Filter Parity** | Phase 292 – 297 | Planned (0/6) | [milestone_12_external_access_search_and_filter.md](milestone_12_external_access_search_and_filter.md) |
+| **M12** | **External Access, Search & High-Precision Filter Parity** | Phase 292 – 297 | Completed (6/6) | [milestone_12_external_access_search_and_filter.md](milestone_12_external_access_search_and_filter.md) |
 
 ---
 

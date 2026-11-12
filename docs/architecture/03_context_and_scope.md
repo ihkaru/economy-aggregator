@@ -1,8 +1,8 @@
 # 3. Context and Scope
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -45,3 +45,4 @@ flowchart LR
 | **IF-05** | Real-Time Broadcast Stream | Keluar | WebSocket (`ws://`), JSON | Meneruskan data harga terbaru secara langsung ke layar pengguna. |
 | **IF-06** | Agent-First Management & Query CLI | Keluar/Masuk | CLI Stdio, JSON Envelope | Mengontrol konfigurasi, inisialisasi, backfill 2020, dan audit kesehatan secara headless bagi agen AI dan operator. |
 | **IF-07** | In-Engine Analytical CLI & Engine | Keluar/Masuk | CLI Stdio, JSON Envelope | Mengevaluasi performa risiko portofolio multi-dekade berbasis data pasar empiris riil (`economy-aggregator analyze`). |
+| **IF-08** | High-Density Web Terminal UI | Keluar | HTTP / Svelte SPA, JSON / HTML | Antarmuka grafis visual web terminal lokal untuk inspeksi lilin dan verifikasi bentuk grafik. |

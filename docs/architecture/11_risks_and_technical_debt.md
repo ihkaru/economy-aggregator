@@ -1,8 +1,8 @@
 # 11. Risks and Technical Debt
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -24,6 +24,9 @@
 | **RISK-12** | Pembersihan destruktif prematur di layer ingesti/penyimpanan (Bronze tier). | Kehilangan jejak sejarah pasar riil (misal minyak WTI negatif -$37.63, stock split 4:1 terhapus karena filter outlier, depeg mata uang, flash crash). | Menetapkan Invarian Preservasi Bronze: Danau data menyimpan data mentah apa adanya (*as-is*). Seluruh pembersihan, filter outlier, dan adjustment wajib dieksekusi di downstream (Silver/Gold) sesuai kebutuhan strategi kuantitatif. |
 | **RISK-13** | Pemodelan deret waktu opsi non-linier sebagai aset compounding linier harian. | Lonjakan return fiktif ekstrem (46% CAGR) dan rebalancing tak terhingga saat krisis pasar. | Menetapkan Aturan Derivatif: dilarang compounding harian otonom pada instrumen opsi. Wajib menyertakan theta burn harian, batas delta saturasi ($\le 1.0$), volatility crush, dan kalibrasi ke benchmark CBOE Eurekahedge Long Vol. |
 | **RISK-14** | Beban I/O berlebih akibat pemindaian ribuan file mikro-batch Parquet tanpa file katalog metadata (*Small Files Bottleneck* di ARM64 PRoot). | Latensi pembacaan data lakehouse melambat drastis (>60 detik untuk membuka file descriptors). | Menerapkan pipeline Silver terpadu (`build-silver`), otomatisasi pemadatan berkala (`LakeCompactor`), dan katalog metadata ringkas per simbol. |
+| **RISK-15** | Klien memerlukan data historis lebih dari 5.000 bar lilin dalam satu kali request. | Permintaan terpotong oleh guardrail `min(5000)`. | Klien menggunakan navigasi pagination bertahap menggunakan parameter `to` (timestamp cutoff mundur) atau rentang `from`/`to_date` yang lebih sempit. |
+| **RISK-16** | Perbedaan konvensi jam penutupan bursa / timezone antar vendor pada audit rekonsiliasi lilin. | Selisih mikro toleransi harga yang memicu peringatan drift palsu. | Menerapkan toleransi harga fleksibel $\pm 0.5\%$, normalisasi timestamp ke UTC, dan jendela observasi bersama. |
+| **RISK-17** | Kebutuhan build Vite `bun run build` jika terjadi perubahan komponen UI di direktori `web/src/`. | UI usang jika aset statis tidak dikompilasi ulang sebelum rilis. | Menyediakan verifikasi build otomatis via Makefile/CI dan memuat pre-compiled `web/dist` langsung di repo. |
 
 ## 11.2 Technical Debt Ledger
 
@@ -33,3 +36,4 @@
 | **DEBT-02** | Mesin komputasi kuantitatif sebelumnya memerlukan runtime eksternal (Python/Polars) untuk analisis risiko portofolio. | Selesai / Terintegrasi (`src/features/analytics/`) | Mengimplementasikan `PortfolioEngine` native murni di Rust yang menghitung CAGR, Volatilitas, Max Drawdown, Sharpe, dan Korelasi Pearson langsung dari Parquet lakehouse via sub-perintah `economy-aggregator analyze`. |
 | **DEBT-03** | Algoritma Hierarchical Risk Parity (HRP) dan Threshold Rebalancing masih dieksekusi via skrip Python eksternal. | Dalam Rencana (`src/features/analytics/`) | Membangun modul `hrp.rs` (dendrogram clustering) dan `rebalancer.rs` native di Rust untuk simulasi portofolio deterministik 100% bebas Python. |
 | **DEBT-04** | Ketiadaan pipeline Silver terotomatisasi yang menghasilkan panel data terpadu (pre-aligned & FX-adjusted). | Dalam Rencana (`src/features/analytics/`) | Mengembangkan sub-perintah `economy-aggregator build-silver` untuk memproduksi dataset panel bersih siap latih. |
+| **DEBT-05** | Streaming WebSocket untuk kalender makro dan prediction market belum tersambung ke live changefeed lakehouse. | Terkelola (`src/features/serving/`) | Menghubungkan channel broadcast Axum WebSocket ke mutasi buffer ingestion makro dan prediction market pada milestone berikutnya. |

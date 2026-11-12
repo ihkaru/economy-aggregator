@@ -22,7 +22,69 @@ pub async fn list_instruments_handler(
 
 pub async fn market_catalog_handler(
     State(state): State<Arc<AppState>>,
+    Query(query): Query<CatalogQuery>,
 ) -> Json<Vec<InstrumentCatalogItem>> {
+    // 1. Check in-memory catalog cache (TTL: 60s) to eliminate fs::read_dir on every request
+    let all_items = {
+        let cached = if let Ok(guard) = state.catalog_cache.read() {
+            guard.as_ref().and_then(|(t, items)| {
+                if t.elapsed() < std::time::Duration::from_secs(60) {
+                    Some(items.clone())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+        if let Some(c) = cached {
+            c
+        } else {
+            let fresh = scan_catalog_items(&state);
+            if let Ok(mut guard) = state.catalog_cache.write() {
+                *guard = Some((std::time::Instant::now(), fresh.clone()));
+            }
+            fresh
+        }
+    };
+
+    // 2. Apply query filters
+    let mut filtered = all_items;
+
+    if let Some(q) = query.q.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()) {
+        filtered.retain(|item| {
+            item.symbol.to_lowercase().contains(&q)
+                || item.canonical_symbol.to_lowercase().contains(&q)
+                || item.name.to_lowercase().contains(&q)
+        });
+    }
+
+    if let Some(ac) = query.asset_class.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()) {
+        filtered.retain(|item| item.asset_class.to_lowercase() == ac);
+    }
+
+    if let Some(src) = query.source.as_deref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty()) {
+        filtered.retain(|item| item.source.to_lowercase() == src);
+    }
+
+    // 3. Apply pagination
+    if let Some(offset) = query.offset {
+        if offset < filtered.len() {
+            filtered = filtered.split_off(offset);
+        } else {
+            filtered.clear();
+        }
+    }
+
+    if let Some(limit) = query.limit {
+        filtered.truncate(limit.min(5000));
+    }
+
+    Json(filtered)
+}
+
+fn scan_catalog_items(state: &AppState) -> Vec<InstrumentCatalogItem> {
     let mut items = Vec::new();
     let mut seen = HashSet::new();
 
@@ -91,7 +153,7 @@ pub async fn market_catalog_handler(
         }
     }
 
-    Json(items)
+    items
 }
 
 pub async fn market_metadata_handler(

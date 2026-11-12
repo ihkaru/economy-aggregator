@@ -1,8 +1,8 @@
 # 6. Runtime View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -55,14 +55,42 @@ sequenceDiagram
     REST->>Buf: Masukkan Data Pengganti (is_settled = true)
 ```
 
-## 6.3 Skenario 3: Konsumsi Data Historis via REST API
+## 6.3 Skenario 3: Konsumsi Data Historis via REST API (Big Data Range Query)
 
 Aplikasi grafik atau skrip analis meminta data historis:
 
-1. Klien mengirim permintaan `GET /v1/market/candles?symbol=BTC/USDT&timeframe=1m&from=...&to=...`.
-2. Router `Axum` mengarahkan permintaan ke modul pembaca Parquet.
-3. Pembaca langsung menuju folder partisi tanggal yang sesuai (*folder pruning*).
-4. Data dikirimkan kembali ke klien dalam format JSON terkompresi atau stream Arrow.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Klien as Klien Eksternal / Bot
+    participant Axum as Axum REST Server (:8080)
+    participant Cache as In-Memory TTL Cache
+    participant Reader as LakeReader / LakeMacroReader
+    participant Disk as Parquet Lakehouse
+
+    alt Permintaan Katalog / Partisi
+        Klien->>Axum: GET /v1/market/catalog?q=BTC&limit=50
+        Axum->>Cache: Cek Cache (TTL 60 detik)
+        alt Cache Hit
+            Cache-->>Axum: Kembalikan Data Katalog dari RAM (< 1ms)
+        else Cache Miss
+            Axum->>Disk: Scan File Parquet (fs::read_dir)
+            Disk-->>Axum: Bangun Item Katalog
+            Axum->>Cache: Simpan ke Cache In-Memory
+        end
+    else Permintaan Candles / Time-Series
+        Klien->>Axum: GET /v1/market/candles?symbol=BTC/USDT&from=...&to=...&limit=1000
+        Note over Axum: Terapkan Guardrail: capped_limit = min(limit, 5000)
+        Axum->>Reader: read_candles_with_limit_and_range(...)
+        Note over Reader: Partition Pruning (year/month) & Lazy Short-Circuit
+        Reader->>Disk: Buka Hanya Partisi Parquet Relevan (Rayon Parallel)
+        Disk-->>Reader: Record Batches OHLCV
+        Reader-->>Axum: Lilin Terurut & Ter-deduplikasi
+    end
+
+    Note over Axum,Klien: Kompresi Transparan HTTP (GZIP / ZSTD via tower-http)
+    Axum-->>Klien: 200 OK + Payload Terkompresi (< 150 MB RAM budget terjaga)
+```
 
 ## 6.4 Skenario 4: Eksekusi Backfill Historis 2020 via Agent-First CLI
 

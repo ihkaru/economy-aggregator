@@ -1,8 +1,8 @@
 # 4. Solution Strategy
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -58,6 +58,14 @@ Untuk mencapai sistem pengumpul data yang sangat kencang, hemat memori, dan anda
 ### 11. Bitemporal Point-in-Time (PIT) untuk Data Makroekonomi
 - **Masalah:** Angka makro (GDP, CPI, NFP) sering direvisi 1–12 bulan setelah rilis awal. Melatih atau menguji model dengan data revisi final memicu *Look-Ahead Bias* berbahaya karena investor di masa lalu hanya memiliki data estimasi awal.
 - **Solusi:** Mengadopsi model bitemporal `PointInTimeEngine` yang melacak `reference_period`, `release_timestamp_utc`, dan versi vintage. Kueri simulasi hanya boleh membaca data yang telah resmi beredar pada tanggal simulasi (*as-of date*).
+
+### 12. Optimasi Penyajian Data Skala Besar (Partition Pruning, In-Memory TTL Cache & HTTP Compression)
+- **Masalah:** Menghadapi ribuan file partisi di danau data Parquet (4.100+ file) dan kueri eksternal tanpa batas, pemindaian disk berulang dapat memicu *file descriptor exhaustion* serta alokasi serialisasi JSON yang melampaui batas RAM 150 MB.
+- **Solusi:**
+  1. Menerapkan pemangkasan partisi awal (*partition pruning*) berdasarkan timestamp kueri `from` dan *lazy short-circuit* partisi lama jika limit kueri sudah terpenuhi.
+  2. Menerapkan *memory guardrail* keras: kueri lilin dibatasi maksimal 5.000 bar per request (`capped_limit = limit.min(5000)`).
+  3. Memasang cache in-memory 60s TTL (`catalog_cache` & `partitions_cache`) untuk endpoint katalog dan inspeksi partisi.
+  4. Mengaktifkan layer kompresi transparan `tower-http` (GZIP & ZSTD) untuk meminimalkan beban transfer jaringan pada kueri historis besar.
 
 ### 12. Penataan Runtun Komoditas Berkelanjutan (Futures Roll) & Sesi Valas 24/5
 - **Masalah:** Kontrak berjangka komoditas yang berganti setiap bulan/kuartal menimbulkan gap lonjakan harga (*contango/backwardation*), sedangkan pasar valas Minggu malam menimbulkan bar kosong atau desinkronisasi timestamp.

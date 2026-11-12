@@ -1,8 +1,8 @@
 # 8. Cross-Cutting Concepts
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -91,3 +91,18 @@ Belajar dari evaluasi empiris simulasi portofolio, pemodelan instrumen derivatif
   5. *Interaksi Keyboard-First:* Pemilihan instrumen mendukung pencarian instan via modal keyboard shortcut (`/` atau `Ctrl+K`), navigasi panah, dan pemilih timeframe instan (`1m`, `5m`, `15m`, `1h`, `1d`, `1w`, `1M`).
 - **Batasan Deterministik 400 Baris (Strict Line Limit):**
   Untuk mencegah *file bloat* dan pelanggaran *Single Responsibility Principle* (SRP), seluruh berkas kode baik frontend (`.svelte`, `.ts`, `.js`, `.css`) maupun backend (`.rs`) diwajibkan memiliki panjang maksimal $\le 400$ baris kode. Invarian ini diverifikasi secara deterministik oleh test suite otomatis `tests/test_sanity.rs` (`test_deterministic_file_line_limits_under_400`).
+
+## 8.11 Big Data Serving Guardrails, In-Memory TTL Cache & HTTP Compression
+- **Memory Guardrails (Capped Limits):**
+  Untuk mematuhi budget memori $\le 150\text{ MB}$ dan mencegah alokasi berlebih pada serialisasi `serde_json`, seluruh endpoint data time-series (seperti `GET /v1/market/candles`) menerapkan batas maksimum keras:
+  $$\text{capped\_limit} = \min(\text{query.limit}, 5000)$$
+  Jika klien tidak mencantumkan parameter `limit`, sistem menggunakan nilai default 300 bar.
+- **Partition Pruning & Short-Circuit Reading:**
+  Query candles memotong folder partisi tahun/bulan sebelum membuka file (`effective_start_date` dari parameter `from` / `from_timestamp`). Ketika `start_date` tidak dispesifikasikan tetapi `limit` ada, reader menerapkan lazy short-circuit truncation:
+  $$\text{max\_partitions\_needed} = \lfloor\text{limit} / 15\rfloor + 3$$
+- **In-Memory TTL Caching (60s):**
+  Untuk mencegah *disk thrashing* dan kelelahan I/O file descriptor pada ribuan file Parquet (seperti 4.100+ partisi), endpoint katalog (`GET /v1/market/catalog`) dan inspeksi partisi (`GET /v1/storage/partitions`) dilengkapi cache in-memory berbasis `RwLock` dengan TTL 60 detik.
+- **HTTP Content-Encoding Compression:**
+  Router Axum mengadopsi layer kompresi transparan `tower_http::compression::CompressionLayer` yang mendukung algoritma `gzip` dan `zstd` berdasarkan header request klien `Accept-Encoding`, menghemat bandwidth transmisi data besar hingga 70-85%.
+- **Lakehouse Historical Archival Access:**
+  Menyediakan akses offline-first langsung ke danau Parquet untuk kalender makro (`LakeMacroReader`) dan pasar prediksi (`LakePredictionReader`) dengan dukungan pencarian substring (`q`) dan filter status/tanggal.

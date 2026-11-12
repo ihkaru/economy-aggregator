@@ -44,12 +44,43 @@ impl LakeReader {
         limit: Option<usize>,
         to_timestamp: Option<i64>,
     ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
+        Self::read_candles_with_limit_and_range(
+            lake_dir,
+            asset_class,
+            symbol,
+            timeframe,
+            start_date,
+            end_date,
+            limit,
+            None,
+            to_timestamp,
+        )
+    }
+
+    /// Reads candles with parallel Rayon decompression, partition pruning, and forward/backward timestamp cutoff.
+    pub fn read_candles_with_limit_and_range(
+        lake_dir: &Path,
+        asset_class: Option<&str>,
+        symbol: &str,
+        timeframe: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        limit: Option<usize>,
+        from_timestamp: Option<i64>,
+        to_timestamp: Option<i64>,
+    ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
         let clean_symbol = symbol.to_uppercase().replace('/', "_").replace(':', "_");
         let sym_dir = Self::resolve_symbol_dir(lake_dir, asset_class, &clean_symbol, timeframe)?;
 
         if !sym_dir.exists() {
             return Ok(Vec::new());
         }
+
+        let effective_start_date = start_date.or_else(|| {
+            from_timestamp.and_then(|ts| {
+                chrono::DateTime::from_timestamp(ts, 0).map(|dt| dt.date_naive())
+            })
+        });
 
         let effective_end_date = end_date.or_else(|| {
             to_timestamp.and_then(|ts| {
@@ -58,7 +89,7 @@ impl LakeReader {
         });
 
         let mut partitions = Vec::new();
-        Self::collect_partitions(&sym_dir, start_date, effective_end_date, &mut partitions);
+        Self::collect_partitions(&sym_dir, effective_start_date, effective_end_date, &mut partitions);
 
         if partitions.is_empty() {
             return Ok(Vec::new());
@@ -67,11 +98,11 @@ impl LakeReader {
         // Sort descending: newest partitions first
         partitions.sort_by(|a, b| (b.year, b.month).cmp(&(a.year, a.month)));
 
-        // If limit is specified and no start date bounding, prune older partitions
+        // If limit is specified and no start date bounding, prune older partitions (lazy short-circuit)
         if let Some(lim) = limit {
-            if start_date.is_none() {
+            if effective_start_date.is_none() {
                 // Minimum ~15 bars per month (equities ~21, crypto ~30)
-                let max_partitions_needed = (lim / 15) + 6;
+                let max_partitions_needed = (lim / 15) + 3;
                 if partitions.len() > max_partitions_needed {
                     partitions.truncate(max_partitions_needed);
                 }
@@ -117,22 +148,11 @@ impl LakeReader {
         let mut filtered: Vec<AggregatorCandle> = dedup_map
             .into_values()
             .filter(|c| {
-                if let Some(to_ts) = to_timestamp {
-                    if c.time >= to_ts {
-                        return false;
-                    }
-                }
+                if from_timestamp.map_or(false, |ts| c.time < ts) { return false; }
+                if to_timestamp.map_or(false, |ts| c.time >= ts) { return false; }
                 let d = c.timestamp_utc.date_naive();
-                if let Some(s) = start_date {
-                    if d < s {
-                        return false;
-                    }
-                }
-                if let Some(e) = effective_end_date {
-                    if d > e {
-                        return false;
-                    }
-                }
+                if effective_start_date.map_or(false, |s| d < s) { return false; }
+                if effective_end_date.map_or(false, |e| d > e) { return false; }
                 true
             })
             .collect();
@@ -186,34 +206,25 @@ impl LakeReader {
             })
             .sum();
 
-        // Oldest partition -> first date
-        let first_date = partitions.first().and_then(|pf| {
+        let read_edge_date = |pf: &PartitionFile, pick_last: bool| -> Option<String> {
             let file = File::open(&pf.path).ok()?;
-            let builder = ParquetRecordBatchReaderBuilder::try_new(file).ok()?;
-            let mut reader = builder.build().ok()?;
-            if let Some(Ok(batch)) = reader.next() {
-                if let Ok(candles) = record_batch_to_candles(&batch) {
-                    return candles.first().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
-                }
-            }
-            None
-        });
-
-        // Newest partition -> last date
-        let last_date = partitions.last().and_then(|pf| {
-            let file = File::open(&pf.path).ok()?;
-            let builder = ParquetRecordBatchReaderBuilder::try_new(file).ok()?;
-            let mut reader = builder.build().ok()?;
-            let mut latest_candle = None;
+            let mut reader = ParquetRecordBatchReaderBuilder::try_new(file).ok()?.build().ok()?;
+            let mut edge = None;
             while let Some(Ok(batch)) = reader.next() {
                 if let Ok(candles) = record_batch_to_candles(&batch) {
+                    if !pick_last {
+                        return candles.first().map(|c| c.timestamp_utc.format("%Y-%m-%d").to_string());
+                    }
                     if let Some(c) = candles.last() {
-                        latest_candle = Some(c.timestamp_utc.format("%Y-%m-%d").to_string());
+                        edge = Some(c.timestamp_utc.format("%Y-%m-%d").to_string());
                     }
                 }
             }
-            latest_candle
-        });
+            edge
+        };
+
+        let first_date = partitions.first().and_then(|pf| read_edge_date(pf, false));
+        let last_date = partitions.last().and_then(|pf| read_edge_date(pf, true));
 
         Ok((total_rows, first_date, last_date))
     }

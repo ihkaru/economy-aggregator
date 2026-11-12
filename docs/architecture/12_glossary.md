@@ -1,8 +1,8 @@
 # 12. Glossary
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `3b64a61`
-> - **Verified Timestamp**: `2026-11-08T15:48:00+07:00`
+> - **Verified Commit**: `09e95c7`
+> - **Verified Timestamp**: `2026-11-12T06:28:32+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
@@ -32,3 +32,8 @@
 | **Corporate Actions Adjustment** | Penyesuaian matematis runtun harga historis ke belakang (*backward adjustment*) untuk menghilangkan lompatan artifisial akibat pemecahan saham atau pembagian dividen tunai. |
 | **Point-in-Time (Bi-temporal Macro)** | Model waktu ganda (*Observation Date* vs *Knowledge Release Date*) yang mencegah Look-Ahead Bias pada rilis makroekonomi dengan mengunci pembacaan data strictly as-of tanggal simulasi. |
 | **Futures Roll Smoothing** | Rekonsiliasi perbedaan harga antar-kontrak berjangka (Contango/Backwardation) saat pergantian bulan kontrak menggunakan metode rasio Panama atau selisih kumulatif. |
+| **Partition Pruning** | Teknik optimasi pembacaan data lakehouse di mana direktori partisi tahun dan bulan diabaikan secara dini jika berada di luar rentang tanggal kueri, memangkas I/O disk secara signifikan. |
+| **Short-Circuit Truncation** | Pemangkasan daftar partisi secara *lazy* ketika kueri dengan batas `limit` telah mencukupi kebutuhan baris tanpa perlu memindai partisi tertua. |
+| **Capped Limit Guardrail** | Batas kuota baris keras yang diberlakukan backend (misal $\le 5.000$ bar) untuk menjaga alokasi memori heap `serde_json` tetap di bawah budget 150 MB. |
+| **HTTP Content-Encoding (GZIP/ZSTD)** | Kompresi transparan HTTP response melalui middleware `tower-http` untuk memangkas ukuran payload JSON hingga 70-85% pada transfer dataset historis besar. |
+| **Lake Archival Reader** | Modul pembaca Parquet khusus (`LakeMacroReader`, `LakePredictionReader`) yang memindai arsip partisi tahunan/bulanan dan mengekstrak rekaman historis secara efisien. |
