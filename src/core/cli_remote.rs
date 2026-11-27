@@ -182,6 +182,7 @@ pub async fn dispatch_remote(
         "subscribe" => Some(handle_remote_subscribe(args, client).await),
         "unsubscribe" => Some(handle_remote_unsubscribe(args, client).await),
         "catch-up" | "sync" => Some(handle_remote_catch_up(args, client).await),
+        "compact" => Some(handle_remote_compact(args, client).await),
         "audit" => Some(handle_remote_simple_get("/v1/integrity/audit", client).await),
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
         _ => None,
@@ -335,6 +336,13 @@ async fn handle_remote_catch_up(args: &[String], client: &RemoteClient) -> Resul
         "economy-aggregator status",
         "economy-aggregator partitions --limit 20"
     ]))
+}
+
+async fn handle_remote_compact(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let min_files = flag_val(args, &["--min-files"]).and_then(|v| v.parse::<usize>().ok());
+    let body = serde_json::json!({ "min_files": min_files });
+    let data = client.post_json("/v1/storage/compact", Some(&body)).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator status"]))
 }
 
 async fn handle_remote_simple_get(path: &str, client: &RemoteClient) -> Result<Value, RemoteCliError> {

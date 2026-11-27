@@ -16,7 +16,7 @@ use crate::features::storage::{
 pub async fn list_instruments_handler(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<crate::features::storage::InstrumentMapping>> {
-    let reg = state.registry.read().unwrap();
+    let reg = state.registry.read().unwrap_or_else(|e| e.into_inner());
     Json(reg.list_all())
 }
 
@@ -88,7 +88,7 @@ fn scan_catalog_items(state: &AppState) -> Vec<InstrumentCatalogItem> {
     let mut items = Vec::new();
     let mut seen = HashSet::new();
 
-    let reg = state.registry.read().unwrap();
+    let reg = state.registry.read().unwrap_or_else(|e| e.into_inner());
     for m in reg.list_all() {
         let src = m
             .vendor_symbols

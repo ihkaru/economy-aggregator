@@ -47,7 +47,7 @@ impl IngestionOrchestrator {
     }
 
     pub fn status(&self) -> OrchestratorStatus {
-        self.status.read().unwrap().clone()
+        self.status.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Spawns autonomous ingestion background daemon (Catch-Up then Live Loop).
@@ -58,7 +58,7 @@ impl IngestionOrchestrator {
 
         tokio::spawn(async move {
             {
-                let mut st = status_arc.write().unwrap();
+                let mut st = status_arc.write().unwrap_or_else(|e| e.into_inner());
                 st.is_running = true;
             }
             info!("🛡️ Autonomous Ingestion Orchestrator booting up in background");
@@ -66,7 +66,7 @@ impl IngestionOrchestrator {
             // 1. Initial Gap Catch-Up Run
             run_gap_catch_up(&config, &sub_manager, &status_arc).await;
 
-            // 2. Periodic Polling & Live Stream Supervisor Loop
+            // 2. Periodic Polling, Live Stream & Auto-Compaction Supervisor Loop
             let mut tick_counter: u64 = 0;
             loop {
                 sleep(Duration::from_secs(60)).await;
@@ -92,6 +92,24 @@ impl IngestionOrchestrator {
                 // Every 15 minutes (15 ticks): Trigger incremental catch-up for scheduled items
                 if tick_counter % 15 == 0 {
                     run_gap_catch_up(&config, &sub_manager, &status_arc).await;
+                }
+
+                // Every 6 hours (360 ticks): Compact small Parquet micro-chunks off the async worker
+                if tick_counter % 360 == 0 {
+                    let lake_dir = config.lake_dir.clone();
+                    match tokio::task::spawn_blocking(move || {
+                        crate::features::storage::LakeCompactor::default().compact_all(&lake_dir, 2)
+                    })
+                    .await
+                    {
+                        Ok(Ok(results)) if !results.is_empty() => {
+                            let merged: usize = results.iter().map(|r| r.files_compacted).sum();
+                            info!("🗜️ Scheduled auto-compaction merged {} micro-chunks across {} partitions", merged, results.len());
+                        }
+                        Ok(Err(e)) => warn!("Scheduled auto-compaction error: {}", e),
+                        Err(e) => warn!("Scheduled auto-compaction join error: {}", e),
+                        _ => {}
+                    }
                 }
             }
         });

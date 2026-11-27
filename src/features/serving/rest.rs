@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use axum::extract::{Query, State};
+use axum::extract::{DefaultBodyLimit, Query, State};
 use axum::http::StatusCode;
 use axum::middleware;
 use axum::response::IntoResponse;
@@ -86,6 +86,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/market/candles", get(query_candles_handler))
         .route("/v1/storage/stats", get(storage_stats_handler))
         .route("/v1/storage/partitions", get(storage_partitions_handler))
+        .route("/v1/storage/compact", post(trigger_compact_handler))
         .route("/v1/macro/calendar", get(query_macro_calendar_handler))
         .route("/v1/prediction-markets/events", get(query_prediction_contracts_handler))
         .route("/v1/prediction-markets/markets/:id/candles", get(query_prediction_candles_handler))
@@ -96,9 +97,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/ingestion/status", get(ingestion_status_handler))
         .route("/v1/ingestion/catch-up", post(trigger_catch_up_handler))
         .route("/v1/discovery/search", get(search_symbols_handler))
+        .layer(DefaultBodyLimit::max(1024 * 1024))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             crate::features::serving::auth::api_key_auth_middleware,
+        ))
+        .layer(middleware::from_fn(
+            crate::features::serving::auth::security_headers_middleware,
         ))
         .layer(tower_http::compression::CompressionLayer::new())
         .with_state(state);
@@ -131,6 +136,7 @@ pub async fn query_candles_handler(
     State(state): State<Arc<AppState>>,
     Query(query): Query<CandleQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    crate::features::serving::auth::validate_safe_identifier(&query.symbol, "symbol")?;
     let asset_class = match query.asset_class.to_lowercase().as_str() {
         "crypto" => AssetClass::Crypto,
         "equities" => AssetClass::Equities,
@@ -191,17 +197,30 @@ pub async fn query_candles_handler(
         }
     }
 
-    let mut candles = LakeReader::read_candles_with_limit_and_range(
-        &state.config.lake_dir,
-        Some(asset_class.as_str()),
-        &query.symbol,
-        timeframe.as_str(),
-        start_date,
-        end_date,
-        capped_limit,
-        query.from,
-        query.to,
-    ).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let lake_dir = state.config.lake_dir.clone();
+    let ac_str = asset_class.as_str().to_string();
+    let sym_owned = query.symbol.clone();
+    let tf_str = timeframe.as_str().to_string();
+    let from_ts = query.from;
+    let to_ts = query.to;
+
+    let mut candles = tokio::task::spawn_blocking(move || {
+        LakeReader::read_candles_with_limit_and_range(
+            &lake_dir,
+            Some(&ac_str),
+            &sym_owned,
+            &tf_str,
+            start_date,
+            end_date,
+            capped_limit,
+            from_ts,
+            to_ts,
+        )
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     // Dynamic Resampling: If candles are empty for weekly or monthly, resample from 1d daily lake
     if candles.is_empty() && (timeframe == TimeFrame::W1 || timeframe == TimeFrame::MN1) {

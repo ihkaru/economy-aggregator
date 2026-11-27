@@ -7,12 +7,61 @@
 use std::sync::Arc;
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{header, HeaderName, HeaderValue, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use crate::features::serving::AppState;
+
+/// Validates external identifier inputs against path traversal and control-character injection.
+pub fn validate_safe_identifier(value: &str, field: &str) -> Result<(), (StatusCode, String)> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.len() > 128 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid '{}': must be between 1 and 128 characters", field),
+        ));
+    }
+    if trimmed.contains("..")
+        || trimmed.contains('\\')
+        || trimmed.bytes().any(|b| b == 0 || b < 0x20 || b == 0x7f)
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid '{}': forbidden path traversal or control characters", field),
+        ));
+    }
+    Ok(())
+}
+
+/// Attaches defense-in-depth HTTP security headers on all responses.
+pub async fn security_headers_middleware(req: Request<Body>, next: Next) -> Response {
+    let is_api = req.uri().path().starts_with("/v1/");
+    let mut res = next.run(req).await;
+    let headers = res.headers_mut();
+
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    headers.insert(
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
+    );
+    if is_api {
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        );
+    }
+    res
+}
 
 /// Constant-time byte slice equality check to prevent timing side-channels.
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {

@@ -37,6 +37,10 @@ pub async fn add_subscription_handler(
     State(state): State<Arc<AppState>>,
     Json(item): Json<SubscriptionItem>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    crate::features::serving::auth::validate_safe_identifier(&item.symbol, "symbol")?;
+    crate::features::serving::auth::validate_safe_identifier(&item.source, "source")?;
+    crate::features::serving::auth::validate_safe_identifier(&item.asset_class, "asset_class")?;
+
     let updated = state.sub_manager.subscribe(item.clone()).map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed persisting subscription: {}", e))
     })?;
@@ -64,6 +68,7 @@ pub async fn delete_subscription_handler(
     Path(symbol): Path<String>,
     Query(query): Query<DeleteSubscriptionQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    crate::features::serving::auth::validate_safe_identifier(&symbol, "symbol")?;
     let removed = state.sub_manager.unsubscribe(query.source.as_deref(), &symbol).map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed removing subscription: {}", e))
     })?;
@@ -73,6 +78,49 @@ pub async fn delete_subscription_handler(
         "symbol": symbol,
         "source": query.source,
         "message": if removed { "Subscription deleted" } else { "Subscription not found" }
+    })))
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct CompactRequest {
+    pub min_files: Option<usize>,
+}
+
+pub async fn trigger_compact_handler(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<CompactRequest>,
+    body: Option<Json<CompactRequest>>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let min_files = body
+        .and_then(|Json(b)| b.min_files)
+        .or(query.min_files)
+        .unwrap_or(2)
+        .max(1);
+    let lake_dir = state.config.lake_dir.clone();
+
+    let results = tokio::task::spawn_blocking(move || {
+        crate::features::storage::LakeCompactor::default()
+            .compact_all(&lake_dir, min_files)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Compaction join error: {}", e)))?
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Compaction failed: {}", e)))?;
+
+    invalidate_serving_caches(&state);
+    let files_merged: usize = results.iter().map(|r| r.files_compacted).sum();
+    let rows_before: usize = results.iter().map(|r| r.total_rows_before).sum();
+    let rows_after: usize = results.iter().map(|r| r.total_rows_after).sum();
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "action": "compact",
+        "min_files": min_files,
+        "partitions_compacted": results.len(),
+        "files_merged": files_merged,
+        "rows_before": rows_before,
+        "rows_after": rows_after,
+        "deduplicated_rows": rows_before.saturating_sub(rows_after)
     })))
 }
 

@@ -2,7 +2,7 @@
 
 **Scope:** Production-Grade High-Performance Financial & Macroeconomic Data Aggregator  
 **Target Runtime:** 100% Native Rust (Zero-GC, Memory Budget $\le$ 50 MB Idle / $\le$ 150 MB Load)  
-**Total Granular Phases:** 297 Atomic Implementation Phases across 12 Major Milestones.
+**Total Granular Phases:** 305 Atomic Implementation Phases across 13 Major Milestones.
 
 ---
 
@@ -23,6 +23,7 @@ flowchart TD
     M1 & M6 & M9 --> M10[M10: Native Silver Pipeline, Pure Rust HRP & Lake Catalog<br/>Phase 261 - 285]
     M1 & M7 --> M11[M11: Autonomous Ingest, Multi-Source Search & Catch-Up<br/>Phase 286 - 291]
     M7 & M11 --> M12[M12: External Access, Search & High-Precision Filter Parity<br/>Phase 292 - 297]
+    M6 & M12 --> M13[M13: Production Hardening, Auto-Compaction & Security Audit<br/>Phase 298 - 305]
 ```
 
 ---
@@ -43,6 +44,7 @@ flowchart TD
 | **M10** | **Native Silver Pipeline, Pure Rust HRP & Lake Catalog** | Phase 261 – 285 | In Progress (0/25) | [milestone_10_silver_analytics_and_hrp.md](milestone_10_silver_analytics_and_hrp.md) |
 | **M11** | **Autonomous Ingest, Multi-Source Search & Gap Catch-Up** | Phase 286 – 291 | Completed (6/6) | [milestone_11_autonomous_ingest_and_discovery.md](milestone_11_autonomous_ingest_and_discovery.md) |
 | **M12** | **External Access, Search & High-Precision Filter Parity** | Phase 292 – 297 | Completed (6/6) | [milestone_12_external_access_search_and_filter.md](milestone_12_external_access_search_and_filter.md) |
+| **M13** | **Production Hardening, Auto-Compaction, Security & Web Auth** | Phase 298 – 305 | In Progress | [milestone_13_production_hardening_compaction_and_security.md](milestone_13_production_hardening_compaction_and_security.md) |
 
 ---
 

@@ -7,6 +7,7 @@
   import PredictionMarketModal from './components/PredictionMarketModal.svelte';
   import InspectionBar from './components/InspectionBar.svelte';
   import AppLauncherModal from './components/AppLauncherModal.svelte';
+  import ApiKeyModal from './components/ApiKeyModal.svelte';
   import MacroHubView from './components/views/MacroHubView.svelte';
   import PredictionMarketsView from './components/views/PredictionMarketsView.svelte';
   import ConsensusMatrixView from './components/views/ConsensusMatrixView.svelte';
@@ -34,6 +35,7 @@
   let isModalOpen: boolean = false;
   let isCalendarOpen: boolean = false;
   let isPredictionModalOpen: boolean = false;
+  let isApiKeyModalOpen: boolean = false;
   let isLoading: boolean = false;
   let isBackfilling: boolean = false;
   let errorMsg: string | null = null;
@@ -63,8 +65,15 @@
         handleTimeframeChange('1M');
       }
     };
+    const handleUnauthorized = () => {
+      isApiKeyModalOpen = true;
+    };
+    window.addEventListener('ea:unauthorized', handleUnauthorized);
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('ea:unauthorized', handleUnauthorized);
+      window.removeEventListener('keydown', handleKey);
+    };
   });
 
   async function loadCandles() {
@@ -223,6 +232,16 @@
     {activeView}
     onSelectView={(v) => (activeView = v)}
     onClose={() => (isLauncherOpen = false)}
+  />
+
+  <ApiKeyModal
+    isOpen={isApiKeyModalOpen}
+    on:saved={async () => {
+      instruments = await fetchInstruments();
+      if (instruments.length > 0) selectedInstrument = instruments[0];
+      await loadCandles();
+    }}
+    on:close={() => (isApiKeyModalOpen = false)}
   />
 </main>
 

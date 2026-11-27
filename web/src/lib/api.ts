@@ -14,10 +14,44 @@ import type {
 } from './types';
 
 const API_BASE = typeof window !== 'undefined' ? '' : (typeof process !== 'undefined' && process.env?.API_BASE ? process.env.API_BASE : 'http://127.0.0.1:8080');
+const API_KEY_STORAGE = 'ea_api_key';
+
+export function getApiKey(): string {
+  if (typeof window === 'undefined' || !window.localStorage) return '';
+  return window.localStorage.getItem(API_KEY_STORAGE) || '';
+}
+
+export function setApiKey(key: string): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  const trimmed = key.trim();
+  if (trimmed) {
+    window.localStorage.setItem(API_KEY_STORAGE, trimmed);
+  } else {
+    window.localStorage.removeItem(API_KEY_STORAGE);
+  }
+}
+
+export function clearApiKey(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.removeItem(API_KEY_STORAGE);
+}
+
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers || {});
+  const key = getApiKey();
+  if (key) {
+    headers.set('X-API-Key', key);
+  }
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ea:unauthorized'));
+  }
+  return res;
+}
 
 export async function fetchInstruments(): Promise<InstrumentSummary[]> {
   try {
-    const res = await fetch(`${API_BASE}/v1/market/catalog`);
+    const res = await apiFetch(`${API_BASE}/v1/market/catalog`);
     if (!res.ok) {
       throw new Error(`Failed to fetch catalog: HTTP ${res.status}`);
     }
@@ -61,7 +95,7 @@ export async function fetchMetadata(symbol: string, assetClass?: string): Promis
   const params = new URLSearchParams({ symbol });
   if (assetClass) params.set('asset_class', assetClass);
 
-  const res = await fetch(`${API_BASE}/v1/market/metadata?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE}/v1/market/metadata?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch metadata: HTTP ${res.status}`);
   }
@@ -85,7 +119,7 @@ export async function fetchCandles(
     params.set('to', to.toString());
   }
 
-  const res = await fetch(`${API_BASE}/v1/market/candles?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE}/v1/market/candles?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch candles: HTTP ${res.status}`);
   }
@@ -100,7 +134,7 @@ export async function fetchMacroCalendar(
   const params = new URLSearchParams({ country, limit: limit.toString() });
   if (importance) params.set('importance', importance);
 
-  const res = await fetch(`${API_BASE}/v1/macro/calendar?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE}/v1/macro/calendar?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch macro calendar: HTTP ${res.status}`);
   }
@@ -114,7 +148,7 @@ export async function fetchPredictionMarkets(
   const params = new URLSearchParams({ limit: limit.toString() });
   if (venue) params.set('venue', venue);
 
-  const res = await fetch(`${API_BASE}/v1/prediction-markets/events?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE}/v1/prediction-markets/events?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch prediction markets: HTTP ${res.status}`);
   }
@@ -127,7 +161,7 @@ export async function fetchPredictionCandles(
   limit: number = 500
 ): Promise<PredictionMarketCandle[]> {
   const params = new URLSearchParams({ timeframe, limit: limit.toString() });
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/v1/prediction-markets/markets/${encodeURIComponent(marketId)}/candles?${params.toString()}`
   );
   if (!res.ok) {
@@ -137,7 +171,7 @@ export async function fetchPredictionCandles(
 }
 
 export async function fetchStoragePartitions(): Promise<PartitionItem[]> {
-  const res = await fetch(`${API_BASE}/v1/storage/partitions`);
+  const res = await apiFetch(`${API_BASE}/v1/storage/partitions`);
   if (!res.ok) {
     throw new Error(`Failed to fetch lakehouse partitions: HTTP ${res.status}`);
   }
@@ -145,7 +179,7 @@ export async function fetchStoragePartitions(): Promise<PartitionItem[]> {
 }
 
 export async function fetchConsensusDivergence(): Promise<MacroPredictionDivergence[]> {
-  const res = await fetch(`${API_BASE}/v1/analytics/divergence`);
+  const res = await apiFetch(`${API_BASE}/v1/analytics/divergence`);
   if (!res.ok) {
     throw new Error(`Failed to fetch consensus divergence: HTTP ${res.status}`);
   }
@@ -153,7 +187,7 @@ export async function fetchConsensusDivergence(): Promise<MacroPredictionDiverge
 }
 
 export async function fetchIntegrityAudit(): Promise<IntegrityAuditResult> {
-  const res = await fetch(`${API_BASE}/v1/integrity/audit`);
+  const res = await apiFetch(`${API_BASE}/v1/integrity/audit`);
   if (!res.ok) {
     throw new Error(`Failed to fetch integrity audit: HTTP ${res.status}`);
   }
@@ -161,7 +195,7 @@ export async function fetchIntegrityAudit(): Promise<IntegrityAuditResult> {
 }
 
 export async function fetchSubscriptions(): Promise<SubscriptionItem[]> {
-  const res = await fetch(`${API_BASE}/v1/subscriptions`);
+  const res = await apiFetch(`${API_BASE}/v1/subscriptions`);
   if (!res.ok) {
     throw new Error(`Failed to fetch subscriptions: HTTP ${res.status}`);
   }
@@ -170,7 +204,7 @@ export async function fetchSubscriptions(): Promise<SubscriptionItem[]> {
 }
 
 export async function addSubscription(item: Partial<SubscriptionItem>): Promise<any> {
-  const res = await fetch(`${API_BASE}/v1/subscriptions`, {
+  const res = await apiFetch(`${API_BASE}/v1/subscriptions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(item),
@@ -183,7 +217,7 @@ export async function addSubscription(item: Partial<SubscriptionItem>): Promise<
 
 export async function deleteSubscription(symbol: string, source?: string): Promise<any> {
   const params = source ? `?source=${encodeURIComponent(source)}` : '';
-  const res = await fetch(`${API_BASE}/v1/subscriptions/${encodeURIComponent(symbol)}${params}`, {
+  const res = await apiFetch(`${API_BASE}/v1/subscriptions/${encodeURIComponent(symbol)}${params}`, {
     method: 'DELETE',
   });
   if (!res.ok) {
@@ -193,7 +227,7 @@ export async function deleteSubscription(symbol: string, source?: string): Promi
 }
 
 export async function fetchIngestionStatus(): Promise<OrchestratorStatus> {
-  const res = await fetch(`${API_BASE}/v1/ingestion/status`);
+  const res = await apiFetch(`${API_BASE}/v1/ingestion/status`);
   if (!res.ok) {
     throw new Error(`Failed to fetch ingestion status: HTTP ${res.status}`);
   }
@@ -202,7 +236,7 @@ export async function fetchIngestionStatus(): Promise<OrchestratorStatus> {
 }
 
 export async function triggerManualCatchUp(): Promise<any> {
-  const res = await fetch(`${API_BASE}/v1/ingestion/catch-up`, {
+  const res = await apiFetch(`${API_BASE}/v1/ingestion/catch-up`, {
     method: 'POST',
   });
   if (!res.ok) {
@@ -213,7 +247,7 @@ export async function triggerManualCatchUp(): Promise<any> {
 
 export async function searchSymbols(query: string, source: string = 'all'): Promise<DiscoverySearchResult[]> {
   const params = new URLSearchParams({ q: query, source });
-  const res = await fetch(`${API_BASE}/v1/discovery/search?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE}/v1/discovery/search?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed searching symbols: HTTP ${res.status}`);
   }

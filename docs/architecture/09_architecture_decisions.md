@@ -26,6 +26,7 @@
 | **ADR-14** | Built-in High-Density Svelte Candle Inspection Terminal & Batasan Deterministik 400 Baris | Diterima | 2026-11-08 |
 | **ADR-15** | Pengerasan Lapisan Penyajian Data Skala Besar (Big Data Serving Guardrails, In-Memory TTL Cache, dan Lakehouse Readers) | Diterima | 2026-11-12 |
 | **ADR-16** | Autentikasi API Key Server (Constant-Time) & Mode Remote Agent-First CLI (`base_url` + `api_key`) | Diterima | 2026-11-27 |
+| **ADR-17** | Pengerasan Keamanan HTTP (OWASP Headers, Body Limit, Path Validation), Auto-Compaction Terjadwal & `spawn_blocking` I/O | Diterima | 2026-11-27 |
 
 ---
 
@@ -275,3 +276,18 @@
   Satu biner tunggal `economy-aggregator` dapat berperan ganda sebagai server lakehouse berproteksi API key sekaligus CLI Agent-First remote dari mesin klien mana pun tanpa ketergantungan tambahan.
 * **Risiko yang Muncul:**  
   Operator wajib memastikan `AGGREGATOR_API_KEY` diinjeksi via Infisical/Coolify environment pada deployment publik.
+
+---
+
+### ADR-17: Pengerasan Keamanan HTTP, Auto-Compaction Terjadwal & Offloading `spawn_blocking`
+* **Status:** Diterima
+* **Konteks:**  
+  Audit operasional dan keamanan terhadap deployment produksi (`https://market.dvlpid.my.id`) menemukan tiga kesenjangan terhadap target arc42: (1) pertumbuhan file mikro-Parquet (`RISK-02`/`RISK-14`) karena `LakeCompactor` belum dijadwalkan di `IngestionOrchestrator`, (2) ketiadaan header keamanan HTTP, batas ukuran body, dan validasi path traversal di pintu masuk REST API, serta (3) operasi baca/padat Parquet yang belum dipindahkan ke `tokio::task::spawn_blocking` (Section 2.1 & 8.6) dan ketiadaan dukungan `X-API-Key` pada Web Terminal UI.
+* **Keputusan:**  
+  1. Menambahkan `security_headers_middleware` (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, `Cache-Control: no-store` pada `/v1/*`), `DefaultBodyLimit::max(1 MiB)`, dan `validate_safe_identifier()` pada batas REST API.
+  2. Menjadwalkan `LakeCompactor::compact_all()` setiap 6 jam di `IngestionOrchestrator` via `tokio::task::spawn_blocking`, mengekspos `POST /v1/storage/compact` + remote CLI `economy-aggregator compact`, dan menyeragamkan kompresi prediction markets ke `ZSTD` level 3 (`ADR-02`).
+  3. Mengganti seluruh `.read().unwrap()` / `.write().unwrap()` pada jalur serving/orchestrator dengan `.unwrap_or_else(|e| e.into_inner())` serta menambahkan `ApiKeyModal.svelte` & injeksi header `X-API-Key` di `web/src/lib/api.ts`.
+* **Konsekuensi Positif:**  
+  Menjaga jumlah file Parquet tetap ringkas secara otonom, mencegah DoS body besar & path traversal, menjaga thread jaringan Tokio bebas blocking, dan memungkinkan operator membuka Web Terminal produksi secara aman dengan API key.
+* **Risiko yang Muncul:**  
+  `SEC-01`: beberapa advisori dependensi transitif (seperti `thrift` via `parquet 52`) memerlukan upgrade mayor `arrow`/`parquet 53+` pada milestone berikutnya.

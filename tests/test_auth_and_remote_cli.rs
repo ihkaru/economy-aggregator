@@ -199,7 +199,7 @@ async fn test_api_key_middleware_enforcement_and_health_exemption() {
         .unwrap();
     assert_eq!(res_bad_key.status(), StatusCode::UNAUTHORIZED);
 
-    // 4. Protected route succeeds with Bearer token
+    // 4. Protected route succeeds with Bearer token & carries OWASP security headers
     let res_bearer = app
         .clone()
         .oneshot(
@@ -212,6 +212,32 @@ async fn test_api_key_middleware_enforcement_and_health_exemption() {
         .await
         .unwrap();
     assert_eq!(res_bearer.status(), StatusCode::OK);
+    assert_eq!(
+        res_bearer.headers().get(header::X_CONTENT_TYPE_OPTIONS).unwrap(),
+        "nosniff"
+    );
+    assert_eq!(
+        res_bearer.headers().get(header::X_FRAME_OPTIONS).unwrap(),
+        "DENY"
+    );
+    assert_eq!(
+        res_bearer.headers().get(header::CACHE_CONTROL).unwrap(),
+        "no-store"
+    );
+
+    // 4b. Path traversal symbol rejected with 400 Bad Request
+    let res_traversal = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/market/candles?asset_class=crypto&symbol=../../etc/passwd&timeframe=1d")
+                .header(header::AUTHORIZATION, "Bearer primary-key-001")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_traversal.status(), StatusCode::BAD_REQUEST);
 
     // 5. Protected route succeeds with rotated key via X-API-Key
     let res_x_key = app
@@ -354,6 +380,15 @@ async fn test_remote_cli_end_to_end_against_authenticated_server() {
     assert_eq!(async_res["success"], true);
     assert_eq!(async_res["data"]["status"], "accepted");
     assert_eq!(async_res["data"]["mode"], "async");
+
+    // Remote compaction via POST /v1/storage/compact
+    let compact_res = dispatch_remote("compact", &["--min-files".into(), "1".into()], &client)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(compact_res["success"], true);
+    assert_eq!(compact_res["data"]["action"], "compact");
+    assert!(compact_res["data"]["files_merged"].as_u64().unwrap() >= 1);
 
     server_handle.abort();
 }

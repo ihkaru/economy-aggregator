@@ -52,7 +52,9 @@ pub fn persist_prediction_candles_to_lake(
         let file = fs::File::create(&file_path)?;
 
         let props = parquet::file::properties::WriterProperties::builder()
-            .set_compression(parquet::basic::Compression::SNAPPY)
+            .set_compression(parquet::basic::Compression::ZSTD(
+                parquet::basic::ZstdLevel::try_new(3).unwrap_or_default(),
+            ))
             .build();
 
         let mut writer = parquet::arrow::ArrowWriter::try_new(file, batch.schema(), Some(props))?;
