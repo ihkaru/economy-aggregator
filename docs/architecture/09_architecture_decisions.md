@@ -27,6 +27,7 @@
 | **ADR-15** | Pengerasan Lapisan Penyajian Data Skala Besar (Big Data Serving Guardrails, In-Memory TTL Cache, dan Lakehouse Readers) | Diterima | 2026-11-12 |
 | **ADR-16** | Autentikasi API Key Server (Constant-Time) & Mode Remote Agent-First CLI (`base_url` + `api_key`) | Diterima | 2026-11-27 |
 | **ADR-17** | Pengerasan Keamanan HTTP (OWASP Headers, Body Limit, Path Validation), Auto-Compaction Terjadwal & `spawn_blocking` I/O | Diterima | 2026-11-27 |
+| **ADR-18** | Autentikasi Browser UI Produksi via AEAD `HttpOnly` Cookie Session (`axum-extra`), CSRF Synchronizer Token & OIDC PKCE | Diterima | 2026-11-27 |
 
 ---
 
@@ -291,3 +292,18 @@
   Menjaga jumlah file Parquet tetap ringkas secara otonom, mencegah DoS body besar & path traversal, menjaga thread jaringan Tokio bebas blocking, dan memungkinkan operator membuka Web Terminal produksi secara aman dengan API key.
 * **Risiko yang Muncul:**  
   `SEC-01`: beberapa advisori dependensi transitif (seperti `thrift` via `parquet 52`) memerlukan upgrade mayor `arrow`/`parquet 53+` pada milestone berikutnya.
+
+---
+
+### ADR-18: Autentikasi Browser UI Produksi (AEAD `HttpOnly` Cookie Session, CSRF Token & OIDC PKCE)
+* **Status:** Diterima
+* **Konteks:**  
+  Menyimpan API key atau session token di `localStorage` atau `sessionStorage` rentan terhadap eksfiltrasi XSS (OWASP SPA Authentication Guidelines 2026). Selain itu, `economy-aggregator` wajib bebas dependensi database/Redis eksternal (`Section 2.2`).
+* **Keputusan:**  
+  1. Menggunakan `axum-extra` (`PrivateCookieJar`, enkripsi terautentikasi AEAD AES-256-GCM) untuk menerbitkan cookie sesi `ea_session` berbendera `HttpOnly`, `SameSite=Lax`, dan `Secure` (auto-deteksi HTTPS/`X-Forwarded-Proto`), dengan master key persisten dari `AGGREGATOR_SESSION_SECRET` / KDF terpisah domain dari API key.
+  2. Menerapkan perlindungan CSRF **Synchronizer Token Pattern**: token CSRF acak tersimpan di dalam payload terenkripsi cookie sesi dan hanya dikembalikan ke memori JS frontend (tidak pernah ke `localStorage`); setiap mutasi browser (`POST`/`PUT`/`DELETE`/`PATCH`) wajib menyertakan header `X-CSRF-Token` yang cocok secara *constant-time*.
+  3. Menambahkan *sliding-window rate limiter* per-IP pada `POST /v1/auth/login` (maks 10 kegagalan/5 menit -> `429 Too Many Requests`), endpoint sesi/logout (`/v1/auth/session`, `/v1/auth/logout`), serta dukungan opsional OIDC Authorization Code + PKCE S256 (`/v1/auth/oidc/login` & `/callback`) yang kompatibel dengan rIDM (`https://auth.dvlpid.my.id/t/bps`).
+* **Konsekuensi Positif:**  
+  Zero secret exposure ke JavaScript (`localStorage` bebas rahasia 100%), zero database eksternal, sesi bertahan melewati restart container, serta terlindung dari XSS, CSRF, dan brute-force sekaligus.
+* **Risiko yang Muncul:**  
+  Operasional di lingkungan di balik reverse proxy wajib meneruskan header `X-Forwarded-Proto: https` (sudah dipenuhi oleh Traefik Coolify & Cloudflare).

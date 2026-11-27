@@ -63,12 +63,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let resolver = PartitionResolver::new(config.lake_dir.clone());
     let api_keys = economy_aggregator::features::serving::load_api_keys_from_env();
-    if !api_keys.is_empty() {
-        info!("🔐 API key authentication enabled ({} key(s) configured)", api_keys.len());
+    let session_secret = economy_aggregator::features::serving::load_session_secret_from_env();
+    let ui_password = economy_aggregator::features::serving::load_ui_password_from_env();
+    let oidc_config = economy_aggregator::features::serving::OidcConfig::from_env();
+    if !api_keys.is_empty() || ui_password.is_some() || oidc_config.is_some() {
+        info!(
+            "🔐 Auth enabled (api_keys={}, ui_password={}, oidc_sso={})",
+            api_keys.len(),
+            ui_password.is_some(),
+            oidc_config.is_some()
+        );
     }
     let state = Arc::new(
         AppState::new(config.clone(), resolver, registry, sub_manager, orchestrator)
-            .with_api_keys(api_keys),
+            .with_api_keys(api_keys)
+            .with_ui_auth(session_secret, ui_password, oidc_config),
     );
 
     // Asynchronous background cache pre-warmer for core instruments

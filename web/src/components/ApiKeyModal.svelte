@@ -1,46 +1,69 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { getApiKey, setApiKey, clearApiKey } from '../lib/api';
+  import { getOidcLoginUrl, loginWithCredential } from '../lib/api';
 
   export let isOpen: boolean = false;
+  export let oidcEnabled: boolean = false;
+  export let oidcProvider: string = 'rIDM SSO';
+
   const dispatch = createEventDispatcher();
-  let keyInput: string = getApiKey();
+  let credential: string = '';
+  let errorText: string | null = null;
+  let submitting: boolean = false;
 
-  function handleSave() {
-    setApiKey(keyInput);
-    dispatch('saved');
-    dispatch('close');
-  }
-
-  function handleClear() {
-    clearApiKey();
-    keyInput = '';
-    dispatch('saved');
+  async function handleSubmit() {
+    if (!credential.trim() || submitting) return;
+    submitting = true;
+    errorText = null;
+    try {
+      const session = await loginWithCredential(credential);
+      credential = '';
+      dispatch('authenticated', session);
+      dispatch('close');
+    } catch (e: any) {
+      errorText = e.message || 'Authentication failed';
+    } finally {
+      submitting = false;
+    }
   }
 </script>
 
 {#if isOpen}
-  <div class="auth-backdrop" role="dialog" aria-modal="true" aria-label="API Key Authentication">
+  <div class="auth-backdrop" role="dialog" aria-modal="true" aria-label="Terminal Session Sign In">
     <div class="auth-panel">
       <div class="auth-header">
-        <span class="auth-title">API KEY AUTHENTICATION</span>
-        <button class="auth-close" on:click={() => dispatch('close')}>ESC</button>
+        <span class="auth-title">TERMINAL SESSION AUTHENTICATION</span>
+        <span class="auth-badge">HTTPONLY AEAD</span>
       </div>
       <div class="auth-body">
         <p class="auth-desc">
-          Server requires an API key (<code>X-API-Key</code>). Stored locally in this browser only.
+          Sign in to start an encrypted <code>HttpOnly</code> browser session. No secret is ever stored in <code>localStorage</code>.
         </p>
-        <input
-          type="password"
-          class="auth-input"
-          placeholder="ea_prod_..."
-          bind:value={keyInput}
-          on:keydown={(e) => e.key === 'Enter' && handleSave()}
-        />
-        <div class="auth-actions">
-          <button class="btn-primary" on:click={handleSave}>APPLY KEY</button>
-          <button class="btn-secondary" on:click={handleClear}>CLEAR</button>
-        </div>
+
+        {#if errorText}
+          <div class="auth-error">{errorText}</div>
+        {/if}
+
+        <form class="auth-form" on:submit|preventDefault={handleSubmit}>
+          <input
+            type="password"
+            class="auth-input"
+            autocomplete="current-password"
+            placeholder="Operator passphrase or API key"
+            bind:value={credential}
+            disabled={submitting}
+          />
+          <button type="submit" class="btn-primary" disabled={submitting || !credential.trim()}>
+            {submitting ? 'VERIFYING...' : 'SIGN IN'}
+          </button>
+        </form>
+
+        {#if oidcEnabled}
+          <div class="auth-divider"><span>OR ENTERPRISE SSO</span></div>
+          <a class="btn-sso" href={getOidcLoginUrl()}>
+            SIGN IN WITH {oidcProvider.toUpperCase()}
+          </a>
+        {/if}
       </div>
     </div>
   </div>
@@ -50,7 +73,7 @@
   .auth-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(8, 9, 13, 0.85);
+    background: rgba(8, 9, 13, 0.9);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -74,22 +97,21 @@
     background: #08090d;
   }
   .auth-title {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 700;
     letter-spacing: 0.08em;
     color: #93a3b8;
   }
-  .auth-close {
-    background: transparent;
-    border: 1px solid #2d3446;
-    border-radius: 0;
-    color: #93a3b8;
-    font-size: 11px;
+  .auth-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     padding: 2px 6px;
-    cursor: pointer;
+    border: 1px solid #089981;
+    color: #089981;
   }
   .auth-body {
-    padding: 14px;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -98,7 +120,19 @@
     margin: 0;
     font-size: 12px;
     color: #8b949e;
-    line-height: 1.4;
+    line-height: 1.45;
+  }
+  .auth-error {
+    background: rgba(242, 54, 69, 0.14);
+    border: 1px solid #f23645;
+    color: #fda4af;
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .auth-input {
     width: 100%;
@@ -107,28 +141,46 @@
     border: 1px solid #2d3446;
     border-radius: 0;
     color: #e6edf3;
-    padding: 8px 10px;
+    padding: 9px 10px;
     font-size: 13px;
   }
-  .auth-actions {
-    display: flex;
-    gap: 8px;
-  }
-  .btn-primary, .btn-secondary {
+  .btn-primary, .btn-sso {
+    display: block;
+    text-align: center;
+    text-decoration: none;
     border-radius: 0;
-    padding: 7px 14px;
+    padding: 8px 14px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     cursor: pointer;
-    border: 1px solid #2d3446;
   }
   .btn-primary {
     background: #1f6feb;
-    border-color: #1f6feb;
+    border: 1px solid #1f6feb;
     color: #ffffff;
   }
-  .btn-secondary {
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6e7681;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1f2430;
+  }
+  .btn-sso {
     background: #161b22;
-    color: #c9d1d9;
+    border: 1px solid #2d3446;
+    color: #60a5fa;
   }
 </style>

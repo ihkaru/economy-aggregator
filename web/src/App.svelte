@@ -15,7 +15,8 @@
   import IntegrityGauntletView from './components/views/IntegrityGauntletView.svelte';
   import SubscriptionsView from './components/views/SubscriptionsView.svelte';
   import Icons from './components/Icons.svelte';
-  import { fetchInstruments, fetchCandles } from './lib/api';
+  import { fetchAuthSession, fetchInstruments, fetchCandles, logoutSession } from './lib/api';
+  import type { AuthSessionState } from './lib/api';
   import type { InstrumentSummary, TimeframeOption, AggregatorCandle, ChartLegendData, AppViewId } from './lib/types';
 
   let instruments: InstrumentSummary[] = [];
@@ -36,6 +37,13 @@
   let isCalendarOpen: boolean = false;
   let isPredictionModalOpen: boolean = false;
   let isApiKeyModalOpen: boolean = false;
+  let authSession: AuthSessionState = {
+    authenticated: false,
+    auth_required: false,
+    oidc_enabled: false,
+    oidc_provider: null,
+    user: null,
+  };
   let isLoading: boolean = false;
   let isBackfilling: boolean = false;
   let errorMsg: string | null = null;
@@ -44,11 +52,28 @@
   $: pricePrecision = typeof selectedInstrument.price_precision === 'number' ? selectedInstrument.price_precision : 2;
   $: minMove = typeof selectedInstrument.min_tick === 'number' ? selectedInstrument.min_tick : 0.01;
 
+  async function bootstrapTerminalData() {
+    instruments = await fetchInstruments();
+    if (instruments.length > 0) selectedInstrument = instruments[0];
+    await loadCandles();
+  }
+
+  async function handleLogout() {
+    await logoutSession();
+    authSession = await fetchAuthSession();
+    if (authSession.auth_required && !authSession.authenticated) {
+      isApiKeyModalOpen = true;
+    }
+  }
+
   onMount(async () => {
     try {
-      instruments = await fetchInstruments();
-      if (instruments.length > 0) selectedInstrument = instruments[0];
-      await loadCandles();
+      authSession = await fetchAuthSession();
+      if (authSession.auth_required && !authSession.authenticated) {
+        isApiKeyModalOpen = true;
+      } else {
+        await bootstrapTerminalData();
+      }
     } catch (e: any) {
       errorMsg = e.message || 'Failed to initialize terminal';
     }
@@ -136,6 +161,9 @@
     onOpenCalendar={() => (isCalendarOpen = !isCalendarOpen)}
     onOpenPredictions={() => (isPredictionModalOpen = true)}
     onOpenLauncher={() => (isLauncherOpen = true)}
+    authRequired={authSession.auth_required}
+    authenticatedUser={authSession.user?.name || authSession.user?.sub || null}
+    onLogout={handleLogout}
     onRefresh={loadCandles}
   />
 
@@ -236,10 +264,11 @@
 
   <ApiKeyModal
     isOpen={isApiKeyModalOpen}
-    on:saved={async () => {
-      instruments = await fetchInstruments();
-      if (instruments.length > 0) selectedInstrument = instruments[0];
-      await loadCandles();
+    oidcEnabled={authSession.oidc_enabled}
+    oidcProvider={authSession.oidc_provider || 'rIDM SSO'}
+    on:authenticated={async (e) => {
+      authSession = e.detail;
+      await bootstrapTerminalData();
     }}
     on:close={() => (isApiKeyModalOpen = false)}
   />

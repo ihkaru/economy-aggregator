@@ -13,6 +13,11 @@ tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "socks"] }
 axum = "0.7"
+axum-extra = { version = "0.9", features = ["cookie-private"] }
+base64 = "0.22"
+rand = "0.8"
+sha2 = "0.10"
+time = "0.3"
 tower-http = { version = "0.5", features = ["fs", "cors", "compression-gzip", "compression-zstd"] }
 
 # Serialization & High Performance Data

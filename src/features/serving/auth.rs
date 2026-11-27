@@ -7,12 +7,28 @@
 use std::sync::Arc;
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::{header, HeaderName, HeaderValue, Request, StatusCode};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use axum_extra::extract::cookie::PrivateCookieJar;
+use chrono::Utc;
 
+use crate::features::serving::session::{SessionPayload, SESSION_COOKIE_NAME};
 use crate::features::serving::AppState;
+
+/// Extracts a client identifier for rate limiting (prefers Cloudflare/Proxy IP headers).
+pub fn extract_client_key_label(headers: &HeaderMap) -> String {
+    for hdr in ["cf-connecting-ip", "x-forwarded-for", "x-real-ip"] {
+        if let Some(val) = headers.get(hdr).and_then(|v| v.to_str().ok()) {
+            let first = val.split(',').next().unwrap_or("").trim();
+            if !first.is_empty() {
+                return first.to_string();
+            }
+        }
+    }
+    "unknown".to_string()
+}
 
 /// Validates external identifier inputs against path traversal and control-character injection.
 pub fn validate_safe_identifier(value: &str, field: &str) -> Result<(), (StatusCode, String)> {
@@ -125,21 +141,40 @@ fn extract_request_api_key(req: &Request<Body>) -> Option<&str> {
     None
 }
 
-/// Returns true if the request path requires API key verification when keys are configured.
+/// Returns true if the request path requires authentication when auth is enabled.
 fn is_protected_path(path: &str) -> bool {
-    path.starts_with("/v1/") && path != "/v1/health"
+    if !path.starts_with("/v1/") {
+        return false;
+    }
+    !matches!(
+        path,
+        "/v1/health"
+            | "/v1/auth/session"
+            | "/v1/auth/login"
+            | "/v1/auth/logout"
+            | "/v1/auth/oidc/login"
+            | "/v1/auth/oidc/callback"
+    )
 }
 
-/// Axum middleware enforcing API key authentication on protected `/v1/*` endpoints.
+fn is_state_changing_method(method: &Method) -> bool {
+    matches!(
+        *method,
+        Method::POST | Method::PUT | Method::DELETE | Method::PATCH
+    )
+}
+
+/// Axum middleware enforcing API key OR AEAD-encrypted HttpOnly cookie session (+ CSRF) on `/v1/*`.
 pub async fn api_key_auth_middleware(
     State(state): State<Arc<AppState>>,
     req: Request<Body>,
     next: Next,
 ) -> Response {
-    if state.api_keys.is_empty() || !is_protected_path(req.uri().path()) {
+    if !state.auth_required() || !is_protected_path(req.uri().path()) {
         return next.run(req).await;
     }
 
+    // 1. Machine-to-machine / CLI auth via Bearer or X-API-Key header
     if let Some(provided) = extract_request_api_key(&req) {
         let provided_bytes = provided.as_bytes();
         let authorized = state
@@ -151,9 +186,34 @@ pub async fn api_key_auth_middleware(
         }
     }
 
+    // 2. Browser UI auth via AEAD-encrypted HttpOnly cookie (`ea_session`) + CSRF synchronizer token
+    let jar = PrivateCookieJar::from_headers(req.headers(), state.session_key.clone());
+    if let Some(cookie) = jar.get(SESSION_COOKIE_NAME) {
+        if let Ok(session) = serde_json::from_str::<SessionPayload>(cookie.value()) {
+            if !session.is_expired(Utc::now().timestamp()) {
+                if is_state_changing_method(req.method()) {
+                    let header_csrf = req
+                        .headers()
+                        .get("x-csrf-token")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("");
+                    if !constant_time_eq(session.csrf_token.as_bytes(), header_csrf.as_bytes()) {
+                        let body = serde_json::json!({
+                            "success": false,
+                            "error": "Forbidden: missing or invalid X-CSRF-Token header",
+                            "data": null
+                        });
+                        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+                    }
+                }
+                return next.run(req).await;
+            }
+        }
+    }
+
     let body = serde_json::json!({
         "success": false,
-        "error": "Unauthorized: valid API key required via 'Authorization: Bearer <key>' or 'X-API-Key' header",
+        "error": "Unauthorized: sign in via UI session or provide 'Authorization: Bearer <key>' / 'X-API-Key'",
         "data": null
     });
     (StatusCode::UNAUTHORIZED, Json(body)).into_response()

@@ -14,36 +14,81 @@ import type {
 } from './types';
 
 const API_BASE = typeof window !== 'undefined' ? '' : (typeof process !== 'undefined' && process.env?.API_BASE ? process.env.API_BASE : 'http://127.0.0.1:8080');
-const API_KEY_STORAGE = 'ea_api_key';
 
-export function getApiKey(): string {
-  if (typeof window === 'undefined' || !window.localStorage) return '';
-  return window.localStorage.getItem(API_KEY_STORAGE) || '';
+export interface AuthSessionState {
+  authenticated: boolean;
+  auth_required: boolean;
+  oidc_enabled: boolean;
+  oidc_provider?: string | null;
+  csrf_token?: string | null;
+  expires_at?: number | null;
+  user?: { sub: string; name?: string | null; auth_method: string } | null;
 }
 
-export function setApiKey(key: string): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  const trimmed = key.trim();
-  if (trimmed) {
-    window.localStorage.setItem(API_KEY_STORAGE, trimmed);
-  } else {
-    window.localStorage.removeItem(API_KEY_STORAGE);
+// Held strictly in JS memory (never localStorage/sessionStorage) per OWASP SPA guidelines.
+let memoryCsrfToken: string | null = null;
+
+export function setMemoryCsrfToken(token: string | null): void {
+  memoryCsrfToken = token;
+}
+
+export async function fetchAuthSession(): Promise<AuthSessionState> {
+  const res = await fetch(`${API_BASE}/v1/auth/session`, {
+    credentials: 'same-origin',
+  });
+  if (!res.ok) {
+    throw new Error(`Session check failed: HTTP ${res.status}`);
   }
+  const data: AuthSessionState = await res.json();
+  memoryCsrfToken = data.csrf_token || null;
+  return data;
 }
 
-export function clearApiKey(): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  window.localStorage.removeItem(API_KEY_STORAGE);
+export async function loginWithCredential(credential: string): Promise<AuthSessionState> {
+  const res = await fetch(`${API_BASE}/v1/auth/login`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.error || `Authentication failed: HTTP ${res.status}`);
+  }
+  memoryCsrfToken = body.csrf_token || null;
+  return await fetchAuthSession();
+}
+
+export async function logoutSession(): Promise<void> {
+  const headers = new Headers();
+  if (memoryCsrfToken) {
+    headers.set('X-CSRF-Token', memoryCsrfToken);
+  }
+  await fetch(`${API_BASE}/v1/auth/logout`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers,
+  });
+  memoryCsrfToken = null;
+}
+
+export function getOidcLoginUrl(): string {
+  return `${API_BASE}/v1/auth/oidc/login`;
 }
 
 async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers || {});
-  const key = getApiKey();
-  if (key) {
-    headers.set('X-API-Key', key);
+  const method = (init?.method || 'GET').toUpperCase();
+  if (memoryCsrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    headers.set('X-CSRF-Token', memoryCsrfToken);
   }
-  const res = await fetch(input, { ...init, headers });
+  const res = await fetch(input, {
+    ...init,
+    credentials: 'same-origin',
+    headers,
+  });
   if (res.status === 401 && typeof window !== 'undefined') {
+    memoryCsrfToken = null;
     window.dispatchEvent(new CustomEvent('ea:unauthorized'));
   }
   return res;

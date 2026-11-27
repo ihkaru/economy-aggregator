@@ -15,6 +15,9 @@
   export let onOpenPredictions: () => void = () => {};
   export let onOpenLauncher: () => void = () => {};
   export let activeView: string = 'terminal';
+  export let authRequired: boolean = false;
+  export let authenticatedUser: string | null = null;
+  export let onLogout: () => void = () => {};
 
   const timeframes: TimeframeOption[] = ['1m', '5m', '15m', '1h', '1d', '1w', '1M'];
 
@@ -127,6 +130,12 @@
     >
       <Icons name="refresh" size={13} />
     </button>
+
+    {#if authRequired && authenticatedUser}
+      <button class="nav-tool-btn logout-btn" on:click={onLogout} title="Sign out of session">
+        <span>{authenticatedUser.toUpperCase()} · LOGOUT</span>
+      </button>
+    {/if}
   </div>
 </header>
 
@@ -358,12 +367,8 @@
     border-color: var(--border-contrast);
   }
 
-  .spinning :global(svg) {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
+  .spinning :global(svg) { animation: spin 1s linear infinite; }
+  .logout-btn { color: #93a3b8; border-color: #2d3446; }
+  .logout-btn:hover { color: #fda4af; border-color: #f23645; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

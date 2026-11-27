@@ -10,6 +10,7 @@ use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use axum_extra::extract::cookie::Key;
 use chrono::NaiveDate;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -20,11 +21,16 @@ use crate::core::subscription::SubscriptionManager;
 use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
 use crate::features::ingestion::orchestrator::IngestionOrchestrator;
 use crate::features::serving::analytics_routes::*;
+use crate::features::serving::auth_routes::{
+    auth_login_handler, auth_logout_handler, auth_session_handler, oidc_callback_handler,
+    oidc_login_handler,
+};
 use crate::features::serving::catalog_routes::*;
 use crate::features::serving::macro_routes::query_macro_calendar_handler;
 use crate::features::serving::prediction_routes::{
     query_prediction_candles_handler, query_prediction_contracts_handler,
 };
+use crate::features::serving::session::{derive_session_key, LoginRateLimiter, OidcConfig};
 use crate::features::serving::subscription_routes::*;
 use crate::features::serving::types::*;
 use crate::features::storage::{
@@ -44,6 +50,10 @@ pub struct AppState {
     pub catalog_cache: RwLock<Option<(Instant, Vec<InstrumentCatalogItem>)>>,
     pub partitions_cache: RwLock<Option<(Instant, Vec<PartitionItem>)>>,
     pub api_keys: Vec<String>,
+    pub ui_password: Option<String>,
+    pub session_key: Key,
+    pub oidc_config: Option<OidcConfig>,
+    pub login_limiter: LoginRateLimiter,
 }
 
 impl AppState {
@@ -67,12 +77,37 @@ impl AppState {
             catalog_cache: RwLock::new(None),
             partitions_cache: RwLock::new(None),
             api_keys: Vec::new(),
+            ui_password: None,
+            session_key: Key::generate(),
+            oidc_config: None,
+            login_limiter: LoginRateLimiter::default(),
         }
     }
 
     pub fn with_api_keys(mut self, api_keys: Vec<String>) -> Self {
+        self.session_key = derive_session_key(None, &api_keys, self.ui_password.as_deref());
         self.api_keys = api_keys;
         self
+    }
+
+    pub fn with_ui_auth(
+        mut self,
+        session_secret: Option<String>,
+        ui_password: Option<String>,
+        oidc_config: Option<OidcConfig>,
+    ) -> Self {
+        self.ui_password = ui_password;
+        self.session_key = derive_session_key(
+            session_secret.as_deref(),
+            &self.api_keys,
+            self.ui_password.as_deref(),
+        );
+        self.oidc_config = oidc_config;
+        self
+    }
+
+    pub fn auth_required(&self) -> bool {
+        !self.api_keys.is_empty() || self.ui_password.is_some() || self.oidc_config.is_some()
     }
 }
 
@@ -80,6 +115,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     let api_router = Router::new()
         .route("/health", get(health_handler))
         .route("/v1/health", get(health_handler))
+        .route("/v1/auth/session", get(auth_session_handler))
+        .route("/v1/auth/login", post(auth_login_handler))
+        .route("/v1/auth/logout", post(auth_logout_handler))
+        .route("/v1/auth/oidc/login", get(oidc_login_handler))
+        .route("/v1/auth/oidc/callback", get(oidc_callback_handler))
         .route("/v1/instruments", get(list_instruments_handler))
         .route("/v1/market/catalog", get(market_catalog_handler))
         .route("/v1/market/metadata", get(market_metadata_handler))
