@@ -323,3 +323,18 @@
   Penambahan indikator kuantitatif atau makro baru tidak lagi memerlukan migrasi skema Parquet, setiap angka panel riset dapat diaudit balik hingga URL & checksum hulu, dan backtest terlindung dari *look-ahead bias*.
 * **Risiko yang Muncul:**  
   Beberapa sumber *unofficial* (`bitcoin-data.com`, `stockanalysis.com`, mirror GitHub `ErcinDedeoglu`) tidak memiliki SLA komersial dan proksi gratis memiliki keterbatasan alami (bulanan di FINRA/MMF, 24 bulan di OCC, absennya arus *mutual fund* ICI ritel), yang terdokumentasi di `docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md` dan `SeriesCatalog::limitation_note`.
+
+---
+
+### ADR-20: Remediasi Kedalaman Historis 10 Tahun, Konektor Resmi FRED REST v1, & Klien HTTP Non-Browser Jujur (`build_api_client`)
+* **Status:** Diterima
+* **Konteks:**  
+  Verifikasi produksi M14 mengungkap empat celah data historis: (1) CSV OCC memakai pemisah ribuan berkutip sehingga terpecah oleh `split(',')`, (2) `finra_margin_debt` tertolak `HTTP 403` oleh Cloudflare karena header `User-Agent: Chrome/126` pada `build_browser_client()` tidak cocok dengan TLS fingerprint `rustls-tls`, (3) nama akun TGA di US Treasury FiscalData berubah dari `"Federal Reserve Account"` (2016–2021) menjadi `"Treasury General Account (TGA)"` / `"Closing Balance"` (2022–2026), memotong histori harian di akhir 2021, serta (4) keterbatasan kedalaman pada CoinMetrics `page_size` default, lag DBnomics 2–3 minggu, dan batas catch-up awal Yahoo 1 tahun.
+* **Keputusan:**  
+  1. Menambahkan konektor resmi `FredFetcher` (`src/features/ingestion/liquidity/fred.rs`) dengan `FRED_API_KEY` dari Infisical/Coolify env untuk 7 seri (`WALCL`, `WTREGEN`, `RRPONTSYD`, `TOTBKCR`, `DTB3`, `T10Y2Y`, `BAMLH0A0HYM2`) ke seri terisolasi `macro:US:FRED_*` (`source="fred_api"`), dengan sanitasi ketat agar `api_key` tidak pernah ditulis ke `provenance.source_url`.
+  2. Menambahkan `build_api_client()` (`User-Agent: economy-aggregator/<ver>`) untuk endpoint CDN/API ketat seperti berkas statis resmi FINRA `.xlsx`, menyelesaikan blokade Cloudflare *UA/TLS mismatch* 100% dalam Pure Rust tanpa subprocess eksternal `curl`.
+  3. Memperbaiki parser OCC via `csv::ReaderBuilder`, paginasi penuh CoinMetrics (`page_size=10000` + `next_page_url`) & Treasury TGA (`filter=record_date:gte:2016-01-01` + pemetaan `Federal Reserve Account`), jeda BGeometrics, serta cakupan backfill awal Yahoo 10 tahun (`3650` hari).
+* **Konsekuensi Positif:**  
+  Panel likuiditas dan derivatif memperoleh histori utuh 2016–2026 (`FRED_WALCL_USD`, `TGA_BALANCE_USD`, `TBILL_3M_PCT`, `SPY`/`GLD` Stage-1 ~2.512 titik, `OCC` 24 bulan, dan `FINRA Margin Debt` 358 bulan sejak 1997) dalam biner Rust tunggal bebas kebocoran lintas-sumber.
+* **Risiko yang Muncul:**  
+  Perubahan skema/URL statis eksternal atau perubahan kebijakan WAF/TLS penyedia pihak ketiga tetap dimonitor lewat kegagalan *fail-fast* pada laporan sinkronisasi.

@@ -81,7 +81,7 @@ impl TreasuryFetcher {
             }
             for row in parsed.data {
                 let acct = row.account_type.as_deref().unwrap_or("");
-                if !acct.contains("Treasury General Account") && !acct.contains("Closing Balance") {
+                if !is_tga_closing_balance_account(acct) {
                     continue;
                 }
                 let raw_num = row
@@ -180,4 +180,11 @@ impl TreasuryFetcher {
         }
         Ok(out)
     }
+}
+
+fn is_tga_closing_balance_account(acct: &str) -> bool {
+    acct == "Federal Reserve Account"
+        || acct == "Treasury General Account (TGA)"
+        || acct == "Treasury General Account (TGA) Closing Balance"
+        || (acct.contains("Treasury General Account") && acct.contains("Closing Balance"))
 }

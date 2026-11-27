@@ -16,6 +16,15 @@ pub fn build_browser_client() -> Client {
         .expect("Failed to construct HTTP client")
 }
 
+/// Honest non-browser API client (avoids Chrome UA / rustls TLS fingerprint mismatch on strict CDNs).
+pub fn build_api_client() -> Client {
+    Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent(concat!("economy-aggregator/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("Failed to construct API HTTP client")
+}
+
 pub async fn fetch_bytes_with_checksum(
     client: &Client,
     url: &str,

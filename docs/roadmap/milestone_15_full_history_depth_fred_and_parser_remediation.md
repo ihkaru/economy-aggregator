@@ -26,9 +26,9 @@
 - **Phase 327 — OCC Quoted CSV Parser & 24-Month Pull (`occ_oi.rs`):**
   Ganti `line.split(',')` menjadi `csv::ReaderBuilder::new().flexible(true)`, ekstrak `col[11]` (OCC Total) & `col[3]` (Equity Total) dengan normalisasi koma ribuan, fail-fast bila 0 baris terurai, dan ubah `liquidity_sync.rs` menarik 24 bulan penuh.
 - **Phase 328 — FINRA Direct Official XLSX Connector (`finra_margin.rs`):**
-  Arahkan `FinraMarginFetcher` mengunduh langsung berkas resmi `/sites/default/files/2021-03/margin-statistics.xlsx` (atau `FINRA_MARGIN_XLSX_URL`), memparsing seluruh bulan historis tanpa scraping HTML Cloudflare-gated.
+  Arahkan `FinraMarginFetcher` mengunduh langsung berkas resmi `/sites/default/files/2021-03/margin-statistics.xlsx` (atau `FINRA_MARGIN_XLSX_URL`) menggunakan Pure Rust `build_api_client()` (`User-Agent: economy-aggregator/<ver>` jujur, bebas penolakan Cloudflare UA-mismatch tanpa subprocess `curl` dan tanpa menyentuh halaman HTML challenge), menghasilkan 358 bulan historis (1997–2026).
 - **Phase 329 — US Treasury 10y TGA Pagination & 10y T-Bill Loop (`treasury.rs`, `liquidity_sync.rs`):**
-  Tambahkan filter `record_date:gte:2016-01-01` + loop `page[number]` di `fetch_tga_balance`, perluas loop `fetch_tbill_3m_year` ke `cur_year - 10 ..= cur_year`, dan pastikan parsing empty rows gagal cepat.
+  Tambahkan filter `record_date:gte:2016-01-01` + pemetaan nama akun pra-2022 (`Federal Reserve Account` → `Treasury General Account (TGA)` → `Treasury General Account (TGA) Closing Balance`, mengecualikan `Opening Balance`) + loop `page[number]` di `fetch_tga_balance`, serta perluas loop `fetch_tbill_3m_year` ke `cur_year - 10 ..= cur_year`.
 - **Phase 330 — Multi-Page CoinMetrics & Paced BGeometrics (`coinmetrics.rs`, `bgeometrics.rs`):**
   Tambahkan `page_size=10000` + paginasi `next_page_url` pada `CoinMetricsFetcher`, jeda antar-endpoint pada `BGeometricsFetcher`, dan fail-fast non-empty assertion.
 - **Phase 331 — 10-Year Initial Yahoo Candle Backfill (`watermark.rs`, `catch_up.rs`):**

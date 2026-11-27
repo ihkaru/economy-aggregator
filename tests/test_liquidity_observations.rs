@@ -281,7 +281,7 @@ async fn test_m15_occ_quoted_csv_treasury_pagination_and_fred_no_key_leak() {
         .route(
             "/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance",
             get(|| async {
-                r#"{"data":[{"record_date":"2016-01-04","account_type":"Treasury General Account (Closing Balance)","close_today_bal":"333123"}],"meta":{"total-pages":1}}"#
+                r#"{"data":[{"record_date":"2016-01-04","account_type":"Federal Reserve Account","close_today_bal":"332106"},{"record_date":"2026-11-25","account_type":"Treasury General Account (TGA) Opening Balance","open_today_bal":"999999"},{"record_date":"2026-11-25","account_type":"Treasury General Account (TGA) Closing Balance","close_today_bal":"888123"}],"meta":{"total-pages":1}}"#
             }),
         )
         .route(
@@ -310,8 +310,9 @@ async fn test_m15_occ_quoted_csv_treasury_pagination_and_fred_no_key_leak() {
 
     let tr = TreasuryFetcher::new(base.clone(), base.clone());
     let tga_rows = tr.fetch_tga_balance(10_000, "b_tga").await.unwrap();
-    assert_eq!(tga_rows.len(), 1);
-    assert_eq!(tga_rows[0].value, 333_123.0 * 1_000_000.0);
+    assert_eq!(tga_rows.len(), 2);
+    assert_eq!(tga_rows[0].value, 332_106.0 * 1_000_000.0);
+    assert_eq!(tga_rows[1].value, 888_123.0 * 1_000_000.0);
 
     let fred = FredFetcher::new(base, "super_secret_key_should_never_persist".to_string());
     let walcl_spec = CANONICAL_FRED_SPECS.iter().find(|s| s.fred_id == "WALCL").unwrap();

@@ -94,7 +94,7 @@ src/
 │   ├── cli_config.rs         # 3-tier remote config (flag > env > config.json) & secret masking
 │   └── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & JSON envelope handlers
 ├── features/                 # Vertical Slice Architecture
-│   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Liquidity/Flows/Crypto Connectors
+│   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo 10y Catch-Up, FRED REST v1 & Zero-Key Connectors (Treasury/OCC/FINRA/CFTC/CoinMetrics/BGeometrics)
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, Macro/Prediction & ObservationReaders
 │   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Liquidity Flows
 │   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, TTL cache, compression

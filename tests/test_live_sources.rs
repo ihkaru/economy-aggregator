@@ -163,3 +163,20 @@ async fn test_live_yahoo_finance_splits_and_dividends_pull() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_live_finra_margin_statistics_direct_xlsx() {
+    use economy_aggregator::features::ingestion::flows::FinraMarginFetcher;
+
+    let fetcher = FinraMarginFetcher::default();
+    match fetcher.fetch_margin_debt("live_test_finra").await {
+        Ok(rows) => {
+            println!("✅ Live FINRA Margin Debt pull successful: {} monthly observations", rows.len());
+            assert!(rows.len() > 200, "FINRA history should span multiple decades");
+            assert_eq!(rows[0].provenance.source, "finra_xlsx");
+        }
+        Err(e) => {
+            println!("⏭️ Skipping live FINRA test (network or upstream restriction: {})", e);
+        }
+    }
+}

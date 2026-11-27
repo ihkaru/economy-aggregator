@@ -8,7 +8,7 @@ use reqwest::Client;
 use crate::core::observation_types::{MetricObservation, ObservationFrequency, SourceTier};
 use crate::features::ingestion::flows::ssga_xlsx::parse_cell_f64;
 use crate::features::ingestion::liquidity_common::{
-    build_browser_client, fetch_bytes_with_checksum, make_obs, ObsParams,
+    build_api_client, fetch_bytes_with_checksum, make_obs, ObsParams,
 };
 
 pub struct FinraMarginFetcher {
@@ -25,7 +25,7 @@ impl Default for FinraMarginFetcher {
 impl FinraMarginFetcher {
     pub fn new(base_url: String) -> Self {
         Self {
-            client: build_browser_client(),
+            client: build_api_client(),
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
