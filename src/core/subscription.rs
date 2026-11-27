@@ -167,73 +167,39 @@ impl SubscriptionManager {
         Ok(all.into_iter().filter(|s| s.enabled).collect())
     }
 
-    /// Generates core default subscriptions matching our existing 12 instruments.
+    /// Generates core default subscriptions covering all asset classes and sources
+    /// (OHLCV candles: Yahoo, Binance, TradingView; non-candle: Macro Calendar, Polymarket, Kalshi).
     fn generate_core_defaults(&self) -> Vec<SubscriptionItem> {
         let now = Utc::now().to_rfc3339();
+        let make = |source: &str, symbol: &str, asset_class: &str, tfs: &[&str], poll: Option<u64>| {
+            SubscriptionItem {
+                source: source.to_string(),
+                symbol: symbol.to_string(),
+                asset_class: asset_class.to_string(),
+                timeframes: tfs.iter().map(|t| t.to_string()).collect(),
+                enabled: true,
+                poll_interval_secs: poll,
+                created_at_utc: now.clone(),
+            }
+        };
         vec![
-            SubscriptionItem {
-                source: "yahoo".to_string(),
-                symbol: "BBCA.JK".to_string(),
-                asset_class: "equities".to_string(),
-                timeframes: vec!["1d".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(300),
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "yahoo".to_string(),
-                symbol: "^GSPC".to_string(),
-                asset_class: "equities".to_string(),
-                timeframes: vec!["1d".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(300),
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "binance".to_string(),
-                symbol: "BTCUSDT".to_string(),
-                asset_class: "crypto".to_string(),
-                timeframes: vec!["1d".to_string(), "1h".to_string()],
-                enabled: true,
-                poll_interval_secs: None,
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "yahoo".to_string(),
-                symbol: "USDIDR=X".to_string(),
-                asset_class: "forex".to_string(),
-                timeframes: vec!["1d".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(60),
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "yahoo".to_string(),
-                symbol: "GC=F".to_string(),
-                asset_class: "commodities".to_string(),
-                timeframes: vec!["1d".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(60),
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "yahoo".to_string(),
-                symbol: "TLT".to_string(),
-                asset_class: "equities".to_string(),
-                timeframes: vec!["1d".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(300),
-                created_at_utc: now.clone(),
-            },
-            SubscriptionItem {
-                source: "biquote".to_string(),
-                symbol: "US,ID,EU,GB".to_string(),
-                asset_class: "macro".to_string(),
-                timeframes: vec!["events".to_string()],
-                enabled: true,
-                poll_interval_secs: Some(600),
-                created_at_utc: now,
-            },
+            // 1. Yahoo Finance — Global & IDX Equities, Bonds, FX, Commodities (OHLCV Candles)
+            make("yahoo", "BBCA.JK", "equities", &["1d"], Some(300)),
+            make("yahoo", "^GSPC", "equities", &["1d"], Some(300)),
+            make("yahoo", "TLT", "equities", &["1d"], Some(300)),
+            make("yahoo", "USDIDR=X", "forex", &["1d"], Some(60)),
+            make("yahoo", "GC=F", "commodities", &["1d"], Some(60)),
+            // 2. Binance — Spot Crypto (OHLCV Candles)
+            make("binance", "BTCUSDT", "crypto", &["1d", "1h"], None),
+            // 3. TradingView — Multi-Venue Equities, Crypto & Gold (OHLCV Candles)
+            make("tradingview", "IDX:BBCA", "equities", &["1d"], Some(300)),
+            make("tradingview", "COINBASE:BTCUSD", "crypto", &["1d", "4h"], Some(300)),
+            make("tradingview", "OANDA:XAUUSD", "commodities", &["1d"], Some(300)),
+            // 4. Biquote — Macroeconomic Calendar Releases (Non-Candle Events)
+            make("biquote", "US,ID,EU,GB", "macro", &["events"], Some(600)),
+            // 5. Polymarket & Kalshi — Prediction Market Contracts & Implied Probabilities (Non-Candle)
+            make("polymarket", "TOP_ACTIVE", "prediction_markets", &["1h"], Some(600)),
+            make("kalshi", "TOP_ACTIVE", "prediction_markets", &["1h"], Some(600)),
         ]
     }
 }

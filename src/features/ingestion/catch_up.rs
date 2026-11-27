@@ -50,6 +50,14 @@ impl CatchUpEngine {
             return summaries;
         }
 
+        if sub.asset_class == "prediction_markets"
+            || matches!(sub.source.to_lowercase().as_str(), "polymarket" | "kalshi")
+        {
+            let summary = self.catch_up_prediction_market(sub).await;
+            summaries.push(summary);
+            return summaries;
+        }
+
         for tf in &sub.timeframes {
             let watermark = WatermarkScanner::scan_watermark(
                 &self.config.lake_dir,
@@ -116,6 +124,7 @@ impl CatchUpEngine {
                     "5m" => crate::core::types::TimeFrame::M5,
                     "15m" => crate::core::types::TimeFrame::M15,
                     "1h" => crate::core::types::TimeFrame::H1,
+                    "4h" => crate::core::types::TimeFrame::H4,
                     "1w" => crate::core::types::TimeFrame::W1,
                     "1M" => crate::core::types::TimeFrame::MN1,
                     _ => crate::core::types::TimeFrame::D1,
@@ -240,6 +249,96 @@ impl CatchUpEngine {
                 symbol: sub.symbol.clone(),
                 asset_class: "macro".to_string(),
                 timeframe: "events".to_string(),
+                gap_days: 0,
+                candles_ingested: 0,
+                status: "fetch_error".to_string(),
+                error: Some(e.to_string()),
+            },
+        }
+    }
+
+    async fn catch_up_prediction_market(&self, sub: &SubscriptionItem) -> CatchUpSummary {
+        use chrono::Utc;
+        use crate::core::prediction_types::{PredictionMarketCandle, ProbabilityPriceSource};
+        use crate::features::ingestion::prediction_market::{
+            persist_prediction_candles_to_lake, KalshiFetcher, PolymarketFetcher,
+        };
+
+        let tf = sub.timeframes.first().map(|s| s.as_str()).unwrap_or("1h");
+        let venue = sub.source.to_lowercase();
+        let fetched = if venue == "kalshi" {
+            KalshiFetcher::default().fetch_markets(25).await
+        } else {
+            PolymarketFetcher::default().fetch_contracts(25).await
+        };
+
+        match fetched {
+            Ok(contracts) => {
+                let now = Utc::now();
+                let snapshots: Vec<PredictionMarketCandle> = contracts
+                    .into_iter()
+                    .filter(|c| {
+                        sub.symbol.eq_ignore_ascii_case("TOP_ACTIVE")
+                            || sub.symbol == "*"
+                            || c.market_id.eq_ignore_ascii_case(&sub.symbol)
+                            || c.venue_market_id.eq_ignore_ascii_case(&sub.symbol)
+                    })
+                    .map(|c| {
+                        let prob = c.implied_probability.or(c.last_price);
+                        PredictionMarketCandle {
+                            time: now.timestamp(),
+                            timestamp_utc: now,
+                            market_id: c.venue_market_id,
+                            outcome: c.outcomes.into_iter().next().unwrap_or_else(|| "YES".to_string()),
+                            timeframe: tf.to_string(),
+                            prob_open: prob,
+                            prob_high: prob,
+                            prob_low: prob,
+                            prob_close: prob,
+                            book_bid_close: c.best_bid,
+                            book_ask_close: c.best_ask,
+                            volume_contracts: None,
+                            volume_usd: c.volume_usd,
+                            open_interest_usd: c.open_interest_usd,
+                            trade_count: None,
+                            price_source: if venue == "kalshi" {
+                                ProbabilityPriceSource::Trade
+                            } else {
+                                ProbabilityPriceSource::SampledMid
+                            },
+                            venue: c.venue,
+                        }
+                    })
+                    .collect();
+
+                match persist_prediction_candles_to_lake(&snapshots, &self.resolver) {
+                    Ok(saved) => CatchUpSummary {
+                        source: sub.source.clone(),
+                        symbol: sub.symbol.clone(),
+                        asset_class: "prediction_markets".to_string(),
+                        timeframe: tf.to_string(),
+                        gap_days: 0,
+                        candles_ingested: saved,
+                        status: "caught_up".to_string(),
+                        error: None,
+                    },
+                    Err(e) => CatchUpSummary {
+                        source: sub.source.clone(),
+                        symbol: sub.symbol.clone(),
+                        asset_class: "prediction_markets".to_string(),
+                        timeframe: tf.to_string(),
+                        gap_days: 0,
+                        candles_ingested: 0,
+                        status: "persist_error".to_string(),
+                        error: Some(e.to_string()),
+                    },
+                }
+            }
+            Err(e) => CatchUpSummary {
+                source: sub.source.clone(),
+                symbol: sub.symbol.clone(),
+                asset_class: "prediction_markets".to_string(),
+                timeframe: tf.to_string(),
                 gap_days: 0,
                 candles_ingested: 0,
                 status: "fetch_error".to_string(),
