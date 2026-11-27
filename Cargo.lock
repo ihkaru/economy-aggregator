@@ -2501,6 +2501,7 @@ dependencies = [
 [[package]]
 name = "tradingview-streamer"
 version = "0.1.0"
+source = "git+https://github.com/ihkaru/tradingview-streamer-rs.git?branch=main#34cc1ab69b01574a934719c8b4ab30caf0febc44"
 dependencies = [
  "futures-util",
  "http",

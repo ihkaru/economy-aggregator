@@ -61,10 +61,35 @@ Repositori ini menyertakan mesin pengolahan downstream berbasis Rust murni tanpa
 
 ---
 
-## 4. Antarmuka Baris Perintah (Agent-First CLI)
+## 4. Antarmuka Baris Perintah (Agent-First CLI — Lokal & Remote)
+
+CLI mendukung **mode lokal** (langsung ke disk `./data/lake`) maupun **mode remote** ke instance server yang di-deploy (mis. Coolify) menggunakan hierarki konfigurasi 3-tier (**Flag > Env > `~/.config/economy-aggregator/config.json`**):
 
 ```bash
-# 1. Cek status danau data
+# 0. Konfigurasi remote server (base_url & api_key tersimpan aman dengan chmod 0600, selalu dimaskir saat show)
+economy-aggregator config set --base-url https://market.dvlpid.my.id --api-key "ea_live_..."
+economy-aggregator config show
+economy-aggregator config clear
+
+# Atau override via ENV / flag langsung per perintah:
+export ECONOMY_AGGREGATOR_BASE_URL="https://market.dvlpid.my.id"
+export ECONOMY_AGGREGATOR_API_KEY="ea_live_..."
+
+# Query remote server (output JSON envelope baku ramah AI-Agent)
+economy-aggregator health
+economy-aggregator catalog --q BTC --asset crypto --limit 10
+economy-aggregator candles --symbol BTC_USDT --asset crypto --tf 1d --limit 100
+economy-aggregator partitions --q BTC --limit 20
+economy-aggregator predictions --venue polymarket --limit 10
+economy-aggregator audit
+economy-aggregator divergence
+
+# Gunakan --local untuk memaksa eksekusi ke disk lokal meskipun base_url terkonfigurasi
+economy-aggregator --local status
+```
+
+```bash
+# 1. Cek status danau data (lokal atau remote jika base_url diset)
 cargo run -- status
 
 # 2. Cari simbol/pasar multi-sumber (Yahoo, Binance, Polymarket, Kalshi)

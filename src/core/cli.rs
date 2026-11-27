@@ -2,30 +2,86 @@
 
 use tracing::info;
 
+use crate::core::cli_config::{extract_global_options, handle_config, resolve_client_config};
+use crate::core::cli_remote::{dispatch_remote, RemoteClient};
 use crate::core::config::LakehouseConfig;
 use crate::core::types::AssetClass;
 use crate::features::ingestion::{BinanceRestFetcher, EconomicCalendarFetcher, YahooFinanceFetcher};
 use crate::features::storage::{LakeWriter, PartitionResolver};
 
 pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if args.is_empty() || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
+    let global = extract_global_options(args);
+    let rem = &global.remaining;
+
+    if rem.is_empty() || rem[0] == "help" || rem[0] == "--help" || rem[0] == "-h" {
         print_help();
         return Ok(());
     }
 
-    match args[0].as_str() {
-        "search" => crate::core::cli_search::handle_search(&args[1..]).await,
-        "subscribe" => crate::core::cli_subscription::handle_subscribe(&args[1..]).await,
-        "unsubscribe" => crate::core::cli_subscription::handle_unsubscribe(&args[1..]).await,
-        "subscriptions" => crate::core::cli_subscription::handle_subscriptions_list(&args[1..]).await,
-        "catch-up" => crate::core::cli_catch_up::handle_catch_up(&args[1..]).await,
-        "pull" => handle_pull(&args[1..]).await,
-        "backfill-all-weather" => handle_backfill_all_weather(&args[1..]).await,
-        "compact" => handle_compact(&args[1..]).await,
-        "calendar" => handle_calendar(&args[1..]).await,
-        "analyze" => crate::features::analytics::handle_analyze(&args[1..]).await,
-        "reconcile" => crate::features::analytics::handle_reconcile(&args[1..]).await,
+    if rem[0] == "config" {
+        match handle_config(&rem[1..], &global, None) {
+            Ok(val) => {
+                println!("{}", serde_json::to_string_pretty(&val)?);
+                return Ok(());
+            }
+            Err(msg) => {
+                eprintln!("{}", serde_json::json!({"success": false, "error": msg, "data": null}));
+                std::process::exit(1);
+            }
+        }
+    }
+
+    let resolved = match resolve_client_config(&global, None) {
+        Ok(r) => r,
+        Err(msg) => {
+            eprintln!("{}", serde_json::json!({"success": false, "error": msg, "data": null}));
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(base_url) = resolved.effective_base_url() {
+        let client = match RemoteClient::new(base_url.to_string(), resolved.api_key.clone()) {
+            Ok(c) => c,
+            Err(err) => {
+                eprintln!("{}", serde_json::to_string_pretty(&err.to_envelope())?);
+                std::process::exit(err.exit_code);
+            }
+        };
+        if let Some(result) = dispatch_remote(rem[0].as_str(), &rem[1..], &client).await {
+            match result {
+                Ok(val) => {
+                    println!("{}", serde_json::to_string_pretty(&val)?);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("{}", serde_json::to_string_pretty(&err.to_envelope())?);
+                    std::process::exit(err.exit_code);
+                }
+            }
+        }
+    }
+
+    match rem[0].as_str() {
+        "search" => crate::core::cli_search::handle_search(&rem[1..]).await,
+        "subscribe" => crate::core::cli_subscription::handle_subscribe(&rem[1..]).await,
+        "unsubscribe" => crate::core::cli_subscription::handle_unsubscribe(&rem[1..]).await,
+        "subscriptions" => crate::core::cli_subscription::handle_subscriptions_list(&rem[1..]).await,
+        "catch-up" => crate::core::cli_catch_up::handle_catch_up(&rem[1..]).await,
+        "pull" => handle_pull(&rem[1..]).await,
+        "backfill-all-weather" => handle_backfill_all_weather(&rem[1..]).await,
+        "compact" => handle_compact(&rem[1..]).await,
+        "calendar" => handle_calendar(&rem[1..]).await,
+        "analyze" => crate::features::analytics::handle_analyze(&rem[1..]).await,
+        "reconcile" => crate::features::analytics::handle_reconcile(&rem[1..]).await,
         "status" => handle_status().await,
+        "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence" => {
+            eprintln!("{}", serde_json::json!({
+                "success": false,
+                "error": format!("Command '{}' requires a remote server. Set --base-url, ECONOMY_AGGREGATOR_BASE_URL, or run 'economy-aggregator config set --base-url <url>'.", rem[0]),
+                "data": null
+            }));
+            std::process::exit(1);
+        }
         other => {
             eprintln!("{{\"success\":false,\"error\":\"Unknown subcommand '{}'. Use 'help' for usage.\"}}", other);
             std::process::exit(1);
@@ -37,28 +93,34 @@ fn print_help() {
     println!(r#"{{
   "name": "economy-aggregator",
   "version": "0.1.0",
+  "global_flags": [
+    "--base-url <url>           Remote server base URL (env: ECONOMY_AGGREGATOR_BASE_URL)",
+    "--api-key <key>            API key for Bearer/X-API-Key auth (env: ECONOMY_AGGREGATOR_API_KEY)",
+    "--local                    Force local disk mode even if base_url is configured"
+  ],
   "subcommands": [
     "serve                      Start REST HTTP serving layer",
-    "search                     Search multi-source symbols across equities, crypto, macro, and predictions",
+    "config <set|show|clear>    Manage persistent base_url and api_key configuration",
+    "health                     Check remote server health (/v1/health)",
+    "catalog                    Query remote instrument catalog (/v1/market/catalog)",
+    "candles                    Query remote OHLCV candles (/v1/market/candles)",
+    "partitions                 Explore remote lakehouse partitions (/v1/storage/partitions)",
+    "predictions                Query remote prediction markets (/v1/prediction-markets/events)",
+    "audit                      Run remote lakehouse integrity audit (/v1/integrity/audit)",
+    "divergence                 Query macro vs prediction divergence (/v1/analytics/divergence)",
+    "search                     Search multi-source symbols (local or remote)",
     "subscribe                  Subscribe to a symbol for autonomous live ingestion",
     "unsubscribe                Remove an active ingestion subscription",
     "subscriptions              List active data subscriptions",
-    "catch-up                   Scan lakehouse high-watermark and pull missing historical ranges",
-    "pull                       Pull candles from external source into Parquet lake",
-    "backfill-all-weather       Backfill 7 core All-Weather assets & benchmarks into Parquet lake",
+    "catch-up                   Scan high-watermark and pull missing historical ranges",
+    "pull                       Pull candles from external source into local Parquet lake",
+    "backfill-all-weather       Backfill 7 core All-Weather assets & benchmarks locally",
     "compact                    Compact micro-chunks into unified monthly Parquet files",
-    "calendar                   Fetch live macroeconomic calendar releases",
+    "calendar                   Fetch macroeconomic calendar releases (local or remote)",
     "analyze                    Run vectorized multi-asset portfolio and risk parity analytics",
     "reconcile                  Reconcile lakehouse candles against live vendor feeds",
-    "status                     Inspect lakehouse partitions, files, and disk footprint",
+    "status                     Inspect lakehouse partitions, files, and status (local or remote)",
     "help                       Show this help message"
-  ],
-  "pull_flags": [
-    "--symbol <raw>             Raw ticker (e.g. '^GSPC', 'BBCA.JK', 'BTCUSDT', 'GC=F')",
-    "--canonical <symbol>       Canonical symbol (e.g. 'GSPC', 'BBCA', 'BTC/USDT', 'XAU/USD')",
-    "--asset <class>            Asset class: 'equities', 'crypto', 'commodities', 'forex'",
-    "--range <period>           Yahoo range: '1mo', '1y', '5y', 'max' (default: '1y')",
-    "--source <name>            Source: 'yahoo' (default) or 'binance'"
   ]
 }}"#);
 }

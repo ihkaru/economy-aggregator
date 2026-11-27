@@ -14,7 +14,12 @@ pub struct LakehouseConfig {
 
 impl Default for LakehouseConfig {
     fn default() -> Self {
-        let base = PathBuf::from("data");
+        let base = std::env::var("AGGREGATOR_DATA_DIR")
+            .or_else(|_| std::env::var("DATA_DIR"))
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("data"));
         Self {
             lake_dir: base.join("lake"),
             hot_buffer_dir: base.join("hot_buffer"),
@@ -28,8 +33,10 @@ impl Default for LakehouseConfig {
 
 impl LakehouseConfig {
     pub fn ensure_directories(&self) -> std::io::Result<()> {
+        std::fs::create_dir_all(&self.base_dir)?;
         std::fs::create_dir_all(&self.lake_dir)?;
         std::fs::create_dir_all(&self.hot_buffer_dir)?;
+        std::fs::create_dir_all(self.base_dir.join("config"))?;
         Ok(())
     }
 }

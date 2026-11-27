@@ -25,6 +25,7 @@
 | **ADR-13** | Rekonsiliasi Lilin Multi-Sumber & Audit Integritas Data Lakehouse | Diterima | 2026-11-08 |
 | **ADR-14** | Built-in High-Density Svelte Candle Inspection Terminal & Batasan Deterministik 400 Baris | Diterima | 2026-11-08 |
 | **ADR-15** | Pengerasan Lapisan Penyajian Data Skala Besar (Big Data Serving Guardrails, In-Memory TTL Cache, dan Lakehouse Readers) | Diterima | 2026-11-12 |
+| **ADR-16** | Autentikasi API Key Server (Constant-Time) & Mode Remote Agent-First CLI (`base_url` + `api_key`) | Diterima | 2026-11-27 |
 
 ---
 
@@ -259,3 +260,18 @@
   Konsumsi RAM tetap stabil di bawah 150 MB bahkan saat kueri beban tinggi, waktu respons endpoint katalog turun dari >50ms menjadi <1ms setelah cache warm-up, dan bandwidth transfer jaringan terpangkas drastis berkat kompresi zstd/gzip.
 * **Risiko yang Muncul:**  
   `RISK-15` (Klien yang memerlukan lebih dari 5.000 bar wajib melakukan pagination bertahap via parameter `to` atau `end_date`).
+
+---
+
+### ADR-16: Autentikasi API Key Server (Constant-Time) dan Mode Remote Agent-First CLI (`base_url` + `api_key`)
+* **Status:** Diterima
+* **Konteks:**  
+  Sebelumnya, CLI `economy-aggregator` hanya dapat mengakses disk lokal (`./data/lake`) dan seluruh endpoint REST `/v1/*` terbuka tanpa autentikasi. Untuk deployment terpusat (mis. Coolify di server jarak jauh) yang diakses oleh agen AI dan sistem hilir lintas mesin, diperlukan proteksi API key di sisi server serta CLI Agent-First yang dapat dikonfigurasi target `base_url` dan `api_key`-nya.
+* **Keputusan:**  
+  1. Menambahkan middleware autentikasi API key di `src/features/serving/auth.rs` dengan perbandingan byte *constant-time* (`Authorization: Bearer <key>` dan `X-API-Key: <key>`), mendukung rotasi multi-key via env `AGGREGATOR_API_KEYS` / `AGGREGATOR_API_KEY`, dan tetap membebaskan `/health`, `/v1/health`, serta aset UI statis.
+  2. Menambahkan resolusi konfigurasi 3-tier di `src/core/cli_config.rs` (`--base-url`/`--api-key` flag > env `ECONOMY_AGGREGATOR_*` > `~/.config/economy-aggregator/config.json` bermode `0600`) dengan masking rahasia wajib dan subcommand `config set|show|clear`.
+  3. Menambahkan client HTTP remote di `src/core/cli_remote.rs` dengan output envelope JSON baku (`success`, `error`, `mode`, `base_url`, `data`, `next_steps`) dan kode keluar deterministik (`0`/`1`/`2`/`3`), mencakup subcommand `health`, `catalog`, `candles`, `partitions`, `predictions`, `audit`, `divergence`, serta mode remote transparan untuk `status`, `search`, `subscriptions`, `subscribe`, `unsubscribe`, `catch-up`, dan `calendar`.
+* **Konsekuensi Positif:**  
+  Satu biner tunggal `economy-aggregator` dapat berperan ganda sebagai server lakehouse berproteksi API key sekaligus CLI Agent-First remote dari mesin klien mana pun tanpa ketergantungan tambahan.
+* **Risiko yang Muncul:**  
+  Operator wajib memastikan `AGGREGATOR_API_KEY` diinjeksi via Infisical/Coolify environment pada deployment publik.

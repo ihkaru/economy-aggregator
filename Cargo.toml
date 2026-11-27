@@ -22,8 +22,8 @@ chrono = { version = "=0.4.38", features = ["serde"] }
 uuid = { version = "1.8", features = ["v4"] }
 rayon = "1.10"
 
-# TradingView WebSocket & Venue Streaming Engine
-tradingview-streamer = { path = "../tradingview-streamer-rs" }
+# TradingView WebSocket & Venue Streaming Engine (self-contained Git dep for Coolify / CI builds)
+tradingview-streamer = { git = "https://github.com/ihkaru/tradingview-streamer-rs.git", branch = "main" }
 
 # Columnar Storage & Parquet Lakehouse (Zero-Copy Arrow)
 parquet = { version = "52.0", features = ["arrow", "zstd"] }

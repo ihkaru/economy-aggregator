@@ -19,6 +19,9 @@ src/
 ├── core/                     # Fondasi domain model & konfigurasi
 │   ├── mod.rs
 │   ├── config.rs             # Parameter batas RAM & path data
+│   ├── cli.rs                # Agent-First CLI dispatcher (lokal & remote)
+│   ├── cli_config.rs         # Resolusi 3-tier base_url & api_key + secret masking
+│   ├── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & JSON envelope
 │   └── types.rs              # AggregatorCandle, MarketTick, MacroEvent
 └── features/
     ├── ingestion/            # Slice Ingesti
@@ -34,6 +37,7 @@ src/
     │   └── writer.rs         # Writer data Parquet ZSTD & deduplikator
     ├── serving/              # Slice Pelayanan Eksternal
     │   ├── mod.rs
+    │   ├── auth.rs           # Constant-time API key auth middleware (Bearer / X-API-Key)
     │   ├── rest.rs           # Axum HTTP router, compression layer, memory guardrails
     │   ├── types.rs          # Query DTOs (CandleQuery, CatalogQuery, MacroCalendarQuery)
     │   ├── catalog_routes.rs # In-memory TTL cache & instrument search

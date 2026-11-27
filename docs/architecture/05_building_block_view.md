@@ -90,12 +90,14 @@ src/
 │   ├── mod.rs
 │   ├── types.rs              # AggregatorCandle, EconomicEventRecord, Enums
 │   ├── config.rs             # LakehouseConfig & batas budget memori
-│   └── cli.rs                # Agent-First CLI dispatcher & argument parser
+│   ├── cli.rs                # Agent-First CLI dispatcher & argument parser
+│   ├── cli_config.rs         # 3-tier remote config (flag > env > config.json) & secret masking
+│   └── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & JSON envelope handlers
 ├── features/                 # Vertical Slice Architecture
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, LakeMacroReader, LakePredictionReader
 │   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, PortfolioSpec, Portfolio Engine
-│   └── serving/              # Axum REST endpoints, in-memory TTL caching, HTTP compression, catalog & analytics routes
+│   └── serving/              # Axum REST endpoints, API key auth middleware (auth.rs), TTL cache, HTTP compression
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/
 │   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons

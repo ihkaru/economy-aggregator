@@ -62,7 +62,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Autonomous Ingestion Orchestrator started with container boot");
 
     let resolver = PartitionResolver::new(config.lake_dir.clone());
-    let state = Arc::new(AppState::new(config.clone(), resolver, registry, sub_manager, orchestrator));
+    let api_keys = economy_aggregator::features::serving::load_api_keys_from_env();
+    if !api_keys.is_empty() {
+        info!("🔐 API key authentication enabled ({} key(s) configured)", api_keys.len());
+    }
+    let state = Arc::new(
+        AppState::new(config.clone(), resolver, registry, sub_manager, orchestrator)
+            .with_api_keys(api_keys),
+    );
 
     // Asynchronous background cache pre-warmer for core instruments
     let prewarm_state = state.clone();

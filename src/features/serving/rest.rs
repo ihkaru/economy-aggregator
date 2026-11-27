@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
+use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
@@ -42,6 +43,7 @@ pub struct AppState {
     pub prediction_contracts_cache: RwLock<HashMap<String, (Instant, Vec<PredictionMarketContract>)>>,
     pub catalog_cache: RwLock<Option<(Instant, Vec<InstrumentCatalogItem>)>>,
     pub partitions_cache: RwLock<Option<(Instant, Vec<PartitionItem>)>>,
+    pub api_keys: Vec<String>,
 }
 
 impl AppState {
@@ -64,7 +66,13 @@ impl AppState {
             prediction_contracts_cache: RwLock::new(HashMap::new()),
             catalog_cache: RwLock::new(None),
             partitions_cache: RwLock::new(None),
+            api_keys: Vec::new(),
         }
+    }
+
+    pub fn with_api_keys(mut self, api_keys: Vec<String>) -> Self {
+        self.api_keys = api_keys;
+        self
     }
 }
 
@@ -88,10 +96,18 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/ingestion/status", get(ingestion_status_handler))
         .route("/v1/ingestion/catch-up", post(trigger_catch_up_handler))
         .route("/v1/discovery/search", get(search_symbols_handler))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::features::serving::auth::api_key_auth_middleware,
+        ))
         .layer(tower_http::compression::CompressionLayer::new())
         .with_state(state);
 
-    let web_dist = Path::new("web/dist");
+    let web_dist_str = std::env::var("WEB_DIST_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "web/dist".to_string());
+    let web_dist = Path::new(&web_dist_str);
     if web_dist.exists() {
         let serve_dir = ServeDir::new(web_dist)
             .not_found_service(ServeFile::new(web_dist.join("index.html")));

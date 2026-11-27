@@ -1,5 +1,7 @@
 pub mod cli;
 pub mod cli_catch_up;
+pub mod cli_config;
+pub mod cli_remote;
 pub mod cli_search;
 pub mod cli_subscription;
 pub mod config;
@@ -9,6 +11,8 @@ pub mod subscription;
 pub mod types;
 
 pub use cli::run_cli;
+pub use cli_config::{ClientConfig, GlobalCliOptions, ResolvedClientConfig};
+pub use cli_remote::{RemoteCliError, RemoteClient};
 pub use config::LakehouseConfig;
 pub use macro_types::*;
 pub use prediction_types::*;

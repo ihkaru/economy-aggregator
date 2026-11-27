@@ -1,0 +1,16 @@
+# Build context exclusions for fast, clean Coolify Docker builds
+.git/
+.gitignore
+target/
+data/
+workspaces/
+docs/
+research/
+tests/
+web/node_modules/
+web/dist/
+*.parquet
+*.wal
+*.log
+*.md
+.DS_Store

@@ -61,12 +61,13 @@ Belajar dari evaluasi empiris simulasi portofolio, pemodelan instrumen derivatif
 - **Zero Interactivity:** Perintah mutasi tidak pernah memblokir `stdin`. Penggunaan otomatis wajib mendukung opsi `--yes`, `--force`, dan `--non-interactive`.
 - **Kode Keluar Deterministik:** `0` (Sukses), `1` (Argumen/Konfigurasi Salah), `2` (Rate Limit/Network Error), `3` (Storage I/O Error), `4` (Integritas Data Gagal).
 
-## 8.8 Manajemen Kunci Rahasia & Konfigurasi Bertingkat (Infisical & ENV Hierarchy)
-- Mengadopsi hierarki resolusi 3-tier:
-  1. *Command-line Flags* (Prioritas tertinggi, misal `--start-year 2020`).
-  2. *Injeksi Rahasia Mesin* via Infisical Universal Auth (`infisical run -- dev`) dan Environment Variables (`AGGREGATOR_*`).
-  3. *File Konfigurasi Deklaratif* (`economy-aggregator.toml`) untuk kemudahan setup "one config away".
-- Token rahasia atau API key vendor tidak pernah disimpan ke git commit atau dicetak mentah di log terminal (wajib dimaskir: `sk_***`).
+## 8.8 Manajemen Kunci Rahasia, Autentikasi API & Konfigurasi Bertingkat (Infisical & ENV Hierarchy)
+- Mengadopsi hierarki resolusi 3-tier untuk CLI remote (`src/core/cli_config.rs`):
+  1. *Command-line Flags* (Prioritas tertinggi: `--base-url`, `--api-key`, `--local`).
+  2. *Injeksi Rahasia Mesin* via Infisical Universal Auth (`infisical run -- dev`) dan Environment Variables (`ECONOMY_AGGREGATOR_BASE_URL` / `AGGREGATOR_BASE_URL`, `ECONOMY_AGGREGATOR_API_KEY` / `AGGREGATOR_API_KEY`).
+  3. *File Konfigurasi Persisten* (`~/.config/economy-aggregator/config.json`, permission `0600` di Unix, dikelola via `economy-aggregator config set|show|clear`).
+- **Autentikasi REST Server (`src/features/serving/auth.rs`):** Ketika `AGGREGATOR_API_KEY` / `AGGREGATOR_API_KEYS` / `ECONOMY_AGGREGATOR_API_KEY` diset (mendukung daftar dipisah koma untuk rotasi kunci zero-downtime), middleware Axum memverifikasi seluruh endpoint `/v1/*` (kecuali `/v1/health` dan aset UI statis) menggunakan perbandingan byte *constant-time* melalui header `Authorization: Bearer <key>` atau `X-API-Key: <key>`.
+- Token rahasia atau API key tidak pernah disimpan ke git commit atau dicetak mentah di log terminal maupun output `config show` (wajib dimaskir: `ea_l***55`).
 
 ## 8.9 Rekonsiliasi Lilin Multi-Sumber & Audit Integritas Data (Candle Reconciliation & Drift Auditing)
 - **Tujuan:** Memverifikasi secara matematis bahwa lilin pasar (OHLCV) yang tersimpan di Parquet lakehouse tetap valid, tidak mengalami revisi retroaktif liar oleh vendor, dan bebas dari celah waktu (*gaps*).
