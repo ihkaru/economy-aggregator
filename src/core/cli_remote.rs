@@ -60,7 +60,7 @@ impl RemoteClient {
 
         let http = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(120))
             .build()
             .map_err(|e| RemoteCliError::network_or_rate_limit(e.to_string(), None))?;
 
@@ -181,7 +181,7 @@ pub async fn dispatch_remote(
         "subscriptions" => Some(handle_remote_subscriptions(client).await),
         "subscribe" => Some(handle_remote_subscribe(args, client).await),
         "unsubscribe" => Some(handle_remote_unsubscribe(args, client).await),
-        "catch-up" => Some(handle_remote_catch_up(client).await),
+        "catch-up" | "sync" => Some(handle_remote_catch_up(args, client).await),
         "audit" => Some(handle_remote_simple_get("/v1/integrity/audit", client).await),
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
         _ => None,
@@ -317,9 +317,24 @@ async fn handle_remote_unsubscribe(args: &[String], client: &RemoteClient) -> Re
     Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator subscriptions"]))
 }
 
-async fn handle_remote_catch_up(client: &RemoteClient) -> Result<Value, RemoteCliError> {
-    let data = client.post_json("/v1/ingestion/catch-up", None).await?;
-    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator status"]))
+async fn handle_remote_catch_up(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let symbol = flag_val(args, &["--symbol", "-s"])
+        .or_else(|| args.iter().find(|a| !a.starts_with('-')).cloned());
+    let source = flag_val(args, &["--source"]);
+    let force = args.iter().any(|a| matches!(a.as_str(), "--force" | "-f"));
+    let run_async = args.iter().any(|a| matches!(a.as_str(), "--async" | "--background"));
+
+    let body = serde_json::json!({
+        "symbol": symbol,
+        "source": source,
+        "force": force,
+        "async": run_async
+    });
+    let data = client.post_json("/v1/ingestion/catch-up", Some(&body)).await?;
+    Ok(wrap_ok(client.base_url(), data, vec![
+        "economy-aggregator status",
+        "economy-aggregator partitions --limit 20"
+    ]))
 }
 
 async fn handle_remote_simple_get(path: &str, client: &RemoteClient) -> Result<Value, RemoteCliError> {

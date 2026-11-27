@@ -9,7 +9,7 @@ use tracing::{error, info, warn};
 
 use crate::core::config::LakehouseConfig;
 use crate::core::subscription::SubscriptionManager;
-use crate::features::ingestion::catch_up::CatchUpEngine;
+use crate::features::ingestion::catch_up::{CatchUpEngine, CatchUpSummary};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrchestratorStatus {
@@ -99,7 +99,26 @@ impl IngestionOrchestrator {
 
     /// Triggers immediate on-demand catch-up across all active subscriptions.
     pub async fn trigger_catch_up(&self) -> usize {
-        run_gap_catch_up(&self.config, &self.sub_manager, &self.status).await
+        let summaries = self.trigger_catch_up_filtered(None, None, false).await;
+        summaries.iter().map(|s| s.candles_ingested).sum()
+    }
+
+    /// Triggers targeted or full on-demand catch-up with optional symbol/source filter and force refresh.
+    pub async fn trigger_catch_up_filtered(
+        &self,
+        symbol_filter: Option<&str>,
+        source_filter: Option<&str>,
+        force: bool,
+    ) -> Vec<CatchUpSummary> {
+        run_gap_catch_up_filtered(
+            &self.config,
+            &self.sub_manager,
+            &self.status,
+            symbol_filter,
+            source_filter,
+            force,
+        )
+        .await
     }
 }
 
@@ -108,27 +127,60 @@ async fn run_gap_catch_up(
     sub_manager: &SubscriptionManager,
     status_arc: &Arc<RwLock<OrchestratorStatus>>,
 ) -> usize {
+    let summaries =
+        run_gap_catch_up_filtered(config, sub_manager, status_arc, None, None, false).await;
+    summaries.iter().map(|s| s.candles_ingested).sum()
+}
+
+async fn run_gap_catch_up_filtered(
+    config: &LakehouseConfig,
+    sub_manager: &SubscriptionManager,
+    status_arc: &Arc<RwLock<OrchestratorStatus>>,
+    symbol_filter: Option<&str>,
+    source_filter: Option<&str>,
+    force: bool,
+) -> Vec<CatchUpSummary> {
     let active_subs = match sub_manager.list_active() {
         Ok(s) => s,
         Err(e) => {
             error!("Orchestrator failed listing subscriptions: {}", e);
-            return 0;
+            return Vec::new();
         }
     };
 
+    let filtered: Vec<_> = active_subs
+        .into_iter()
+        .filter(|s| {
+            if let Some(sym) = symbol_filter.filter(|v| !v.trim().is_empty()) {
+                if !s.symbol.eq_ignore_ascii_case(sym.trim()) {
+                    return false;
+                }
+            }
+            if let Some(src) = source_filter.filter(|v| !v.trim().is_empty()) {
+                if !s.source.eq_ignore_ascii_case(src.trim()) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
     info!(
-        "🔄 Orchestrator starting gap catch-up across {} active subscriptions",
-        active_subs.len()
+        "🔄 Orchestrator starting gap catch-up across {} matching subscription(s) (force={})",
+        filtered.len(),
+        force
     );
 
     let engine = CatchUpEngine::new(config.clone());
+    let mut all_summaries = Vec::new();
     let mut total_new = 0;
 
-    for sub in &active_subs {
-        let summaries = engine.catch_up_subscription(sub, false).await;
-        for s in summaries {
+    for sub in &filtered {
+        let summaries = engine.catch_up_subscription(sub, force).await;
+        for s in &summaries {
             total_new += s.candles_ingested;
         }
+        all_summaries.extend(summaries);
     }
 
     if let Ok(mut st) = status_arc.write() {
@@ -140,5 +192,5 @@ async fn run_gap_catch_up(
         "✅ Orchestrator catch-up phase finished. Added {} new records/candles to lake",
         total_new
     );
-    total_new
+    all_summaries
 }

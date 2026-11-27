@@ -83,16 +83,73 @@ pub async fn ingestion_status_handler(
     Json(ApiResponse { success: true, data: status })
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct CatchUpTriggerRequest {
+    pub symbol: Option<String>,
+    pub source: Option<String>,
+    #[serde(default)]
+    pub force: bool,
+    #[serde(default, rename = "async")]
+    pub run_async: bool,
+}
+
+fn invalidate_serving_caches(state: &AppState) {
+    if let Ok(mut c) = state.candle_cache.write() { c.clear(); }
+    if let Ok(mut c) = state.macro_cache.write() { c.clear(); }
+    if let Ok(mut c) = state.catalog_cache.write() { *c = None; }
+    if let Ok(mut c) = state.partitions_cache.write() { *c = None; }
+}
+
 pub async fn trigger_catch_up_handler(
     State(state): State<Arc<AppState>>,
+    Query(query): Query<CatchUpTriggerRequest>,
+    body: Option<Json<CatchUpTriggerRequest>>,
 ) -> impl IntoResponse {
-    let orch = state.orchestrator.clone();
-    let total = orch.trigger_catch_up().await;
-    Json(serde_json::json!({
-        "success": true,
-        "total_candles_ingested": total,
-        "message": "Gap catch-up executed successfully"
-    }))
+    let req = body.map(|Json(b)| b).unwrap_or(query);
+    let symbol = req.symbol.clone();
+    let source = req.source.clone();
+    let force = req.force;
+
+    if req.run_async {
+        let state_bg = state.clone();
+        tokio::spawn(async move {
+            state_bg
+                .orchestrator
+                .trigger_catch_up_filtered(symbol.as_deref(), source.as_deref(), force)
+                .await;
+            invalidate_serving_caches(&state_bg);
+        });
+        return (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "success": true,
+                "status": "accepted",
+                "mode": "async",
+                "filter": { "symbol": req.symbol, "source": req.source, "force": force },
+                "message": "Gap catch-up triggered asynchronously in background"
+            })),
+        );
+    }
+
+    let summaries = state
+        .orchestrator
+        .trigger_catch_up_filtered(symbol.as_deref(), source.as_deref(), force)
+        .await;
+    invalidate_serving_caches(&state);
+    let total: usize = summaries.iter().map(|s| s.candles_ingested).sum();
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "success": true,
+            "status": "completed",
+            "mode": "sync",
+            "filter": { "symbol": req.symbol, "source": req.source, "force": force },
+            "total_candles_ingested": total,
+            "summaries": summaries,
+            "message": "Gap catch-up executed successfully"
+        })),
+    )
 }
 
 pub async fn search_symbols_handler(

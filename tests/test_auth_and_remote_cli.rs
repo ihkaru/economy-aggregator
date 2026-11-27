@@ -317,5 +317,43 @@ async fn test_remote_cli_end_to_end_against_authenticated_server() {
     .unwrap();
     assert_eq!(unsub["success"], true);
 
+    // Filtered synchronous catch-up via `sync` alias
+    let sync_res = dispatch_remote(
+        "sync",
+        &[
+            "--symbol".into(),
+            "NONEXISTENT_TICKER".into(),
+            "--source".into(),
+            "yahoo".into(),
+            "--force".into(),
+        ],
+        &client,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(sync_res["success"], true);
+    assert_eq!(sync_res["data"]["status"], "completed");
+    assert_eq!(sync_res["data"]["mode"], "sync");
+    assert_eq!(sync_res["data"]["filter"]["force"], true);
+    assert_eq!(sync_res["data"]["summaries"].as_array().unwrap().len(), 0);
+
+    // Asynchronous fire-and-forget catch-up trigger (HTTP 202 Accepted)
+    let async_res = dispatch_remote(
+        "catch-up",
+        &[
+            "--symbol".into(),
+            "NONEXISTENT_TICKER".into(),
+            "--async".into(),
+        ],
+        &client,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(async_res["success"], true);
+    assert_eq!(async_res["data"]["status"], "accepted");
+    assert_eq!(async_res["data"]["mode"], "async");
+
     server_handle.abort();
 }

@@ -84,6 +84,11 @@ economy-aggregator predictions --venue polymarket --limit 10
 economy-aggregator audit
 economy-aggregator divergence
 
+# Trigger catch-up / kejar data terbaru di remote server (sync atau background async)
+economy-aggregator catch-up --force                                    # Kejar semua langganan aktif (sync + summaries)
+economy-aggregator sync --source yahoo --symbol BBCA.JK --force        # Kejar 1 simbol spesifik secara paksa
+economy-aggregator catch-up --force --async                            # Fire-and-forget di background (HTTP 202)
+
 # Gunakan --local untuk memaksa eksekusi ke disk lokal meskipun base_url terkonfigurasi
 economy-aggregator --local status
 ```

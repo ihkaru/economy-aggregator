@@ -66,7 +66,7 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "subscribe" => crate::core::cli_subscription::handle_subscribe(&rem[1..]).await,
         "unsubscribe" => crate::core::cli_subscription::handle_unsubscribe(&rem[1..]).await,
         "subscriptions" => crate::core::cli_subscription::handle_subscriptions_list(&rem[1..]).await,
-        "catch-up" => crate::core::cli_catch_up::handle_catch_up(&rem[1..]).await,
+        "catch-up" | "sync" => crate::core::cli_catch_up::handle_catch_up(&rem[1..]).await,
         "pull" => handle_pull(&rem[1..]).await,
         "backfill-all-weather" => handle_backfill_all_weather(&rem[1..]).await,
         "compact" => handle_compact(&rem[1..]).await,
