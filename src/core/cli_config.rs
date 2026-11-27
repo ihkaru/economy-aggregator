@@ -313,3 +313,17 @@ pub fn handle_config(
         )),
     }
 }
+
+pub fn handle_hash_password(args: &[String]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let pw = args.first().map(|s| s.as_str()).unwrap_or("");
+    match crate::features::serving::session::hash_password_phc(pw) {
+        Ok(hash) => {
+            println!("{}", serde_json::json!({"success": true, "argon2id_hash": hash}));
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("{}", serde_json::json!({"success": false, "error": e}));
+            std::process::exit(1);
+        }
+    }
+}

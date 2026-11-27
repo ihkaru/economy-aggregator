@@ -302,7 +302,7 @@
 * **Keputusan:**  
   1. Menggunakan `axum-extra` (`PrivateCookieJar`, enkripsi terautentikasi AEAD AES-256-GCM) untuk menerbitkan cookie sesi `ea_session` berbendera `HttpOnly`, `SameSite=Lax`, dan `Secure` (auto-deteksi HTTPS/`X-Forwarded-Proto`), dengan master key persisten dari `AGGREGATOR_SESSION_SECRET` / KDF terpisah domain dari API key.
   2. Menerapkan perlindungan CSRF **Synchronizer Token Pattern**: token CSRF acak tersimpan di dalam payload terenkripsi cookie sesi dan hanya dikembalikan ke memori JS frontend (tidak pernah ke `localStorage`); setiap mutasi browser (`POST`/`PUT`/`DELETE`/`PATCH`) wajib menyertakan header `X-CSRF-Token` yang cocok secara *constant-time*.
-  3. Menambahkan *sliding-window rate limiter* per-IP pada `POST /v1/auth/login` (maks 10 kegagalan/5 menit -> `429 Too Many Requests`), endpoint sesi/logout (`/v1/auth/session`, `/v1/auth/logout`), serta dukungan opsional OIDC Authorization Code + PKCE S256 (`/v1/auth/oidc/login` & `/callback`) yang kompatibel dengan rIDM (`https://auth.dvlpid.my.id/t/bps`).
+  3. Menambahkan *sliding-window rate limiter* per-IP pada `POST /v1/auth/login` (maks 10 kegagalan/5 menit -> `429 Too Many Requests`), endpoint sesi/logout (`/v1/auth/session`, `/v1/auth/logout`), serta akun admin UI mandiri terpisah dari API key mesin menggunakan **Argon2id** PHC hash (`AGGREGATOR_ADMIN_USER` + `AGGREGATOR_ADMIN_PASSWORD_HASH`).
 * **Konsekuensi Positif:**  
   Zero secret exposure ke JavaScript (`localStorage` bebas rahasia 100%), zero database eksternal, sesi bertahan melewati restart container, serta terlindung dari XSS, CSRF, dan brute-force sekaligus.
 * **Risiko yang Muncul:**  

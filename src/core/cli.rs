@@ -74,6 +74,7 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "analyze" => crate::features::analytics::handle_analyze(&rem[1..]).await,
         "reconcile" => crate::features::analytics::handle_reconcile(&rem[1..]).await,
         "status" => handle_status().await,
+        "hash-password" => crate::core::cli_config::handle_hash_password(&rem[1..]),
         "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence" => {
             eprintln!("{}", serde_json::json!({
                 "success": false,

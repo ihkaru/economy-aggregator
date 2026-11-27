@@ -30,7 +30,7 @@ use crate::features::serving::macro_routes::query_macro_calendar_handler;
 use crate::features::serving::prediction_routes::{
     query_prediction_candles_handler, query_prediction_contracts_handler,
 };
-use crate::features::serving::session::{derive_session_key, LoginRateLimiter, OidcConfig};
+use crate::features::serving::session::{derive_session_key, LoginRateLimiter, OidcConfig, UiAdminAccount};
 use crate::features::serving::subscription_routes::*;
 use crate::features::serving::types::*;
 use crate::features::storage::{
@@ -50,7 +50,7 @@ pub struct AppState {
     pub catalog_cache: RwLock<Option<(Instant, Vec<InstrumentCatalogItem>)>>,
     pub partitions_cache: RwLock<Option<(Instant, Vec<PartitionItem>)>>,
     pub api_keys: Vec<String>,
-    pub ui_password: Option<String>,
+    pub ui_admin: Option<UiAdminAccount>,
     pub session_key: Key,
     pub oidc_config: Option<OidcConfig>,
     pub login_limiter: LoginRateLimiter,
@@ -77,7 +77,7 @@ impl AppState {
             catalog_cache: RwLock::new(None),
             partitions_cache: RwLock::new(None),
             api_keys: Vec::new(),
-            ui_password: None,
+            ui_admin: None,
             session_key: Key::generate(),
             oidc_config: None,
             login_limiter: LoginRateLimiter::default(),
@@ -85,7 +85,11 @@ impl AppState {
     }
 
     pub fn with_api_keys(mut self, api_keys: Vec<String>) -> Self {
-        self.session_key = derive_session_key(None, &api_keys, self.ui_password.as_deref());
+        let fallback_secret = self
+            .ui_admin
+            .as_ref()
+            .and_then(|a| a.password_hash.as_deref().or(a.plain_password.as_deref()));
+        self.session_key = derive_session_key(None, &api_keys, fallback_secret);
         self.api_keys = api_keys;
         self
     }
@@ -93,21 +97,25 @@ impl AppState {
     pub fn with_ui_auth(
         mut self,
         session_secret: Option<String>,
-        ui_password: Option<String>,
+        ui_admin: Option<UiAdminAccount>,
         oidc_config: Option<OidcConfig>,
     ) -> Self {
-        self.ui_password = ui_password;
+        self.ui_admin = ui_admin;
+        let fallback_secret = self
+            .ui_admin
+            .as_ref()
+            .and_then(|a| a.password_hash.as_deref().or(a.plain_password.as_deref()));
         self.session_key = derive_session_key(
             session_secret.as_deref(),
             &self.api_keys,
-            self.ui_password.as_deref(),
+            fallback_secret,
         );
         self.oidc_config = oidc_config;
         self
     }
 
     pub fn auth_required(&self) -> bool {
-        !self.api_keys.is_empty() || self.ui_password.is_some() || self.oidc_config.is_some()
+        !self.api_keys.is_empty() || self.ui_admin.is_some() || self.oidc_config.is_some()
     }
 }
 

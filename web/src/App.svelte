@@ -40,8 +40,6 @@
   let authSession: AuthSessionState = {
     authenticated: false,
     auth_required: false,
-    oidc_enabled: false,
-    oidc_provider: null,
     user: null,
   };
   let isLoading: boolean = false;
@@ -264,8 +262,6 @@
 
   <ApiKeyModal
     isOpen={isApiKeyModalOpen}
-    oidcEnabled={authSession.oidc_enabled}
-    oidcProvider={authSession.oidc_provider || 'rIDM SSO'}
     on:authenticated={async (e) => {
       authSession = e.detail;
       await bootstrapTerminalData();

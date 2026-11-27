@@ -20,7 +20,10 @@ use crate::features::serving::session::{
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
-    pub credential: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default, alias = "credential")]
+    pub password: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,15 +49,11 @@ pub async fn auth_session_handler(
 ) -> impl IntoResponse {
     let jar = PrivateCookieJar::from_headers(&headers, state.session_key.clone());
     let auth_required = state.auth_required();
-    let oidc_enabled = state.oidc_config.is_some();
-    let oidc_provider = state.oidc_config.as_ref().map(|c| c.provider_name.clone());
 
     if let Some(session) = read_valid_session(&jar) {
         return Json(serde_json::json!({
             "authenticated": true,
             "auth_required": auth_required,
-            "oidc_enabled": oidc_enabled,
-            "oidc_provider": oidc_provider,
             "csrf_token": session.csrf_token,
             "expires_at": session.expires_at,
             "user": {
@@ -68,16 +67,15 @@ pub async fn auth_session_handler(
     Json(serde_json::json!({
         "authenticated": !auth_required,
         "auth_required": auth_required,
-        "oidc_enabled": oidc_enabled,
-        "oidc_provider": oidc_provider,
         "csrf_token": null,
         "expires_at": null,
         "user": null
     }))
 }
 
-/// `POST /v1/auth/login` — exchanges operator passphrase or API key once for an AEAD-encrypted
-/// `HttpOnly` cookie session (`ea_session`), preventing secret storage in `localStorage`.
+/// `POST /v1/auth/login` — authenticates the standalone UI admin account (Argon2id + username)
+/// and exchanges it for an AEAD-encrypted `HttpOnly` cookie session (`ea_session`).
+/// Strictly separate from machine-to-machine `AGGREGATOR_API_KEY` when `UiAdminAccount` is configured.
 pub async fn auth_login_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -97,40 +95,44 @@ pub async fn auth_login_handler(
             .into_response();
     }
 
-    let provided = req.credential.trim();
-    if provided.is_empty() {
+    let password = req.password.trim();
+    if password.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "success": false, "error": "Credential cannot be empty" })),
+            Json(serde_json::json!({ "success": false, "error": "Password cannot be empty" })),
         )
             .into_response();
     }
 
-    let mut authorized = !state.auth_required();
-    if let Some(ref ui_pw) = state.ui_password {
-        if constant_time_eq(ui_pw.as_bytes(), provided.as_bytes()) {
-            authorized = true;
-        }
-    }
-    if state
-        .api_keys
-        .iter()
-        .any(|k| constant_time_eq(k.as_bytes(), provided.as_bytes()))
-    {
-        authorized = true;
-    }
+    let (authorized, sub, display_name) = if let Some(ref admin) = state.ui_admin {
+        let user_input = if req.username.trim().is_empty() {
+            "admin"
+        } else {
+            req.username.trim()
+        };
+        let ok = admin.verify(user_input, password);
+        (ok, admin.username.clone(), Some(admin.username.clone()))
+    } else if !state.auth_required() {
+        (true, "operator".to_string(), Some("Operator".to_string()))
+    } else {
+        let ok = state
+            .api_keys
+            .iter()
+            .any(|k| constant_time_eq(k.as_bytes(), password.as_bytes()));
+        (ok, "operator".to_string(), Some("Operator".to_string()))
+    };
 
     if !authorized {
         state.login_limiter.record_failure(&client_ip);
         return (
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "success": false, "error": "Invalid credential" })),
+            Json(serde_json::json!({ "success": false, "error": "Invalid username or password" })),
         )
             .into_response();
     }
 
     state.login_limiter.clear(&client_ip);
-    issue_session_response(jar, &headers, "operator".to_string(), Some("Operator".to_string()), "credential")
+    issue_session_response(jar, &headers, sub, display_name, "local_admin")
 }
 
 /// `POST /v1/auth/logout` — clears the `HttpOnly` session cookie.

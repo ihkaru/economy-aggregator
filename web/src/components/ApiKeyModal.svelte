@@ -1,23 +1,22 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { getOidcLoginUrl, loginWithCredential } from '../lib/api';
+  import { loginWithAccount } from '../lib/api';
 
   export let isOpen: boolean = false;
-  export let oidcEnabled: boolean = false;
-  export let oidcProvider: string = 'rIDM SSO';
 
   const dispatch = createEventDispatcher();
-  let credential: string = '';
+  let username: string = 'admin';
+  let password: string = '';
   let errorText: string | null = null;
   let submitting: boolean = false;
 
   async function handleSubmit() {
-    if (!credential.trim() || submitting) return;
+    if (!username.trim() || !password.trim() || submitting) return;
     submitting = true;
     errorText = null;
     try {
-      const session = await loginWithCredential(credential);
-      credential = '';
+      const session = await loginWithAccount(username.trim(), password);
+      password = '';
       dispatch('authenticated', session);
       dispatch('close');
     } catch (e: any) {
@@ -29,15 +28,15 @@
 </script>
 
 {#if isOpen}
-  <div class="auth-backdrop" role="dialog" aria-modal="true" aria-label="Terminal Session Sign In">
+  <div class="auth-backdrop" role="dialog" aria-modal="true" aria-label="Terminal Admin Sign In">
     <div class="auth-panel">
       <div class="auth-header">
-        <span class="auth-title">TERMINAL SESSION AUTHENTICATION</span>
+        <span class="auth-title">TERMINAL ADMIN AUTHENTICATION</span>
         <span class="auth-badge">HTTPONLY AEAD</span>
       </div>
       <div class="auth-body">
         <p class="auth-desc">
-          Sign in to start an encrypted <code>HttpOnly</code> browser session. No secret is ever stored in <code>localStorage</code>.
+          Sign in with your standalone UI admin account. Sessions use encrypted <code>HttpOnly</code> cookies (no secrets stored in <code>localStorage</code>).
         </p>
 
         {#if errorText}
@@ -45,25 +44,36 @@
         {/if}
 
         <form class="auth-form" on:submit|preventDefault={handleSubmit}>
-          <input
-            type="password"
-            class="auth-input"
-            autocomplete="current-password"
-            placeholder="Operator passphrase or API key"
-            bind:value={credential}
-            disabled={submitting}
-          />
-          <button type="submit" class="btn-primary" disabled={submitting || !credential.trim()}>
+          <label class="field-label">
+            <span>USERNAME</span>
+            <input
+              type="text"
+              class="auth-input"
+              autocomplete="username"
+              placeholder="admin"
+              bind:value={username}
+              disabled={submitting}
+            />
+          </label>
+          <label class="field-label">
+            <span>PASSWORD</span>
+            <input
+              type="password"
+              class="auth-input"
+              autocomplete="current-password"
+              placeholder="Admin password"
+              bind:value={password}
+              disabled={submitting}
+            />
+          </label>
+          <button
+            type="submit"
+            class="btn-primary"
+            disabled={submitting || !username.trim() || !password.trim()}
+          >
             {submitting ? 'VERIFYING...' : 'SIGN IN'}
           </button>
         </form>
-
-        {#if oidcEnabled}
-          <div class="auth-divider"><span>OR ENTERPRISE SSO</span></div>
-          <a class="btn-sso" href={getOidcLoginUrl()}>
-            SIGN IN WITH {oidcProvider.toUpperCase()}
-          </a>
-        {/if}
       </div>
     </div>
   </div>
@@ -73,14 +83,14 @@
   .auth-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(8, 9, 13, 0.9);
+    background: rgba(8, 9, 13, 0.92);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
   }
   .auth-panel {
-    width: 420px;
+    width: 400px;
     max-width: 92vw;
     background: #0d1017;
     border: 1px solid #2d3446;
@@ -134,6 +144,15 @@
     flex-direction: column;
     gap: 10px;
   }
+  .field-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #93a3b8;
+  }
   .auth-input {
     width: 100%;
     box-sizing: border-box;
@@ -144,18 +163,14 @@
     padding: 9px 10px;
     font-size: 13px;
   }
-  .btn-primary, .btn-sso {
-    display: block;
-    text-align: center;
-    text-decoration: none;
+  .btn-primary {
+    margin-top: 4px;
     border-radius: 0;
-    padding: 8px 14px;
+    padding: 9px 14px;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.05em;
     cursor: pointer;
-  }
-  .btn-primary {
     background: #1f6feb;
     border: 1px solid #1f6feb;
     color: #ffffff;
@@ -163,24 +178,5 @@
   .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-  .auth-divider {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #6e7681;
-    font-size: 10px;
-    letter-spacing: 0.08em;
-  }
-  .auth-divider::before, .auth-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #1f2430;
-  }
-  .btn-sso {
-    background: #161b22;
-    border: 1px solid #2d3446;
-    color: #60a5fa;
   }
 </style>

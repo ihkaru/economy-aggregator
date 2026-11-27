@@ -18,8 +18,6 @@ const API_BASE = typeof window !== 'undefined' ? '' : (typeof process !== 'undef
 export interface AuthSessionState {
   authenticated: boolean;
   auth_required: boolean;
-  oidc_enabled: boolean;
-  oidc_provider?: string | null;
   csrf_token?: string | null;
   expires_at?: number | null;
   user?: { sub: string; name?: string | null; auth_method: string } | null;
@@ -44,12 +42,12 @@ export async function fetchAuthSession(): Promise<AuthSessionState> {
   return data;
 }
 
-export async function loginWithCredential(credential: string): Promise<AuthSessionState> {
+export async function loginWithAccount(username: string, password: string): Promise<AuthSessionState> {
   const res = await fetch(`${API_BASE}/v1/auth/login`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential }),
+    body: JSON.stringify({ username, password }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -70,10 +68,6 @@ export async function logoutSession(): Promise<void> {
     headers,
   });
   memoryCsrfToken = null;
-}
-
-export function getOidcLoginUrl(): string {
-  return `${API_BASE}/v1/auth/oidc/login`;
 }
 
 async function apiFetch(input: string, init?: RequestInit): Promise<Response> {

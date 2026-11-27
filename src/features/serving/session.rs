@@ -131,6 +131,81 @@ pub fn load_session_secret_from_env() -> Option<String> {
         .filter(|s| !s.trim().is_empty())
 }
 
+pub fn load_ui_admin_from_env() -> Option<UiAdminAccount> {
+    let username = std::env::var("AGGREGATOR_ADMIN_USER")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "admin".to_string());
+    let password_hash = std::env::var("AGGREGATOR_ADMIN_PASSWORD_HASH")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    let plain_password = std::env::var("AGGREGATOR_UI_PASSWORD")
+        .or_else(|_| std::env::var("AGGREGATOR_ADMIN_PASSWORD"))
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+
+    if password_hash.is_none() && plain_password.is_none() {
+        return None;
+    }
+    Some(UiAdminAccount {
+        username,
+        password_hash,
+        plain_password,
+    })
+}
+
+/// Generates an Argon2id PHC password hash string (`$argon2id$...`) for `AGGREGATOR_ADMIN_PASSWORD_HASH`.
+pub fn hash_password_phc(password: &str) -> Result<String, String> {
+    use argon2::{
+        password_hash::{PasswordHasher, SaltString},
+        Argon2,
+    };
+    if password.trim().is_empty() {
+        return Err("Password cannot be empty".to_string());
+    }
+    let salt = SaltString::generate(&mut rand::rngs::OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| format!("Argon2id hashing failed: {}", e))
+}
+
+#[derive(Debug, Clone)]
+pub struct UiAdminAccount {
+    pub username: String,
+    pub password_hash: Option<String>,
+    pub plain_password: Option<String>,
+}
+
+impl UiAdminAccount {
+    /// Verifies username (constant-time) and password (Argon2id PHC hash or constant-time plain fallback).
+    pub fn verify(&self, username: &str, password: &str) -> bool {
+        use argon2::{Argon2, PasswordHash, PasswordVerifier};
+
+        if !crate::features::serving::auth::constant_time_eq(
+            self.username.as_bytes(),
+            username.trim().as_bytes(),
+        ) {
+            return false;
+        }
+        if let Some(ref phc) = self.password_hash {
+            if let Ok(parsed) = PasswordHash::new(phc) {
+                return Argon2::default()
+                    .verify_password(password.as_bytes(), &parsed)
+                    .is_ok();
+            }
+            return false;
+        }
+        if let Some(ref plain) = self.plain_password {
+            return crate::features::serving::auth::constant_time_eq(
+                plain.as_bytes(),
+                password.as_bytes(),
+            );
+        }
+        false
+    }
+}
+
 pub fn load_ui_password_from_env() -> Option<String> {
     std::env::var("AGGREGATOR_UI_PASSWORD")
         .ok()
