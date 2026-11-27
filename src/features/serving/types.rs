@@ -15,6 +15,7 @@ pub struct CandleQuery {
     pub asset_class: String,
     pub symbol: String,
     pub timeframe: String,
+    pub source: Option<String>,
     pub year: Option<i32>,
     pub month: Option<u32>,
     pub limit: Option<usize>,

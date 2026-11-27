@@ -1,12 +1,15 @@
 pub mod cli;
 pub mod cli_catch_up;
 pub mod cli_config;
+pub mod cli_observations;
 pub mod cli_remote;
 pub mod cli_search;
 pub mod cli_subscription;
 pub mod config;
 pub mod macro_types;
+pub mod observation_types;
 pub mod prediction_types;
+pub mod series_catalog;
 pub mod subscription;
 pub mod types;
 
@@ -15,6 +18,8 @@ pub use cli_config::{ClientConfig, GlobalCliOptions, ResolvedClientConfig};
 pub use cli_remote::{RemoteCliError, RemoteClient};
 pub use config::LakehouseConfig;
 pub use macro_types::*;
+pub use observation_types::*;
 pub use prediction_types::*;
+pub use series_catalog::{SeriesCatalog, SeriesMetadata};
 pub use subscription::{SubscriptionItem, SubscriptionManager};
 pub use types::*;

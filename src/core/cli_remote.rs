@@ -183,6 +183,7 @@ pub async fn dispatch_remote(
         "unsubscribe" => Some(handle_remote_unsubscribe(args, client).await),
         "catch-up" | "sync" => Some(handle_remote_catch_up(args, client).await),
         "compact" => Some(handle_remote_compact(args, client).await),
+        "observations" => Some(crate::core::cli_observations::handle_observations_remote(args, client).await),
         "audit" => Some(handle_remote_simple_get("/v1/integrity/audit", client).await),
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
         _ => None,

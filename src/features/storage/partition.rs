@@ -143,4 +143,21 @@ impl PartitionResolver {
             .join(format!("year={:04}", year))
             .join(format!("month={:02}", month))
     }
+
+    /// Resolves yearly Hive partition for heterogeneous observations (anti-small-file best practice):
+    /// base/observations/domain=<domain>/series_id=<clean_series_id>/year=<YYYY>
+    pub fn resolve_observation_partition(
+        &self,
+        domain: &str,
+        series_id: &str,
+        year: i32,
+    ) -> PathBuf {
+        let clean_domain = crate::core::observation_types::sanitize_partition_component(domain).to_lowercase();
+        let clean_series = crate::core::observation_types::sanitize_partition_component(series_id);
+        self.base_lake_dir
+            .join("observations")
+            .join(format!("domain={}", clean_domain))
+            .join(format!("series_id={}", clean_series))
+            .join(format!("year={:04}", year))
+    }
 }

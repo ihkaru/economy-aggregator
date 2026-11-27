@@ -44,6 +44,21 @@ impl CatchUpEngine {
     ) -> Vec<CatchUpSummary> {
         let mut summaries = Vec::new();
 
+        if sub.asset_class == "observations" {
+            let report = crate::features::ingestion::liquidity_sync::sync_observations(&self.config, &sub.source).await;
+            summaries.push(CatchUpSummary {
+                source: sub.source.clone(),
+                symbol: sub.symbol.clone(),
+                asset_class: "observations".to_string(),
+                timeframe: "1d".to_string(),
+                gap_days: 0,
+                candles_ingested: report.total_rows_written,
+                status: "caught_up".to_string(),
+                error: None,
+            });
+            return summaries;
+        }
+
         if sub.asset_class == "macro" {
             let summary = self.catch_up_macro(sub).await;
             summaries.push(summary);

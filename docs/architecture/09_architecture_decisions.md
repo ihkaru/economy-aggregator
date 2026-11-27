@@ -307,3 +307,19 @@
   Zero secret exposure ke JavaScript (`localStorage` bebas rahasia 100%), zero database eksternal, sesi bertahan melewati restart container, serta terlindung dari XSS, CSRF, dan brute-force sekaligus.
 * **Risiko yang Muncul:**  
   Operasional di lingkungan di balik reverse proxy wajib meneruskan header `X-Forwarded-Proto: https` (sudah dipenuhi oleh Traefik Coolify & Cloudflare).
+
+---
+
+### ADR-19: Persistensi Kanonis Bitemporal (`MetricObservation` Narrow-Long) & Konektor Likuiditas Zero-API-Key
+* **Status:** Diterima
+* **Konteks:**  
+  Untuk menyuplai model ekonometrika sistem tertutup 6 kompartemen likuiditas + 2 kontrol makro (*Dash for Cash* / TVP-VAR / QVAR) tanpa biaya langganan API key komersial, `economy-aggregator` perlu menampung metrik heterogen berfrekuensi campuran (AUM ETF, tonase emas, CFTC COT, ON RRP, MMF, TGA, kredit perbankan, netflow *on-chain*, open interest derivatif, hingga FINRA margin debt) sambil melestarikan asal-usul sumber (*provenance*) setiap nilai dan menghindari *look-ahead bias* akibat revisi historis.
+* **Keputusan:**  
+  1. Menerapkan tabel Parquet kanonis **Narrow-Long bitemporal** (`observations` di `src/core/observation_types.rs` & `src/features/storage/observation_schema.rs`), memisahkan `observation_ts_utc` (valid time), `known_at_utc` (assertion time), dan `revision_seq`, dipartisi tahunan (`observations/domain=<d>/series_id=<id>/year=<YYYY>`), terkompresi `ZSTD(3)` dengan *Dictionary Encoding*.
+  2. Menegakkan invarian **Zero Anonymous Data**: `ObservationWriter` menolak setiap baris tanpa `source`, `source_series_id`, `source_url`, atau `batch_id`, serta menyertakan `source_checksum` (SHA-256) pada seluruh unduhan XLSX/CSV/JSON/HTML.
+  3. Membangun konektor **100% zero-API-key** berpola *primary + fallback* lintas modul `liquidity/`, `flows/`, dan `crypto_flows/` (US Treasury FiscalData/CSV, NY Fed API, OFR MMF, DBnomics `FED/H41` + parser Kamis `fed_h41_html`, SSGA `calamine` XLSX, CFTC COT Socrata, StockAnalysis JSON, OCC CSV, FINRA XLSX, DefiLlama, BGeometrics, CoinMetrics Community, GitHub `ErcinDedeoglu/crypto-market-data`, Binance/Bybit/OKX/Deribit OI).
+  4. Menyediakan *on-demand wide pivot* saat kueri lewat `/v1/observations/matrix` (`resample=1w|1d`, `format=json|csv`, `as_of_known_at`) dan kalkulasi Stage-1 (`F_{i,t}` & *Fed Net Liquidity*) di `/v1/analytics/liquidity-panel`.
+* **Konsekuensi Positif:**  
+  Penambahan indikator kuantitatif atau makro baru tidak lagi memerlukan migrasi skema Parquet, setiap angka panel riset dapat diaudit balik hingga URL & checksum hulu, dan backtest terlindung dari *look-ahead bias*.
+* **Risiko yang Muncul:**  
+  Beberapa sumber *unofficial* (`bitcoin-data.com`, `stockanalysis.com`, mirror GitHub `ErcinDedeoglu`) tidak memiliki SLA komersial dan proksi gratis memiliki keterbatasan alami (bulanan di FINRA/MMF, 24 bulan di OCC, absennya arus *mutual fund* ICI ritel), yang terdokumentasi di `docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md` dan `SeriesCatalog::limitation_note`.

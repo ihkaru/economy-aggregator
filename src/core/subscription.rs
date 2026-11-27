@@ -69,7 +69,21 @@ impl SubscriptionManager {
         }
 
         let content = fs::read_to_string(&self.file_path)?;
-        let parsed: SubscriptionsConfig = serde_json::from_str(&content)?;
+        let mut parsed: SubscriptionsConfig = serde_json::from_str(&content)?;
+        let defaults = self.generate_core_defaults();
+        let mut changed = false;
+        for def in defaults {
+            let exists = parsed.subscriptions.iter().any(|s| {
+                s.source.eq_ignore_ascii_case(&def.source) && s.symbol.eq_ignore_ascii_case(&def.symbol)
+            });
+            if !exists {
+                parsed.subscriptions.push(def);
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = self.save(&parsed.subscriptions);
+        }
         
         if let Ok(mut guard) = self.cache.write() {
             *guard = Some(parsed.subscriptions.clone());
@@ -200,6 +214,18 @@ impl SubscriptionManager {
             // 5. Polymarket & Kalshi — Prediction Market Contracts & Implied Probabilities (Non-Candle)
             make("polymarket", "TOP_ACTIVE", "prediction_markets", &["1h"], Some(600)),
             make("kalshi", "TOP_ACTIVE", "prediction_markets", &["1h"], Some(600)),
+            // 6. Yahoo Finance Liquidity Proxies & Benchmark Indices (^MOVE Bond Vol, DXY, ETFs)
+            make("yahoo", "DX-Y.NYB", "forex", &["1d"], Some(300)),
+            make("yahoo", "^MOVE", "equities", &["1d"], Some(300)),
+            make("yahoo", "SPY", "equities", &["1d"], Some(300)),
+            make("yahoo", "QQQ", "equities", &["1d"], Some(300)),
+            make("yahoo", "GLD", "commodities", &["1d"], Some(300)),
+            make("yahoo", "IAU", "commodities", &["1d"], Some(300)),
+            make("yahoo", "IBIT", "equities", &["1d"], Some(300)),
+            // 7. Closed-System Liquidity & Flow Observations (Zero-Key Macro, TradFi, Crypto)
+            make("liquidity_macro", "US_MACRO_LIQUIDITY", "observations", &["1d"], Some(3600)),
+            make("tradfi_flows", "TRADFI_FLOWS_COT", "observations", &["1d"], Some(3600)),
+            make("crypto_flows", "CRYPTO_FLOWS_OI", "observations", &["1d"], Some(3600)),
         ]
     }
 }

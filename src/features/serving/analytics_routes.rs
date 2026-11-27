@@ -45,7 +45,7 @@ pub struct IntegrityAuditResult {
 
 pub async fn query_divergence_handler(
     State(state): State<Arc<AppState>>,
-) -> Json<Vec<MacroPredictionDivergence>> {
+) -> Result<Json<Vec<MacroPredictionDivergence>>, (axum::http::StatusCode, String)> {
     let cached_events = {
         let guard = state.macro_cache.read().ok();
         guard.and_then(|g| g.get("US:high").cloned().map(|(_, evs)| evs))
@@ -55,13 +55,27 @@ pub async fn query_divergence_handler(
         events
     } else {
         let fetcher = EconomicCalendarFetcher::default();
-        fetcher.fetch_rich_events(Some("US"), Some("high")).await.unwrap_or_default()
+        fetcher.fetch_rich_events(Some("US"), Some("high")).await.map_err(|e| {
+            (
+                axum::http::StatusCode::BAD_GATEWAY,
+                format!("Fail-fast: live US macro calendar unavailable ({})", e),
+            )
+        })?
     };
 
-    let kalshi_contracts = KalshiFetcher::default().fetch_markets(50).await
-        .unwrap_or_else(|_| KalshiFetcher::canonical_seeds());
-    let poly_contracts = PolymarketFetcher::default().fetch_contracts(50).await
-        .unwrap_or_else(|_| PolymarketFetcher::canonical_seeds());
+    // Fail-fast: never silently inject static canonical_seeds() when live prediction APIs fail.
+    let kalshi_contracts = KalshiFetcher::default().fetch_markets(50).await.map_err(|e| {
+        (
+            axum::http::StatusCode::BAD_GATEWAY,
+            format!("Fail-fast: live Kalshi API unavailable ({})", e),
+        )
+    })?;
+    let poly_contracts = PolymarketFetcher::default().fetch_contracts(50).await.map_err(|e| {
+        (
+            axum::http::StatusCode::BAD_GATEWAY,
+            format!("Fail-fast: live Polymarket API unavailable ({})", e),
+        )
+    })?;
 
     let mut all_contracts = kalshi_contracts;
     all_contracts.extend(poly_contracts);
@@ -72,7 +86,7 @@ pub async fn query_divergence_handler(
         divergences.push(div);
     }
 
-    Json(divergences)
+    Ok(Json(divergences))
 }
 
 #[derive(Debug, Deserialize)]

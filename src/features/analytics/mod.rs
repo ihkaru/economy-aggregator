@@ -8,6 +8,7 @@ pub mod config;
 pub mod corporate_actions;
 pub mod futures_roll;
 pub mod fx_normalizer;
+pub mod liquidity_flows;
 pub mod macro_prediction_bridge;
 pub mod outlier;
 pub mod portfolio;
@@ -22,6 +23,10 @@ pub use config::{AssetSpec, PortfolioSpec};
 pub use corporate_actions::{AdjustedBar, AdjustedPricePoint, CorporateActionAdjuster, DividendEvent, RawBar, SplitEvent};
 pub use futures_roll::{ForexSessionNormalizer, FuturesRollEngine, FuturesRollEvent, RollMethod};
 pub use fx_normalizer::FxNormalizer;
+pub use liquidity_flows::{
+    compute_fed_net_liquidity, compute_implied_net_flows, net_flows_to_observations,
+    FedNetLiquidityPoint, ImpliedNetFlowPoint,
+};
 pub use macro_prediction_bridge::{MacroPredictionBridge, MacroPredictionDivergence};
 pub use outlier::HampelFilter;
 pub use portfolio::{PortfolioEngine, PortfolioMetrics, SingleAssetMetrics};

@@ -35,6 +35,10 @@ tradingview-streamer = { git = "https://github.com/ihkaru/tradingview-streamer-r
 parquet = { version = "52.0", features = ["arrow", "zstd"] }
 arrow = { version = "52.0", features = ["chrono-tz"] }
 
+# Document & Tabular Ingestion (Permissive MIT / Unlicense)
+calamine = { version = "0.38", features = ["dates"] }
+csv = "1.4"
+
 # Logging & Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -27,6 +27,11 @@ use crate::features::serving::auth_routes::{
 };
 use crate::features::serving::catalog_routes::*;
 use crate::features::serving::macro_routes::query_macro_calendar_handler;
+use crate::features::serving::observation_routes::{
+    query_liquidity_panel_handler, query_observations_catalog_handler,
+    query_observations_handler, query_observations_matrix_handler,
+    trigger_observations_sync_handler,
+};
 use crate::features::serving::prediction_routes::{
     query_prediction_candles_handler, query_prediction_contracts_handler,
 };
@@ -136,9 +141,14 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/storage/partitions", get(storage_partitions_handler))
         .route("/v1/storage/compact", post(trigger_compact_handler))
         .route("/v1/macro/calendar", get(query_macro_calendar_handler))
+        .route("/v1/observations", get(query_observations_handler))
+        .route("/v1/observations/catalog", get(query_observations_catalog_handler))
+        .route("/v1/observations/matrix", get(query_observations_matrix_handler))
+        .route("/v1/observations/sync", post(trigger_observations_sync_handler))
         .route("/v1/prediction-markets/events", get(query_prediction_contracts_handler))
         .route("/v1/prediction-markets/markets/:id/candles", get(query_prediction_candles_handler))
         .route("/v1/analytics/divergence", get(query_divergence_handler))
+        .route("/v1/analytics/liquidity-panel", get(query_liquidity_panel_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
         .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
         .route("/v1/subscriptions/:symbol", delete(delete_subscription_handler))
@@ -222,8 +232,9 @@ pub async fn query_candles_handler(
         },
     };
 
+    let src_tag = query.source.as_deref().unwrap_or("all");
     let clean_symbol = query.symbol.to_uppercase().replace('/', "_").replace(':', "_");
-    let cache_key = format!("{}:{}:{}", asset_class.as_str(), clean_symbol, timeframe.as_str());
+    let cache_key = format!("{}:{}:{}:{}", asset_class.as_str(), clean_symbol, timeframe.as_str(), src_tag);
 
     // Strict Memory Guardrail: limit cap <= 5000 (prevents OOM on runaway allocations)
     let capped_limit = Some(query.limit.unwrap_or(300).min(5000));
@@ -285,6 +296,28 @@ pub async fn query_candles_handler(
             query.to,
         ) {
             candles = CandleResampler::resample(&daily_candles, timeframe);
+        }
+    }
+
+    if let Some(ref src_filter) = query.source {
+        let target_src = src_filter.trim();
+        if !target_src.is_empty() {
+            candles.retain(|c| c.source.eq_ignore_ascii_case(target_src));
+        }
+    } else {
+        let mut distinct_sources: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for c in &candles {
+            distinct_sources.insert(c.source.as_str());
+        }
+        if distinct_sources.len() > 1 {
+            let list: Vec<&str> = distinct_sources.into_iter().collect();
+            return Err((
+                StatusCode::CONFLICT,
+                format!(
+                    "Source-mixing guardrail: symbol '{}' spans multiple sources {:?}. Pass ?source=<vendor> to prevent mixing.",
+                    query.symbol, list
+                ),
+            ));
         }
     }
 

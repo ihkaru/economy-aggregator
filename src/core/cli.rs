@@ -71,6 +71,7 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "backfill-all-weather" => handle_backfill_all_weather(&rem[1..]).await,
         "compact" => handle_compact(&rem[1..]).await,
         "calendar" => handle_calendar(&rem[1..]).await,
+        "observations" => crate::core::cli_observations::handle_observations(&rem[1..]).await,
         "analyze" => crate::features::analytics::handle_analyze(&rem[1..]).await,
         "reconcile" => crate::features::analytics::handle_reconcile(&rem[1..]).await,
         "status" => handle_status().await,
@@ -216,13 +217,9 @@ async fn handle_backfill_all_weather(args: &[String]) -> Result<(), Box<dyn std:
 
     let mut results = Vec::new();
     for (raw, canonical, asset_class, src) in targets {
-        let res = if src == "binance" && range != "max" {
-            match binance.fetch_klines(raw, canonical, "1d", None, None, Some(1000)).await {
-                Ok(c) => Ok(c),
-                Err(_) => yahoo.fetch_daily_bars("BTC-USD", canonical, &range).await,
-            }
-        } else if src == "binance" {
-            yahoo.fetch_daily_bars("BTC-USD", canonical, &range).await
+        // Strict Fail-Fast & Zero Cross-Source Mixing: never fall back from Binance to Yahoo BTC-USD.
+        let res = if src == "binance" {
+            binance.fetch_klines(raw, canonical, "1d", None, None, Some(1000)).await
         } else {
             yahoo.fetch_daily_bars(raw, canonical, &range).await
         };

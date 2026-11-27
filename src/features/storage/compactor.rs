@@ -155,7 +155,8 @@ impl LakeCompactor {
         })
     }
 
-    /// Recursively scans and compacts all partitions under a root lake directory.
+    /// Recursively scans and compacts candle partitions under a root lake directory
+    /// (plus observation partitions when present).
     pub fn compact_all(
         &self,
         root_dir: &Path,
@@ -163,14 +164,26 @@ impl LakeCompactor {
     ) -> Result<Vec<CompactionResult>, Box<dyn std::error::Error + Send + Sync>> {
         let mut results = Vec::new();
         let mut dirs = Vec::new();
-        Self::collect_partition_dirs(root_dir, &mut dirs);
+        let market_root = root_dir.join("market");
+        if market_root.exists() {
+            Self::collect_partition_dirs(&market_root, &mut dirs);
+        } else {
+            Self::collect_partition_dirs(root_dir, &mut dirs);
+        }
 
         for dir in dirs {
+            if dir.components().any(|c| c.as_os_str() == "observations" || c.as_os_str() == "macro" || c.as_os_str() == "prediction_markets") {
+                continue;
+            }
             let res = self.compact_partition(&dir, min_files)?;
             if res.files_compacted > 0 {
                 results.push(res);
             }
         }
+        let obs_writer = crate::features::storage::observation_writer::ObservationWriter::new(
+            crate::features::storage::partition::PartitionResolver::new(root_dir.to_path_buf()),
+        );
+        let _ = obs_writer.compact_all(min_files)?;
         Ok(results)
     }
 

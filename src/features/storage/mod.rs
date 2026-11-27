@@ -3,6 +3,9 @@ pub mod buffer;
 pub mod compactor;
 pub mod macro_arrow_schema;
 pub mod macro_reader;
+pub mod observation_reader;
+pub mod observation_schema;
+pub mod observation_writer;
 pub mod partition;
 pub mod prediction_arrow_schema;
 pub mod prediction_reader;
@@ -16,6 +19,11 @@ pub use buffer::MicroBatchBuffer;
 pub use compactor::{CompactionResult, LakeCompactor};
 pub use macro_arrow_schema::{macro_event_arrow_schema, macro_events_to_record_batch, record_batch_to_macro_events};
 pub use macro_reader::LakeMacroReader;
+pub use observation_reader::{ObservationFilter, ObservationReader, SeriesCoverageSummary};
+pub use observation_schema::{
+    observation_arrow_schema, observations_to_record_batch, record_batch_to_observations,
+};
+pub use observation_writer::ObservationWriter;
 pub use partition::PartitionResolver;
 pub use prediction_arrow_schema::{
     prediction_candle_arrow_schema, prediction_candles_to_record_batch,

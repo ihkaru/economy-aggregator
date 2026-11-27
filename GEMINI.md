@@ -95,8 +95,8 @@ src/
 
 ---
 
-## 3. Implementation Roadmap (297 Granular Phases across 12 Milestones)
-Pengembangan jangka panjang diorganisasi ke dalam 12 Milestone yang mencakup 297 fase atomik terukur:
+## 3. Implementation Roadmap (325 Granular Phases across 14 Milestones)
+Pengembangan jangka panjang diorganisasi ke dalam 14 Milestone yang mencakup 325 fase atomik terukur:
 - Master Index: [`docs/roadmap/ROADMAP.md`](docs/roadmap/ROADMAP.md)
   - **M1 (Phase 001 - 025):** Core Lakehouse & Storage Engine ([docs/roadmap/milestone_1_core_storage.md](docs/roadmap/milestone_1_core_storage.md))
   - **M2 (Phase 026 - 055):** Cryptocurrency High-Frequency Engine ([docs/roadmap/milestone_2_crypto.md](docs/roadmap/milestone_2_crypto.md))
@@ -110,6 +110,8 @@ Pengembangan jangka panjang diorganisasi ke dalam 12 Milestone yang mencakup 297
   - **M10 (Phase 261 - 285):** Native Silver Pipeline, Pure Rust HRP & Lake Catalog ([docs/roadmap/milestone_10_silver_analytics_and_hrp.md](docs/roadmap/milestone_10_silver_analytics_and_hrp.md))
   - **M11 (Phase 286 - 291):** Autonomous Ingest, Multi-Source Search & Gap Catch-Up ([docs/roadmap/milestone_11_autonomous_ingest_and_discovery.md](docs/roadmap/milestone_11_autonomous_ingest_and_discovery.md))
   - **M12 (Phase 292 - 297):** External Access, Search & High-Precision Filter Parity ([docs/roadmap/milestone_12_external_access_search_and_filter.md](docs/roadmap/milestone_12_external_access_search_and_filter.md))
+  - **M13 (Phase 298 - 305):** Production Hardening, Auto-Compaction, Security & Standalone Web Auth ([docs/roadmap/milestone_13_production_hardening_compaction_and_security.md](docs/roadmap/milestone_13_production_hardening_compaction_and_security.md))
+  - **M14 (Phase 306 - 325):** Closed-System Liquidity Observability, Bitemporal Observations & Zero-Key Connectors ([docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md](docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md))
 
 ---
 

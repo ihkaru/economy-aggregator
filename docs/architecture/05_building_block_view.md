@@ -94,10 +94,10 @@ src/
 │   ├── cli_config.rs         # 3-tier remote config (flag > env > config.json) & secret masking
 │   └── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & JSON envelope handlers
 ├── features/                 # Vertical Slice Architecture
-│   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Economic Calendar
-│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, LakeMacroReader, LakePredictionReader
-│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, PortfolioSpec, Portfolio Engine
-│   └── serving/              # Axum REST endpoints, API key auth middleware (auth.rs), TTL cache, HTTP compression
+│   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo Ingestion, Liquidity/Flows/Crypto Connectors
+│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, Macro/Prediction & ObservationReaders
+│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Liquidity Flows
+│   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, TTL cache, compression
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/
 │   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons
