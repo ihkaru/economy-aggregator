@@ -1,8 +1,8 @@
 # 8. Cross-Cutting Concepts
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `8e7bd28`
-> - **Verified Timestamp**: `2026-11-27T18:54:24+07:00`
+> - **Verified Commit**: `fe9844d`
+> - **Verified Timestamp**: `2026-11-27T19:45:46+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
