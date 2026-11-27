@@ -248,3 +248,20 @@ async fn test_login_rate_limiter_blocks_bruteforce() {
     assert_eq!(blocked.status(), StatusCode::TOO_MANY_REQUESTS);
     assert!(blocked.headers().contains_key(header::RETRY_AFTER));
 }
+
+#[test]
+fn test_decode_base64_argon2id_hash_for_coolify_dotenv_safety() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use economy_aggregator::features::serving::session::{decode_password_hash_value, hash_password_phc};
+
+    let raw = hash_password_phc("TestPass-2026!").unwrap();
+    assert_eq!(decode_password_hash_value(&raw).as_deref(), Some(raw.as_str()));
+
+    let b64 = STANDARD.encode(raw.as_bytes());
+    assert_eq!(decode_password_hash_value(&b64).as_deref(), Some(raw.as_str()));
+    assert_eq!(
+        decode_password_hash_value(&format!("b64:{}", b64)).as_deref(),
+        Some(raw.as_str())
+    );
+}

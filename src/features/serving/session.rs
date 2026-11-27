@@ -131,14 +131,37 @@ pub fn load_session_secret_from_env() -> Option<String> {
         .filter(|s| !s.trim().is_empty())
 }
 
+pub fn decode_password_hash_value(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with("$argon2") {
+        return Some(trimmed.to_string());
+    }
+    let b64_part = trimmed.strip_prefix("b64:").unwrap_or(trimmed);
+    use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
+    for engine in [&STANDARD, &URL_SAFE, &URL_SAFE_NO_PAD] {
+        if let Ok(bytes) = engine.decode(b64_part) {
+            if let Ok(decoded) = String::from_utf8(bytes) {
+                if decoded.starts_with("$argon2") {
+                    return Some(decoded);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn load_ui_admin_from_env() -> Option<UiAdminAccount> {
     let username = std::env::var("AGGREGATOR_ADMIN_USER")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "admin".to_string());
-    let password_hash = std::env::var("AGGREGATOR_ADMIN_PASSWORD_HASH")
+    let password_hash = std::env::var("AGGREGATOR_ADMIN_PASSWORD_HASH_B64")
+        .or_else(|_| std::env::var("AGGREGATOR_ADMIN_PASSWORD_HASH"))
         .ok()
-        .filter(|s| !s.trim().is_empty());
+        .and_then(|v| decode_password_hash_value(&v));
     let plain_password = std::env::var("AGGREGATOR_UI_PASSWORD")
         .or_else(|_| std::env::var("AGGREGATOR_ADMIN_PASSWORD"))
         .ok()
