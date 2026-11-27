@@ -34,13 +34,22 @@ impl FinraMarginFetcher {
         &self,
         batch_id: &str,
     ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
-        let index_url = format!("{}/rules-guidance/key-topics/margin-accounts/margin-statistics", self.base_url);
-        let (page_bytes, _) = fetch_bytes_with_checksum(&self.client, &index_url).await?;
-        let html = String::from_utf8_lossy(&page_bytes);
-        let xlsx_url = extract_finra_xlsx_url(&self.base_url, &html)
-            .ok_or_else(|| format!("Fail-fast: FINRA page {} did not expose an .xlsx link (schema/layout changed)", index_url))?;
-
-        let (bytes, checksum) = fetch_bytes_with_checksum(&self.client, &xlsx_url).await?;
+        // Direct official static XLSX endpoint (avoids Cloudflare HTML challenge on guidance page).
+        let direct_url = std::env::var("FINRA_MARGIN_XLSX_URL").unwrap_or_else(|_| {
+            format!("{}/sites/default/files/2021-03/margin-statistics.xlsx", self.base_url)
+        });
+        let (bytes, checksum, xlsx_url) = match fetch_bytes_with_checksum(&self.client, &direct_url).await {
+            Ok((b, cs)) if b.starts_with(b"PK") => (b, cs, direct_url),
+            _ => {
+                let index_url = format!("{}/rules-guidance/key-topics/margin-accounts/margin-statistics", self.base_url);
+                let (page_bytes, _) = fetch_bytes_with_checksum(&self.client, &index_url).await?;
+                let html = String::from_utf8_lossy(&page_bytes);
+                let discovered = extract_finra_xlsx_url(&self.base_url, &html)
+                    .ok_or_else(|| format!("Fail-fast: FINRA page {} did not expose an .xlsx link (schema/layout changed)", index_url))?;
+                let (b, cs) = fetch_bytes_with_checksum(&self.client, &discovered).await?;
+                (b, cs, discovered)
+            }
+        };
         let mut wb: Xlsx<Cursor<Vec<u8>>> = Xlsx::new(Cursor::new(bytes))?;
         let sheet = wb
             .sheet_names()

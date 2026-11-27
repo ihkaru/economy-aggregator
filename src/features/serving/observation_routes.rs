@@ -275,21 +275,50 @@ pub async fn query_liquidity_panel_handler(
             resolve_latest_revision: true,
             ..Default::default()
         });
-        let fed_assets = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["macro:US:FED_TOTAL_ASSETS_USD".to_string()],
+        let fred_walcl = obs_reader.read_observations(&ObservationFilter {
+            series_ids: vec!["macro:US:FRED_WALCL_USD".to_string()],
+            source: Some("fred_api".to_string()),
             resolve_latest_revision: true,
             ..Default::default()
         });
+        let (fed_assets, fed_series_used) = if !fred_walcl.is_empty() {
+            (fred_walcl, "macro:US:FRED_WALCL_USD (fred_api)")
+        } else {
+            (
+                obs_reader.read_observations(&ObservationFilter {
+                    series_ids: vec!["macro:US:FED_TOTAL_ASSETS_USD".to_string()],
+                    source: Some("fed_h41_html".to_string()),
+                    resolve_latest_revision: true,
+                    ..Default::default()
+                }),
+                "macro:US:FED_TOTAL_ASSETS_USD (fed_h41_html)",
+            )
+        };
         let tga = obs_reader.read_observations(&ObservationFilter {
             series_ids: vec!["macro:US:TGA_BALANCE_USD".to_string()],
+            source: Some("treasury_fiscaldata".to_string()),
             resolve_latest_revision: true,
             ..Default::default()
         });
-        let rrp = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["macro:US:ON_RRP_USD".to_string()],
+        let fred_rrp = obs_reader.read_observations(&ObservationFilter {
+            series_ids: vec!["macro:US:FRED_RRPONTSYD_USD".to_string()],
+            source: Some("fred_api".to_string()),
             resolve_latest_revision: true,
             ..Default::default()
         });
+        let (rrp, rrp_series_used) = if !fred_rrp.is_empty() {
+            (fred_rrp, "macro:US:FRED_RRPONTSYD_USD (fred_api)")
+        } else {
+            (
+                obs_reader.read_observations(&ObservationFilter {
+                    series_ids: vec!["macro:US:ON_RRP_USD".to_string()],
+                    source: Some("nyfed_api".to_string()),
+                    resolve_latest_revision: true,
+                    ..Default::default()
+                }),
+                "macro:US:ON_RRP_USD (nyfed_api)",
+            )
+        };
 
         let spy_px = crate::features::storage::LakeReader::read_candles(
             &lake_dir,
@@ -324,6 +353,9 @@ pub async fn query_liquidity_panel_handler(
             },
             "fed_net_liquidity": {
                 "count": net_liq.len(),
+                "fed_assets_series_used": fed_series_used,
+                "tga_series_used": "macro:US:TGA_BALANCE_USD (treasury_fiscaldata)",
+                "on_rrp_series_used": rrp_series_used,
                 "latest": net_liq.iter().rev().take(30).cloned().collect::<Vec<_>>(),
             }
         })

@@ -13,6 +13,14 @@ use crate::features::ingestion::liquidity_common::{
 #[derive(Debug, Deserialize)]
 struct FiscalDataResp {
     data: Vec<FiscalDataRow>,
+    #[serde(default)]
+    meta: Option<FiscalDataMeta>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FiscalDataMeta {
+    #[serde(rename = "total-pages", default)]
+    total_pages: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,51 +63,66 @@ impl TreasuryFetcher {
         page_size: usize,
         batch_id: &str,
     ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
-        let url = format!(
-            "{}/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance?sort=-record_date&page[size]={}",
-            self.fiscal_base, page_size
-        );
-        let (bytes, checksum) = fetch_bytes_with_checksum(&self.client, &url).await?;
-        let parsed: FiscalDataResp = serde_json::from_slice(&bytes)?;
+        let clamped_size = page_size.clamp(1, 10_000);
         let now = Utc::now();
         let mut out = Vec::new();
+        let mut page = 1usize;
 
-        for row in parsed.data {
-            let acct = row.account_type.as_deref().unwrap_or("");
-            if !acct.contains("Treasury General Account") && !acct.contains("Closing Balance") {
-                continue;
+        loop {
+            let url = format!(
+                "{}/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance?filter=record_date:gte:2016-01-01&sort=-record_date&page[number]={}&page[size]={}",
+                self.fiscal_base, page, clamped_size
+            );
+            let (bytes, checksum) = fetch_bytes_with_checksum(&self.client, &url).await?;
+            let parsed: FiscalDataResp = serde_json::from_slice(&bytes)?;
+            let total_pages = parsed.meta.as_ref().and_then(|m| m.total_pages).unwrap_or(1);
+            if parsed.data.is_empty() {
+                break;
             }
-            let raw_num = row
-                .close_today_bal
-                .as_deref()
-                .filter(|s| *s != "null" && !s.trim().is_empty())
-                .or(row.open_today_bal.as_deref())
-                .and_then(|s| s.parse::<f64>().ok());
-            let (Some(obs_ts), Some(raw_m)) = (parse_date_eod_utc(&row.record_date), raw_num) else {
-                continue;
-            };
-            // Fiscal Data reports balances in $ Millions -> scale to full USD.
-            out.push(make_obs(ObsParams {
-                obs_ts,
-                known_at: now,
-                revision_seq: 0,
-                series_id: "macro:US:TGA_BALANCE_USD",
-                domain: "macro_liquidity",
-                compartment: Some("macro_control"),
-                entity_id: "US",
-                metric_name: "tga_balance_usd",
-                frequency: ObservationFrequency::Daily,
-                value: raw_m * 1_000_000.0,
-                raw_value: Some(raw_m),
-                unit: "usd",
-                source: "treasury_fiscaldata",
-                source_series_id: "dts/operating_cash_balance/TGA",
-                source_url: &url,
-                source_tier: SourceTier::OfficialApi,
-                source_checksum: Some(&checksum),
-                batch_id,
-                extra_json: row.account_type.map(|a| serde_json::json!({"account_type": a}).to_string()),
-            }));
+            for row in parsed.data {
+                let acct = row.account_type.as_deref().unwrap_or("");
+                if !acct.contains("Treasury General Account") && !acct.contains("Closing Balance") {
+                    continue;
+                }
+                let raw_num = row
+                    .close_today_bal
+                    .as_deref()
+                    .filter(|s| *s != "null" && !s.trim().is_empty())
+                    .or(row.open_today_bal.as_deref())
+                    .and_then(|s| s.parse::<f64>().ok());
+                let (Some(obs_ts), Some(raw_m)) = (parse_date_eod_utc(&row.record_date), raw_num) else {
+                    continue;
+                };
+                // Fiscal Data reports balances in $ Millions -> scale to full USD.
+                out.push(make_obs(ObsParams {
+                    obs_ts,
+                    known_at: now,
+                    revision_seq: 0,
+                    series_id: "macro:US:TGA_BALANCE_USD",
+                    domain: "macro_liquidity",
+                    compartment: Some("macro_control"),
+                    entity_id: "US",
+                    metric_name: "tga_balance_usd",
+                    frequency: ObservationFrequency::Daily,
+                    value: raw_m * 1_000_000.0,
+                    raw_value: Some(raw_m),
+                    unit: "usd",
+                    source: "treasury_fiscaldata",
+                    source_series_id: "dts/operating_cash_balance/TGA",
+                    source_url: &url,
+                    source_tier: SourceTier::OfficialApi,
+                    source_checksum: Some(&checksum),
+                    batch_id,
+                    extra_json: row.account_type.map(|a| serde_json::json!({"account_type": a}).to_string()),
+                }));
+            }
+            if page >= total_pages || page >= 20 {
+                break;
+            }
+            page += 1;
+        }
+        if out.is_empty() {
+            return Err("Fail-fast: FiscalData returned 0 TGA rows".into());
         }
         Ok(out)
     }

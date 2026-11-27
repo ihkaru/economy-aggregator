@@ -85,6 +85,9 @@ impl BGeometricsFetcher {
                 extra_json: None,
             }));
         }
+        if out.is_empty() {
+            return Err("Fail-fast: BGeometrics /v1/etf-flow-btc returned 0 valid rows".into());
+        }
         Ok(out)
     }
 

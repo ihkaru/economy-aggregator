@@ -253,3 +253,77 @@ async fn test_rest_observations_catalog_matrix_and_panel_routes() {
         .unwrap();
     assert_eq!(pinned_res.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn test_m15_occ_quoted_csv_treasury_pagination_and_fred_no_key_leak() {
+    use axum::routing::get;
+    use axum::Router;
+    use economy_aggregator::features::ingestion::flows::OccOiFetcher;
+    use economy_aggregator::features::ingestion::liquidity::{
+        FredFetcher, TreasuryFetcher, CANONICAL_FRED_SPECS,
+    };
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let app = Router::new()
+        .route(
+            "/daily-open-interest",
+            get(|| async {
+                concat!(
+                    "Daily Open Interest - November 2026\r\n",
+                    "Date,Equity,,,Index/Other,,,Debt,,,Futures,OCC Total\r\n",
+                    ",Calls,Puts,Total,Calls,Puts,Total,Calls,Puts,Total,Total,\r\n",
+                    "11/25/2026,\"376,236,882\",\"273,081,881\",\"649,318,763\",\"21,458,742\",\"23,061,918\",\"44,520,660\",\"0\",\"0\",\"0\",\"386,388\",\"694,225,811\",\r\n"
+                )
+            }),
+        )
+        .route(
+            "/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance",
+            get(|| async {
+                r#"{"data":[{"record_date":"2016-01-04","account_type":"Treasury General Account (Closing Balance)","close_today_bal":"333123"}],"meta":{"total-pages":1}}"#
+            }),
+        )
+        .route(
+            "/fred/series/observations",
+            get(|| async {
+                r#"{"observations":[{"date":"2026-11-18","realtime_start":"2026-11-19","value":"6741452"},{"date":"2026-11-11","realtime_start":"2026-11-12","value":"."}]}"#
+            }),
+        );
+
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+
+    let base = format!("http://{}", addr);
+
+    let occ = OccOiFetcher::new(base.clone());
+    let occ_rows = occ.fetch_month_for_date("11/25/2026", "b_occ").await.unwrap();
+    assert_eq!(occ_rows.len(), 1);
+    assert_eq!(occ_rows[0].value, 694_225_811.0);
+    assert!(occ_rows[0]
+        .provenance
+        .extra_json
+        .as_deref()
+        .unwrap()
+        .contains("649318763"));
+
+    let tr = TreasuryFetcher::new(base.clone(), base.clone());
+    let tga_rows = tr.fetch_tga_balance(10_000, "b_tga").await.unwrap();
+    assert_eq!(tga_rows.len(), 1);
+    assert_eq!(tga_rows[0].value, 333_123.0 * 1_000_000.0);
+
+    let fred = FredFetcher::new(base, "super_secret_key_should_never_persist".to_string());
+    let walcl_spec = CANONICAL_FRED_SPECS.iter().find(|s| s.fred_id == "WALCL").unwrap();
+    let fred_rows = fred
+        .fetch_series(walcl_spec, "2016-01-01", "b_fred")
+        .await
+        .unwrap();
+    assert_eq!(fred_rows.len(), 1);
+    assert_eq!(fred_rows[0].value, 6_741_452.0 * 1_000_000.0);
+    assert_eq!(fred_rows[0].provenance.source, "fred_api");
+    assert!(!fred_rows[0]
+        .provenance
+        .source_url
+        .contains("super_secret_key_should_never_persist"));
+}

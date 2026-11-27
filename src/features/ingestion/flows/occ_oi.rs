@@ -1,6 +1,7 @@
-//! OCC Daily US Equity/Index/Futures Options Open Interest CSV Connector (Phase 316).
+//! OCC Daily US Equity/Index/Futures Options Open Interest CSV Connector (Phase 316 + 327).
+//! Uses csv::Reader to parse quoted comma-separated thousands cleanly.
 
-use chrono::{Datelike, Duration, Utc, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use reqwest::Client;
 
 use crate::core::observation_types::{MetricObservation, ObservationFrequency, SourceTier};
@@ -38,25 +39,19 @@ impl OccOiFetcher {
             self.base_url, month_day_year
         );
         let (bytes, checksum) = fetch_bytes_with_checksum(&self.client, &url).await?;
-        let text = String::from_utf8_lossy(&bytes);
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(bytes.as_slice());
         let now = Utc::now();
         let mut out = Vec::new();
 
-        for line in text.lines() {
-            let cols: Vec<&str> = line.split(',').collect();
-            if cols.len() < 12 {
-                continue;
-            }
-            let Some(obs_ts) = parse_us_slash_date_eod_utc(cols[0]) else {
-                continue;
-            };
-            let Some(occ_total) = cols
-                .last()
-                .and_then(|s| s.trim().replace('"', "").parse::<f64>().ok())
-            else {
-                continue;
-            };
-            let eq_total = cols.get(3).and_then(|s| s.trim().parse::<f64>().ok());
+        for rec in rdr.records().flatten() {
+            let Some(date_raw) = rec.get(0) else { continue };
+            let Some(obs_ts) = parse_us_slash_date_eod_utc(date_raw) else { continue };
+            let Some(occ_total) = rec.get(11).and_then(parse_comma_number) else { continue };
+            let eq_total = rec.get(3).and_then(parse_comma_number);
+
             out.push(make_obs(ObsParams {
                 obs_ts,
                 known_at: now,
@@ -79,6 +74,10 @@ impl OccOiFetcher {
                 extra_json: eq_total.map(|e| serde_json::json!({"equity_total": e}).to_string()),
             }));
         }
+
+        if out.is_empty() {
+            return Err(format!("Fail-fast: parsed 0 valid OCC rows from {}", url).into());
+        }
         Ok(out)
     }
 
@@ -97,8 +96,24 @@ impl OccOiFetcher {
             if let Ok(rows) = self.fetch_month_for_date(&s, batch_id).await {
                 all.extend(rows);
             }
-            d -= Duration::days(28);
+            d = step_prev_month_anchor(d);
+        }
+        if all.is_empty() {
+            return Err("Fail-fast: OCC 24-month sync yielded 0 observations".into());
         }
         Ok(all)
     }
+}
+
+fn parse_comma_number(raw: &str) -> Option<f64> {
+    let cleaned = raw.trim().replace([',', '"'], "");
+    if cleaned.is_empty() {
+        return None;
+    }
+    cleaned.parse::<f64>().ok()
+}
+
+fn step_prev_month_anchor(d: NaiveDate) -> NaiveDate {
+    let first = NaiveDate::from_ymd_opt(d.year(), d.month(), 1).unwrap_or(d);
+    first - Duration::days(1)
 }

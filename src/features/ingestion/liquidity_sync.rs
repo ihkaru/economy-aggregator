@@ -16,7 +16,7 @@ use crate::features::ingestion::flows::{
     CftcCotFetcher, FinraMarginFetcher, OccOiFetcher, SsgaXlsxFetcher, StockAnalysisFetcher,
 };
 use crate::features::ingestion::liquidity::{
-    DbnomicsFedFetcher, NyFedFetcher, OfrFetcher, TreasuryFetcher,
+    DbnomicsFedFetcher, FredFetcher, NyFedFetcher, OfrFetcher, TreasuryFetcher, CANONICAL_FRED_SPECS,
 };
 use crate::features::storage::{ObservationWriter, PartitionResolver};
 
@@ -126,9 +126,9 @@ fn push_err(
 
 async fn run_macro_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<SourceSyncStatus>) {
     let tr = TreasuryFetcher::default();
-    persist_and_record(lake_dir, "treasury_tga", "treasury_fiscaldata", false, tr.fetch_tga_balance(500, batch_id).await, tasks).await;
+    persist_and_record(lake_dir, "treasury_tga", "treasury_fiscaldata", false, tr.fetch_tga_balance(10_000, batch_id).await, tasks).await;
     let cur_year = Utc::now().year();
-    for y in [cur_year - 1, cur_year] {
+    for y in (cur_year - 10)..=cur_year {
         persist_and_record(lake_dir, &format!("treasury_tbill_3m_{}", y), "treasury_tbill_csv", false, tr.fetch_tbill_3m_year(y, batch_id).await, tasks).await;
     }
 
@@ -142,6 +142,22 @@ async fn run_macro_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<Source
     persist_and_record(lake_dir, "dbnomics_h8_bank_credit", "dbnomics_fed", false, fed.fetch_h8_bank_credit(batch_id).await, tasks).await;
     persist_and_record(lake_dir, "dbnomics_h41_fed_assets", "dbnomics_fed", false, fed.fetch_h41_assets_backfill(batch_id).await, tasks).await;
     persist_and_record(lake_dir, "fed_h41_current_html", "fed_h41_html", false, fed.fetch_latest_fed_h41_html(batch_id).await, tasks).await;
+
+    if let Some(fred) = FredFetcher::from_env() {
+        for spec in CANONICAL_FRED_SPECS {
+            let task_name = format!("fred_{}", spec.fred_id.to_ascii_lowercase());
+            persist_and_record(lake_dir, &task_name, "fred_api", false, fred.fetch_series(spec, "2016-01-01", batch_id).await, tasks).await;
+        }
+    } else {
+        tasks.push(SourceSyncStatus {
+            task: "fred_rest_api".to_string(),
+            source_used: "fred_api".to_string(),
+            rows_fetched: 0,
+            rows_written: 0,
+            fallback_triggered: false,
+            error: Some("Skipped: FRED_API_KEY env var not configured".to_string()),
+        });
+    }
 }
 
 async fn run_tradfi_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<SourceSyncStatus>) {
@@ -167,7 +183,7 @@ async fn run_tradfi_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<Sourc
     }
 
     let occ = OccOiFetcher::default();
-    persist_and_record(lake_dir, "occ_options_oi", "occ_csv", false, occ.fetch_recent_months(3, batch_id).await, tasks).await;
+    persist_and_record(lake_dir, "occ_options_oi", "occ_csv", false, occ.fetch_recent_months(24, batch_id).await, tasks).await;
 
     let finra = FinraMarginFetcher::default();
     persist_and_record(lake_dir, "finra_margin_debt", "finra_xlsx", false, finra.fetch_margin_debt(batch_id).await, tasks).await;
@@ -181,6 +197,7 @@ async fn run_crypto_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<Sourc
 
     let bg = BGeometricsFetcher::default();
     persist_and_record(lake_dir, "bgeometrics_etf_flow_btc", "bgeometrics", false, bg.fetch_btc_etf_flows(batch_id).await, tasks).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
 
     let gh = GithubCryptoMirrorFetcher::default();
     let cm = CoinMetricsFetcher::default();
@@ -189,7 +206,7 @@ async fn run_crypto_tasks(lake_dir: &Path, batch_id: &str, tasks: &mut Vec<Sourc
         "coinmetrics_btc_netflow_usd",
         "coinmetrics_community",
         false,
-        cm.fetch_btc_exchange_netflow(Some("2018-01-01"), 5000, batch_id).await,
+        cm.fetch_btc_exchange_netflow(Some("2018-01-01"), 10_000, batch_id).await,
         tasks,
     )
     .await;

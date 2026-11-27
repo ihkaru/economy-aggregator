@@ -11,6 +11,7 @@ pub struct WatermarkStatus {
     pub symbol: String,
     pub asset_class: String,
     pub timeframe: String,
+    pub earliest_date: Option<NaiveDate>,
     pub latest_timestamp_utc: Option<DateTime<Utc>>,
     pub latest_date: Option<NaiveDate>,
     pub total_rows: usize,
@@ -35,7 +36,8 @@ impl WatermarkScanner {
             timeframe,
         );
 
-        let (total_rows, _first_date, last_date_str) = bounds.unwrap_or((0, None, None));
+        let (total_rows, first_date_str, last_date_str) = bounds.unwrap_or((0, None, None));
+        let earliest_date = first_date_str.and_then(|s: String| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
         let latest_date = last_date_str.and_then(|s: String| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
 
         let latest_timestamp_utc = latest_date.and_then(|d: NaiveDate| {
@@ -55,7 +57,7 @@ impl WatermarkScanner {
                 };
                 (gap, diff.max(0))
             }
-            None => (true, 365), // No data exists -> 1 year initial catch-up needed
+            None => (true, 3650), // No data exists -> 10 year initial catch-up needed for multi-cycle analytics
         };
 
         debug!(
@@ -67,6 +69,7 @@ impl WatermarkScanner {
             symbol: symbol.to_string(),
             asset_class: asset_class.to_string(),
             timeframe: timeframe.to_string(),
+            earliest_date,
             latest_timestamp_utc,
             latest_date,
             total_rows,

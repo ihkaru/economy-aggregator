@@ -81,7 +81,15 @@ impl CatchUpEngine {
                 tf,
             );
 
-            if !watermark.has_gap && !force {
+            let needs_10y_expansion = sub.source.eq_ignore_ascii_case("yahoo")
+                && tf == "1d"
+                && watermark.total_rows > 0
+                && watermark.total_rows <= 265
+                && watermark
+                    .earliest_date
+                    .is_some_and(|e| (chrono::Utc::now().date_naive() - e).num_days() <= 400);
+
+            if !watermark.has_gap && !force && !needs_10y_expansion {
                 summaries.push(CatchUpSummary {
                     source: sub.source.clone(),
                     symbol: sub.symbol.clone(),
@@ -95,7 +103,15 @@ impl CatchUpEngine {
                 continue;
             }
 
-            let summary = self.execute_catch_up(sub, tf, &watermark).await;
+            let eff_watermark = if (force || needs_10y_expansion) && sub.source.eq_ignore_ascii_case("yahoo") {
+                let mut w = watermark;
+                w.gap_duration_days = w.gap_duration_days.max(3650);
+                w
+            } else {
+                watermark
+            };
+
+            let summary = self.execute_catch_up(sub, tf, &eff_watermark).await;
             summaries.push(summary);
         }
 
@@ -167,8 +183,12 @@ impl CatchUpEngine {
                     "6mo"
                 } else if watermark.gap_duration_days <= 365 {
                     "1y"
-                } else {
+                } else if watermark.gap_duration_days <= 730 {
                     "2y"
+                } else if watermark.gap_duration_days <= 1825 {
+                    "5y"
+                } else {
+                    "10y"
                 };
                 fetcher
                     .fetch_daily_bars(&sub.symbol, &sub.symbol, range)

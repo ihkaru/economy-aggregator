@@ -2,7 +2,7 @@
 
 **Scope:** Production-Grade High-Performance Financial & Macroeconomic Data Aggregator  
 **Target Runtime:** 100% Native Rust (Zero-GC, Memory Budget $\le$ 50 MB Idle / $\le$ 150 MB Load)  
-**Total Granular Phases:** 325 Atomic Implementation Phases across 14 Major Milestones.
+**Total Granular Phases:** 332 Atomic Implementation Phases across 15 Major Milestones.
 
 ---
 
@@ -25,6 +25,7 @@ flowchart TD
     M7 & M11 --> M12[M12: External Access, Search & High-Precision Filter Parity<br/>Phase 292 - 297]
     M6 & M12 --> M13[M13: Production Hardening, Auto-Compaction & Security Audit<br/>Phase 298 - 305]
     M1 & M10 & M13 --> M14[M14: Closed-System Liquidity & Bitemporal Observations<br/>Phase 306 - 325]
+    M14 --> M15[M15: Full-History Depth, FRED REST v1 & Parser Remediation<br/>Phase 326 - 332]
 ```
 
 ---
@@ -47,6 +48,7 @@ flowchart TD
 | **M12** | **External Access, Search & High-Precision Filter Parity** | Phase 292 – 297 | Completed (6/6) | [milestone_12_external_access_search_and_filter.md](milestone_12_external_access_search_and_filter.md) |
 | **M13** | **Production Hardening, Auto-Compaction, Security & Web Auth** | Phase 298 – 305 | Completed (8/8) | [milestone_13_production_hardening_compaction_and_security.md](milestone_13_production_hardening_compaction_and_security.md) |
 | **M14** | **Closed-System Liquidity Observability & Bitemporal Observations** | Phase 306 – 325 | Completed (20/20) | [milestone_14_closed_system_liquidity_and_bitemporal_observations.md](milestone_14_closed_system_liquidity_and_bitemporal_observations.md) |
+| **M15** | **Full-History Depth, Official FRED REST v1 & Parser Remediation** | Phase 326 – 332 | Completed (7/7) | [milestone_15_full_history_depth_fred_and_parser_remediation.md](milestone_15_full_history_depth_fred_and_parser_remediation.md) |
 
 ---
 
