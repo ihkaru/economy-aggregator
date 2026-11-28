@@ -130,8 +130,10 @@ Pengembangan jangka panjang diorganisasi ke dalam 20 Milestone yang mencakup 367
 Jalankan perintah berikut sebelum melakukan commit:
 
 ```bash
-# 1. Kompilasi & test suite paralel Rust
-cargo test
+# 1. Kompilasi & test suite paralel Rust (1-perintah nextest + doctest + isolasi serial SLA via .config/nextest.toml)
+nextest-gate
+# Atau secara manual via Cargo standar:
+# cargo test -- --skip test_sla_ && cargo test --test test_latency_sla -- --test-threads=1 && cargo test --doc
 
 # 2. Linter kode Rust & deteksi anti-pattern
 cargo clippy -- -D warnings

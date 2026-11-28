@@ -1,0 +1,12 @@
+[profile.default]
+status-level = "pass"
+final-status-level = "slow"
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[test-groups.serial-sla]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = "binary(test_latency_sla)"
+test-group = "serial-sla"
+threads-required = "num-test-threads"
