@@ -5,7 +5,7 @@
   export let isOpen: boolean = false;
 
   const dispatch = createEventDispatcher();
-  let username: string = 'admin';
+  let username: string = '';
   let password: string = '';
   let errorText: string | null = null;
   let submitting: boolean = false;
@@ -50,7 +50,7 @@
               type="text"
               class="auth-input"
               autocomplete="username"
-              placeholder="admin"
+              placeholder="ihzakarunia"
               bind:value={username}
               disabled={submitting}
             />

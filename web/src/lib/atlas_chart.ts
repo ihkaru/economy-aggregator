@@ -75,22 +75,35 @@ export function addAtlasSeriesToChart(
   chart: IChartApi,
   s: AtlasSeries,
   priceScaleId: 'right' | 'left',
-  isOverlay: boolean
+  isOverlay: boolean,
+  asOfDate?: string,
+  windowStartDate?: string
 ): TankSeriesApi {
   const baseOpts = {
     priceScaleId,
     lastValueVisible: true,
     priceLineVisible: !isOverlay,
   };
+  const trailingWhitespace =
+    !isOverlay && asOfDate && s.points.length > 0 && s.points[s.points.length - 1].time < asOfDate
+      ? [{ time: asOfDate as Time }]
+      : [];
+
   if (s.chart_kind === 'histogram') {
     const api = chart.addSeries(HistogramSeries, { ...baseOpts, color: s.color, base: 0 });
-    api.setData(
-      s.points.map((p) => ({
-        time: p.time as Time,
-        value: p.value,
-        color: p.value < 0 ? '#f23645' : s.color,
-      }))
-    );
+    const data = [
+      ...s.points.map((p) => {
+        const baseColor = p.value < 0 ? '#f23645' : s.color;
+        const inActiveWindow = !windowStartDate || p.time > windowStartDate;
+        return {
+          time: p.time as Time,
+          value: p.value,
+          color: inActiveWindow ? baseColor : `${baseColor}59`,
+        };
+      }),
+      ...trailingWhitespace,
+    ];
+    api.setData(data);
     if (!isOverlay) {
       api.createPriceLine({
         price: 0,
@@ -110,10 +123,10 @@ export function addAtlasSeriesToChart(
       bottomColor: `${s.color}05`,
       lineWidth: 2,
     });
-    api.setData(s.points.map((p) => ({ time: p.time as Time, value: p.value })));
+    api.setData([...s.points.map((p) => ({ time: p.time as Time, value: p.value })), ...trailingWhitespace]);
     return api;
   }
   const api = chart.addSeries(LineSeries, { ...baseOpts, color: s.color, lineWidth: 2 });
-  api.setData(s.points.map((p) => ({ time: p.time as Time, value: p.value })));
+  api.setData([...s.points.map((p) => ({ time: p.time as Time, value: p.value })), ...trailingWhitespace]);
   return api;
 }

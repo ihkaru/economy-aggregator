@@ -123,6 +123,9 @@
 </script>
 
 <div class="atlas-view tabular-nums">
+  {#if isLoading}
+    <div class="atlas-progress-bar"><div class="atlas-progress-fill"></div></div>
+  {/if}
   <!-- Sticky Top Time-Travel & Range Toolbar -->
   <header class="atlas-toolbar">
     <div class="title-area">
@@ -250,7 +253,9 @@
 
   <!-- Synchronized Cursor & Bounds Status Ribbon -->
   <div class="status-ribbon">
-    {#if syncedTime}
+    {#if isLoading}
+      <span class="cursor-active">LOADING SNAPSHOT AS-OF <strong>{asOfInput || 'LATEST'}</strong>...</span>
+    {:else if syncedTime}
       <span class="cursor-active">SYNCED CURSOR ACROSS ALL 6 TANKS: <strong>{syncedTime}</strong></span>
     {:else if atlas}
       <span>
@@ -281,6 +286,7 @@
         {#each atlas.tanks as tank (tank.tank_id)}
           <AtlasTankCard
             {tank}
+            asOfDate={atlas.as_of_date}
             windowWeeks={atlas.window_weeks}
             {syncedTime}
             onHoverTime={(t) => (syncedTime = t)}
@@ -301,9 +307,12 @@
 
 <style>
   .atlas-view {
-    display: flex; flex-direction: column; height: 100%; width: 100%;
+    position: relative; display: flex; flex-direction: column; height: 100%; width: 100%;
     background: var(--bg-main); color: var(--text-main); overflow: hidden;
   }
+  .atlas-progress-bar { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: rgba(41, 98, 255, 0.15); z-index: 40; overflow: hidden; }
+  .atlas-progress-fill { position: absolute; top: 0; left: 0; height: 100%; width: 35%; background: linear-gradient(90deg, transparent, #2962ff, #089981, transparent); animation: atlas-scan 1.1s linear infinite; }
+  @keyframes atlas-scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
   .atlas-toolbar {
     background: var(--bg-panel); border-bottom: 1px solid var(--border-subtle);
     padding: 7px 12px; display: flex; flex-wrap: wrap; align-items: center;
@@ -355,7 +364,7 @@
     display: flex; flex-direction: column; gap: 12px;
   }
   .tanks-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-  .tanks-grid.dimmed { opacity: 0.6; transition: opacity 0.15s ease-out; }
+  .tanks-grid.dimmed { opacity: 0.6; pointer-events: none; transition: opacity 0.15s ease-out; }
   .error-box {
     background: rgba(242, 54, 69, 0.15); border: 1px solid #f23645; color: #fecaca;
     padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;

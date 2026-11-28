@@ -12,6 +12,7 @@
   } from '../../lib/atlas_chart';
 
   export let tank: AtlasTank;
+  export let asOfDate: string = '';
   export let windowWeeks: number = 4;
   export let syncedTime: string | null = null;
   export let onHoverTime: (time: string | null) => void = () => {};
@@ -38,7 +39,15 @@
       ? tank.overlay_series[activeOverlayIdx]
       : null;
 
-  function rebuildChartSeries(targetTank: AtlasTank, ovIdx: number | null) {
+  function computeWinStart(dateStr: string, weeks: number): string | undefined {
+    if (!dateStr) return undefined;
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return undefined;
+    d.setUTCDate(d.getUTCDate() - weeks * 7);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function rebuildChartSeries(targetTank: AtlasTank, ovIdx: number | null, cutoff: string, weeks: number) {
     if (!chart) return;
     if (primaryApi) {
       chart.removeSeries(primaryApi);
@@ -48,14 +57,15 @@
       chart.removeSeries(overlayApi);
       overlayApi = null;
     }
+    const winStart = computeWinStart(cutoff, weeks);
     const primaryScale: 'right' | 'left' = targetTank.primary_series.price_scale === 'left' ? 'left' : 'right';
-    primaryApi = addAtlasSeriesToChart(chart, targetTank.primary_series, primaryScale, false);
+    primaryApi = addAtlasSeriesToChart(chart, targetTank.primary_series, primaryScale, false, cutoff || undefined, winStart);
 
     const ov = ovIdx !== null && targetTank.overlay_series[ovIdx] ? targetTank.overlay_series[ovIdx] : null;
     if (ov) {
       const ovScale: 'right' | 'left' = primaryScale === 'right' ? 'left' : 'right';
       chart.applyOptions({ leftPriceScale: { visible: true, borderColor: '#1c202d' } });
-      overlayApi = addAtlasSeriesToChart(chart, ov, ovScale, true);
+      overlayApi = addAtlasSeriesToChart(chart, ov, ovScale, true, cutoff || undefined, winStart);
     } else {
       chart.applyOptions({ leftPriceScale: { visible: false } });
     }
@@ -72,7 +82,7 @@
       }
       onHoverTime(normalizeChartTime(param.time));
     });
-    rebuildChartSeries(tank, activeOverlayIdx);
+    rebuildChartSeries(tank, activeOverlayIdx, asOfDate, windowWeeks);
   });
 
   onDestroy(() => {
@@ -83,7 +93,7 @@
   });
 
   $: if (chart && tank) {
-    rebuildChartSeries(tank, activeOverlayIdx);
+    rebuildChartSeries(tank, activeOverlayIdx, asOfDate, windowWeeks);
   }
 
   $: if (chart && primaryApi && !isSelfHovering) {
