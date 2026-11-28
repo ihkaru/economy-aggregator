@@ -209,6 +209,26 @@ fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
     assert!(exact[0].implied_net_flow_usd.abs() < 1e-6);
     assert_eq!(exact[0].price_source, "ssga_nav_exact");
 
+    // 1-for-3 reverse split (like JNK 2019-05-06): shares 300M -> 100.2M, NAV $36 -> $108
+    // True creation = +0.2M * $108 = +$21.6M (NOT -$21.58B phantom outflow!)
+    let d3 = Utc.with_ymd_and_hms(2026, 11, 12, 23, 59, 59).unwrap();
+    let split_aum = vec![
+        mk_obs("etf:JNK:aum_usd", "aum", "credit", ObservationFrequency::Daily, d1, d1, 0, 10_800_000_000.0, "ssga_xlsx"),
+        mk_obs("etf:JNK:aum_usd", "aum", "credit", ObservationFrequency::Daily, d2, d2, 0, 10_821_600_000.0, "ssga_xlsx"),
+        mk_obs("etf:JNK:aum_usd", "aum", "credit", ObservationFrequency::Daily, d3, d3, 0, 10_850_000_000.0, "ssga_xlsx"),
+    ];
+    let split_sh = vec![
+        mk_obs("etf:JNK:shares_outstanding", "shares", "credit", ObservationFrequency::Daily, d1, d1, 0, 300_000_000.0, "ssga_xlsx"),
+        mk_obs("etf:JNK:shares_outstanding", "shares", "credit", ObservationFrequency::Daily, d2, d2, 0, 100_200_000.0, "ssga_xlsx"),
+        // Non-integer 1-day share reporting glitch (like SSGA 2014-10-07)
+        mk_obs("etf:JNK:shares_outstanding", "shares", "credit", ObservationFrequency::Daily, d3, d3, 0, 131_000_000.0, "ssga_xlsx"),
+    ];
+    let split_flows = compute_exact_share_flows(&split_aum, &split_sh, "JNK", "credit");
+    assert_eq!(split_flows.len(), 2);
+    assert!((split_flows[0].implied_net_flow_usd - 21_600_000.0).abs() < 1.0);
+    assert!(split_flows[0].price_return.abs() < 1e-6);
+    assert!((split_flows[1].implied_net_flow_usd - 28_400_000.0).abs() < 1.0);
+
     // Fail-fast on insufficient rows
     assert!(compute_diebold_yilmaz_spillover(&cols, &rows[..5], 2, 10).is_err());
 }

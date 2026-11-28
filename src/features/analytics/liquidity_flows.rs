@@ -94,9 +94,19 @@ pub fn compute_implied_net_flows(
     out
 }
 
+/// Detects standard corporate split / reverse-split multipliers (e.g., 2:1, 3:1, 1:2, 1:3)
+/// when NAV and Shares jump in exact inverse directions on the same day.
+fn match_clean_split_factor(nav_ratio: f64) -> Option<f64> {
+    const FACTORS: [f64; 10] = [2.0, 3.0, 4.0, 5.0, 10.0, 0.5, 1.0 / 3.0, 0.25, 0.2, 0.1];
+    FACTORS
+        .into_iter()
+        .find(|&k| ((nav_ratio / k) - 1.0).abs() <= 0.03)
+}
+
 /// Computes Exact ETF Creation/Redemption Cash Flows:
 /// F_{i,t} = (Shares_t - Shares_{t-1}) * NAV_t, where NAV_t = AUM_t / Shares_t.
-/// Eliminates LBMA-vs-NYSE clock mismatch (GLD) and unadjusted dividend bias (JNK).
+/// Eliminates LBMA-vs-NYSE clock mismatch (GLD), unadjusted dividend bias (JNK),
+/// and corporate reverse/forward split phantom spikes (e.g., BIL 1:2, JNK 1:3, SPTL 2:1).
 pub fn compute_exact_share_flows(
     aum_obs: &[MetricObservation],
     shares_obs: &[MetricObservation],
@@ -120,23 +130,32 @@ pub fn compute_exact_share_flows(
     }
     let aligned: Vec<(&MetricObservation, f64, f64)> = aum_by_day
         .into_iter()
-        .filter_map(|(d, aum)| {
-            sh_by_day
-                .get(&d)
-                .map(|&s| (aum, s, aum.value / s))
-        })
+        .filter_map(|(d, aum)| sh_by_day.get(&d).map(|&s| (aum, s, aum.value / s)))
         .collect();
 
     let mut out = Vec::with_capacity(aligned.len().saturating_sub(1));
     for w in aligned.windows(2) {
         let (prev_aum, prev_sh, prev_nav) = w[0];
         let (curr_aum, curr_sh, curr_nav) = w[1];
-        if prev_nav <= 0.0 || !curr_nav.is_finite() {
+        if prev_nav <= 0.0 || curr_nav <= 0.0 || !curr_nav.is_finite() {
             continue;
         }
-        let nav_ret = (curr_nav / prev_nav) - 1.0;
+        let nav_ratio = curr_nav / prev_nav;
+        let sh_ratio = curr_sh / prev_sh;
         let delta_v = curr_aum.value - prev_aum.value;
-        let exact_flow = (curr_sh - prev_sh) * curr_nav;
+        let is_inverse_jump =
+            nav_ratio.ln().abs() > 0.15 && (nav_ratio.ln() * sh_ratio.ln()) < 0.0;
+        let (nav_ret, exact_flow) = if is_inverse_jump {
+            if let Some(k) = match_clean_split_factor(nav_ratio) {
+                let adj_prev_sh = prev_sh / k;
+                ((nav_ratio / k) - 1.0, (curr_sh - adj_prev_sh) * curr_nav)
+            } else {
+                // Non-integer 1-day share reporting glitch where AUM stayed continuous
+                (0.0, delta_v)
+            }
+        } else {
+            (nav_ratio - 1.0, (curr_sh - prev_sh) * curr_nav)
+        };
         out.push(ImpliedNetFlowPoint {
             timestamp_utc: curr_aum.observation_ts_utc,
             entity_id: entity_id.to_string(),
