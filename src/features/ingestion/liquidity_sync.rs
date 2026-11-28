@@ -233,14 +233,17 @@ async fn run_macro_tasks(
         for spec in CANONICAL_FRED_SPECS {
             let task_name = format!("fred_{}", spec.fred_id.to_ascii_lowercase());
             let wm = wms.get(spec.series_id);
-            if is_series_fresh(wm, spec.frequency, now) {
+            let needs_deep_backfill = wm.map_or(true, |w| w.year_partitions < spec.min_history_years);
+            if !needs_deep_backfill && is_series_fresh(wm, spec.frequency, now) {
                 push_skipped(tasks, &task_name, "fred_api");
                 continue;
             }
-            let start = wm
-                .filter(|w| w.year_partitions >= 3)
-                .map(|w| (w.max_ts_utc - Duration::days(45)).format("%Y-%m-%d").to_string())
-                .unwrap_or_else(|| "2016-01-01".to_string());
+            let start = if needs_deep_backfill {
+                spec.backfill_start.to_string()
+            } else {
+                wm.map(|w| (w.max_ts_utc - Duration::days(45)).format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| spec.backfill_start.to_string())
+            };
             persist_and_record(lake_dir, &task_name, "fred_api", false, fred_cli.fetch_series(spec, &start, batch_id).await, tasks).await;
         }
     } else {

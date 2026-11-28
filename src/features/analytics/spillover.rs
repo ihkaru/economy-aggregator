@@ -113,7 +113,7 @@ pub fn compute_diebold_yilmaz_spillover_full(
     let (x, y) = build_var_design(&z_rows, n, p);
     let (tci, norm, directional, y_hat, resid) = estimate_var_gfevd(&x, &y, columns, p, h_steps)?;
     let structural_break =
-        run_wild_andrews_sup_f(columns, row_dates, p, &x, &y, &y_hat, &resid, 250);
+        run_wild_andrews_sup_f(columns, row_dates, p, &x, &y, &y_hat, &resid, 1000);
 
     let null_stats = run_surrogate_placebo(&z_rows, n, p, tci, permutations, null_mode, |perm_z| {
         let (px, py) = build_var_design(perm_z, n, p);

@@ -33,22 +33,25 @@ pub struct FredSeriesSpec {
     pub frequency: ObservationFrequency,
     pub scale_factor: f64,
     pub unit: &'static str,
+    pub backfill_start: &'static str,
+    pub min_history_years: usize,
 }
 
 pub const CANONICAL_FRED_SPECS: &[FredSeriesSpec] = &[
-    FredSeriesSpec { fred_id: "WALCL", series_id: "macro:US:FRED_WALCL_USD", entity_id: "US", compartment: "macro_control", metric_name: "fed_total_assets_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd" },
-    FredSeriesSpec { fred_id: "WTREGEN", series_id: "macro:US:FRED_WTREGEN_USD", entity_id: "US", compartment: "macro_control", metric_name: "tga_balance_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd" },
-    FredSeriesSpec { fred_id: "RRPONTSYD", series_id: "macro:US:FRED_RRPONTSYD_USD", entity_id: "US", compartment: "fiat_park", metric_name: "on_rrp_usd", frequency: ObservationFrequency::Daily, scale_factor: 1_000_000_000.0, unit: "usd" },
-    FredSeriesSpec { fred_id: "TOTBKCR", series_id: "macro:US:FRED_TOTBKCR_USD", entity_id: "US", compartment: "deleveraging", metric_name: "bank_credit_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
-    FredSeriesSpec { fred_id: "DTB3", series_id: "macro:US:FRED_DTB3_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "tbill_3m_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
-    FredSeriesSpec { fred_id: "T10Y2Y", series_id: "macro:US:FRED_T10Y2Y_PCT", entity_id: "US", compartment: "macro_control", metric_name: "yield_curve_10y2y_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
-    FredSeriesSpec { fred_id: "BAMLH0A0HYM2", series_id: "macro:US:FRED_HY_OAS_PCT", entity_id: "US", compartment: "deleveraging", metric_name: "hy_credit_spread_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
-    FredSeriesSpec { fred_id: "WRMFNS", series_id: "macro:US:FRED_WRMFNS_USD", entity_id: "US", compartment: "fiat_park", metric_name: "retail_mmf_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
-    FredSeriesSpec { fred_id: "ECBASSETSW", series_id: "macro:EU:FRED_ECB_ASSETS_EUR", entity_id: "EU", compartment: "macro_control", metric_name: "ecb_total_assets_eur", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "eur" },
-    FredSeriesSpec { fred_id: "JPNASSETS", series_id: "macro:JP:FRED_BOJ_ASSETS_JPY", entity_id: "JP", compartment: "macro_control", metric_name: "boj_total_assets_jpy", frequency: ObservationFrequency::Monthly, scale_factor: 100_000_000.0, unit: "jpy" },
-    FredSeriesSpec { fred_id: "SOFR", series_id: "macro:US:FRED_SOFR_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "sofr_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
-    FredSeriesSpec { fred_id: "STLFSI4", series_id: "macro:US:FRED_STLFSI4_IDX", entity_id: "US", compartment: "deleveraging", metric_name: "financial_stress_idx", frequency: ObservationFrequency::Weekly, scale_factor: 1.0, unit: "index" },
-    FredSeriesSpec { fred_id: "WM2NS", series_id: "macro:US:FRED_WM2NS_USD", entity_id: "US", compartment: "macro_control", metric_name: "m2_money_supply_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "WALCL", series_id: "macro:US:FRED_WALCL_USD", entity_id: "US", compartment: "macro_control", metric_name: "fed_total_assets_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd", backfill_start: "2002-12-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "WTREGEN", series_id: "macro:US:FRED_WTREGEN_USD", entity_id: "US", compartment: "macro_control", metric_name: "tga_balance_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd", backfill_start: "2002-12-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "RRPONTSYD", series_id: "macro:US:FRED_RRPONTSYD_USD", entity_id: "US", compartment: "fiat_park", metric_name: "on_rrp_usd", frequency: ObservationFrequency::Daily, scale_factor: 1_000_000_000.0, unit: "usd", backfill_start: "2016-01-01", min_history_years: 3 },
+    FredSeriesSpec { fred_id: "TOTBKCR", series_id: "macro:US:FRED_TOTBKCR_USD", entity_id: "US", compartment: "deleveraging", metric_name: "bank_credit_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd", backfill_start: "1990-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "DPSACBW027SBOG", series_id: "macro:US:FRED_BANK_DEPOSITS_USD", entity_id: "US", compartment: "fiat_park", metric_name: "commercial_bank_deposits_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd", backfill_start: "1990-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "DTB3", series_id: "macro:US:FRED_DTB3_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "tbill_3m_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent", backfill_start: "1990-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "T10Y2Y", series_id: "macro:US:FRED_T10Y2Y_PCT", entity_id: "US", compartment: "macro_control", metric_name: "yield_curve_10y2y_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent", backfill_start: "1990-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "BAMLH0A0HYM2", series_id: "macro:US:FRED_HY_OAS_PCT", entity_id: "US", compartment: "deleveraging", metric_name: "hy_credit_spread_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent", backfill_start: "2016-01-01", min_history_years: 3 },
+    FredSeriesSpec { fred_id: "WRMFNS", series_id: "macro:US:FRED_WRMFNS_USD", entity_id: "US", compartment: "fiat_park", metric_name: "retail_mmf_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd", backfill_start: "1990-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "ECBASSETSW", series_id: "macro:EU:FRED_ECB_ASSETS_EUR", entity_id: "EU", compartment: "macro_control", metric_name: "ecb_total_assets_eur", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "eur", backfill_start: "2016-01-01", min_history_years: 3 },
+    FredSeriesSpec { fred_id: "JPNASSETS", series_id: "macro:JP:FRED_BOJ_ASSETS_JPY", entity_id: "JP", compartment: "macro_control", metric_name: "boj_total_assets_jpy", frequency: ObservationFrequency::Monthly, scale_factor: 100_000_000.0, unit: "jpy", backfill_start: "2016-01-01", min_history_years: 3 },
+    FredSeriesSpec { fred_id: "SOFR", series_id: "macro:US:FRED_SOFR_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "sofr_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent", backfill_start: "2016-01-01", min_history_years: 3 },
+    FredSeriesSpec { fred_id: "STLFSI4", series_id: "macro:US:FRED_STLFSI4_IDX", entity_id: "US", compartment: "deleveraging", metric_name: "financial_stress_idx", frequency: ObservationFrequency::Weekly, scale_factor: 1.0, unit: "index", backfill_start: "1994-01-01", min_history_years: 15 },
+    FredSeriesSpec { fred_id: "WM2NS", series_id: "macro:US:FRED_WM2NS_USD", entity_id: "US", compartment: "macro_control", metric_name: "m2_money_supply_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd", backfill_start: "1990-01-01", min_history_years: 15 },
 ];
 
 pub struct FredFetcher {

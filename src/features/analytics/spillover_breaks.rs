@@ -96,7 +96,7 @@ pub fn run_wild_andrews_sup_f(
     let (obs_f, obs_tau) = eval_sup_f_fast(x, y, &p_pool, &inv_pairs);
     let max_obs = obs_f.iter().copied().fold(0.0_f64, f64::max);
 
-    let draws = n_boot.clamp(100, 400);
+    let draws = n_boot.clamp(100, 1500);
     let mut seed: u64 = 0xD1B5_4A32_D192_ED03 ^ ((t_eff as u64) << 12) ^ (n as u64);
     let mut eq_hits = vec![0usize; n];
     let mut sys_hits = 0usize;

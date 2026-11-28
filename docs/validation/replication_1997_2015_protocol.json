@@ -1,0 +1,79 @@
+{
+  "protocol_version": "1.0.0",
+  "frozen_at_utc": "2026-11-28T06:05:00Z",
+  "purpose": "Strictly pre-registered, single-shot historical replication battery on UNSEEN pre-2016 data (1997-2015) plus exogenous US Debt Ceiling TGA natural experiments. Written, committed, and OpenTimestamps-anchored BEFORE pulling pre-2016 FRED/equity data. Zero post-hoc threshold tuning; all 5 outcomes reported verbatim regardless of sign or significance.",
+  "multiple_testing_policy": {
+    "method": "Holm-Bonferroni across fixed family M=5 (FWER <= 0.05)",
+    "family_size_M": 5,
+    "single_shot_no_refit": true,
+    "uncertainty_reporting": "Point estimate + 95% HAC or block-bootstrap CI + raw p + Holm p"
+  },
+  "unseen_replication_window": {
+    "primary_start": "1997-01-01",
+    "primary_end": "2015-12-31",
+    "covered_independent_crises": [
+      "1998 LTCM / Russian Default",
+      "2000-2002 Dot-com Bear Market",
+      "2008-2009 Global Financial Crisis",
+      "2011 Eurozone Crisis & US Debt Downgrade",
+      "2015 China Devaluation / Oil Crash"
+    ],
+    "zero_overlap_with_2016_2026_discovery_sample": "Strictly enforced on REP_1..REP_4 (REP_5 explicitly includes the 2023 statutory debt ceiling episode alongside 2011, 2013, 2015)."
+  },
+  "pre_registered_hypotheses_M5": [
+    {
+      "id": "REP_1_FINRA_MARGIN_DELEVERAGING",
+      "window": "1997-02-01..2015-12-31",
+      "frequency": "monthly",
+      "series": ["credit:US:FINRA_MARGIN_DEBT_USD", "^GSPC (Yahoo 1M/1d EOM)"],
+      "hypothesis": "Monthly % change in FINRA Margin Debt is positively correlated (Pearson r > 0) with monthly S&P 500 (^GSPC) return.",
+      "estimator": "Pearson r with 10,000 circular-shift surrogate p-value and 6-month moving-block bootstrap 95% CI."
+    },
+    {
+      "id": "REP_2_EQUITY_CRASH_TO_RETAIL_MMF_CONTROLLED",
+      "window": "1997-01-01..2015-12-31",
+      "frequency": "weekly",
+      "series": ["macro:US:FRED_WRMFNS_USD", "macro:US:FRED_DTB3_PCT", "^GSPC"],
+      "hypothesis": "Cumulative 3-week % change in Retail MMF (WRMFNS, weeks t..t+2) increases in response to equity crash weeks (^GSPC weekly return <= -2.0%) after controlling for DTB3 yield level, delta-DTB3, lagged %dWRMFNS_{t-1}, and Year Fixed Effects.",
+      "estimator": "OLS with Newey-West HAC standard errors (lag=4); two-sided p-value on 1(GSPC_ret_t <= -2.0%)."
+    },
+    {
+      "id": "REP_3_EQUITY_CRASH_TO_BANK_DEPOSITS_CONTROLLED",
+      "window": "1997-01-01..2015-12-31",
+      "frequency": "weekly",
+      "series": ["macro:US:FRED_BANK_DEPOSITS_USD (DPSACBW027SBOG)", "macro:US:FRED_DTB3_PCT", "^GSPC"],
+      "hypothesis": "Cumulative 3-week % change in Commercial Bank Deposits (Fed H.8 DPSACBW027SBOG, weeks t..t+2) increases in response to equity crash weeks (^GSPC <= -2.0%) after controlling for DTB3 yield level, delta-DTB3, lagged %dDeposits_{t-1}, and Year Fixed Effects.",
+      "estimator": "OLS with Newey-West HAC standard errors (lag=4); two-sided p-value on 1(GSPC_ret_t <= -2.0%)."
+    },
+    {
+      "id": "REP_4_EARLY_ETF_ERA_BIL_MINUS_JNK_SPREAD",
+      "window": "2007-06-01..2015-12-31",
+      "frequency": "weekly",
+      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "etf:JNK:aum_usd", "etf:JNK:shares_outstanding", "^GSPC"],
+      "hypothesis": "During unseen pre-2016 crash weeks (^GSPC <= -2.0%), the AUM-normalized flight-to-safety exact flow spread ((BIL_flow/BIL_AUM) - (JNK_flow/JNK_AUM)) is higher than in non-crash weeks.",
+      "estimator": "Two-group mean difference with 10,000-permutation two-sided p-value and 95% bootstrap CI (individual BIL and JNK components also reported transparently)."
+    },
+    {
+      "id": "REP_5_EXOGENOUS_DEBT_CEILING_TGA_NATURAL_EXPERIMENT",
+      "window": "Exogenous statutory US Debt Ceiling windows: 2011, 2013, 2015, 2023",
+      "frequency": "weekly",
+      "series": ["macro:US:FRED_WTREGEN_USD", "macro:US:FRED_BANK_DEPOSITS_USD (DPSACBW027SBOG)", "macro:US:FRED_WRMFNS_USD", "^GSPC"],
+      "exogenous_windows": {
+        "drawdown_impasse": [
+          ["2011-05-16", "2011-08-02"],
+          ["2013-05-19", "2013-10-16"],
+          ["2015-03-16", "2015-11-02"],
+          ["2023-01-19", "2023-06-02"]
+        ],
+        "post_suspension_rebuild": [
+          ["2011-08-03", "2011-09-30"],
+          ["2013-10-17", "2013-12-15"],
+          ["2015-11-03", "2015-12-31"],
+          ["2023-06-03", "2023-09-30"]
+        ]
+      },
+      "hypothesis": "During exogenous post-suspension TGA rebuild weeks (draining reserves) vs exogenous impasse TGA drawdown weeks (injecting reserves), weekly % change in Commercial Bank Deposits (DPSACBW027SBOG) is lower (negative mean difference).",
+      "estimator": "Two-group mean difference (Rebuild - Drawdown) with 10,000-permutation two-sided p-value and 95% bootstrap CI; WRMFNS and ^GSPC reported alongside as secondary diagnostics."
+    }
+  ]
+}
