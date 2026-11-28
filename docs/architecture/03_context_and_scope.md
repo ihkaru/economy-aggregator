@@ -1,8 +1,8 @@
 # 3. Context and Scope
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `d75e158`
-> - **Verified Timestamp**: `2026-11-28T10:19:10+07:00`
+> - **Verified Commit**: `655476b`
+> - **Verified Timestamp**: `2026-11-28T11:09:59+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
