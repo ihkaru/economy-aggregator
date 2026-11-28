@@ -1,8 +1,8 @@
 # 9. Architecture Decisions
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `ef04d92`
-> - **Verified Timestamp**: `2026-11-28T15:44:45+07:00`
+> - **Verified Commit**: `a33d55e`
+> - **Verified Timestamp**: `2026-11-28T16:53:02+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
