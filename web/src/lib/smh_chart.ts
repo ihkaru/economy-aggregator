@@ -1,9 +1,12 @@
 import {
   createChart,
+  createSeriesMarkers,
   ColorType,
+  LineSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LineData,
   type SeriesMarker,
   type Time,
@@ -41,24 +44,25 @@ export function createSmhPriceChart(container: HTMLElement): SmhChartHandle {
     },
   });
 
-  const priceSeries: ISeriesApi<'Line'> = chart.addLineSeries({
+  const priceSeries: ISeriesApi<'Line'> = chart.addSeries(LineSeries, {
     color: '#38bdf8',
     lineWidth: 2,
     title: 'SMH Close',
   });
-  const predSeries: ISeriesApi<'Line'> = chart.addLineSeries({
+  const markersPlugin: ISeriesMarkersPluginApi<Time> = createSeriesMarkers(priceSeries, []);
+  const predSeries: ISeriesApi<'Line'> = chart.addSeries(LineSeries, {
     color: '#f59e0b',
     lineWidth: 2,
     lineStyle: LineStyle.Dashed,
     title: '5d Forecast',
   });
-  const upperSeries: ISeriesApi<'Line'> = chart.addLineSeries({
+  const upperSeries: ISeriesApi<'Line'> = chart.addSeries(LineSeries, {
     color: 'rgba(16, 185, 129, 0.65)',
     lineWidth: 1,
     lineStyle: LineStyle.Dotted,
     title: 'Upper 95%',
   });
-  const lowerSeries: ISeriesApi<'Line'> = chart.addLineSeries({
+  const lowerSeries: ISeriesApi<'Line'> = chart.addSeries(LineSeries, {
     color: 'rgba(244, 63, 94, 0.65)',
     lineWidth: 1,
     lineStyle: LineStyle.Dotted,
@@ -108,7 +112,7 @@ export function createSmhPriceChart(container: HTMLElement): SmhChartHandle {
       }
 
       priceSeries.setData(actualData);
-      priceSeries.setMarkers(markers);
+      markersPlugin.setMarkers(markers);
       predSeries.setData(predData);
       upperSeries.setData(upData);
       lowerSeries.setData(loData);
