@@ -1,8 +1,8 @@
 # 5. Building Block View
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `ee748e3`
-> - **Verified Timestamp**: `2026-11-28T14:57:37+07:00`
+> - **Verified Commit**: `ef04d92`
+> - **Verified Timestamp**: `2026-11-28T15:44:45+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
