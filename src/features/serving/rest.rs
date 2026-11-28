@@ -22,6 +22,7 @@ use crate::core::types::{AggregatorCandle, AssetClass, TimeFrame};
 use crate::features::ingestion::orchestrator::IngestionOrchestrator;
 use crate::features::serving::analytics_routes::*;
 use crate::features::serving::atlas_routes::query_liquidity_atlas_handler;
+use crate::features::serving::smh_routes::query_smh_predictive_handler;
 use crate::features::serving::auth_routes::{
     auth_login_handler, auth_logout_handler, auth_session_handler, oidc_callback_handler,
     oidc_login_handler,
@@ -165,6 +166,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/analytics/divergence", get(query_divergence_handler))
         .route("/v1/analytics/liquidity-panel", get(query_liquidity_panel_handler))
         .route("/v1/analytics/liquidity-atlas", get(query_liquidity_atlas_handler))
+        .route("/v1/analytics/smh-predictive", get(query_smh_predictive_handler))
         .route("/v1/analytics/liquidity-spillover", get(query_liquidity_spillover_handler))
         .route("/v1/analytics/liquidity-tree", get(query_liquidity_tree_handler))
         .route("/v1/analytics/liquidity-tree/history", get(list_liquidity_tree_history_handler))

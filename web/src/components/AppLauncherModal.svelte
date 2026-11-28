@@ -41,6 +41,16 @@
       shortcut: '2',
     },
     {
+      id: 'smh',
+      title: 'SMH Predictive Signal',
+      category: 'QUANT FORECAST & RISK',
+      description: 'VanEck Semiconductor ETF 5d Lag-Ridge BUY/HOLD/SELL signal & EWMA-GARCH 95% envelope.',
+      badge: 'SMH SIGNAL',
+      icon: 'trending',
+      accentColor: '#10b981',
+      shortcut: 'S',
+    },
+    {
       id: 'macro',
       title: 'Macro Hub',
       category: 'MACROECONOMICS',

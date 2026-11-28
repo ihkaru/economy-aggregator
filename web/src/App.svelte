@@ -10,6 +10,7 @@
   import ApiKeyModal from './components/ApiKeyModal.svelte';
   import MacroHubView from './components/views/MacroHubView.svelte';
   import LiquidityAtlasView from './components/views/LiquidityAtlasView.svelte';
+  import SmhPredictiveView from './components/views/SmhPredictiveView.svelte';
   import PredictionMarketsView from './components/views/PredictionMarketsView.svelte';
   import ConsensusMatrixView from './components/views/ConsensusMatrixView.svelte';
   import LakehouseExplorerView from './components/views/LakehouseExplorerView.svelte';
@@ -32,7 +33,11 @@
   let selectedTimeframe: TimeframeOption = '1d';
   let candles: AggregatorCandle[] = [];
   let legendData: ChartLegendData | null = null;
-  let activeView: AppViewId = (typeof window !== 'undefined' && window.location.hash === '#atlas') ? 'atlas' : 'terminal';
+  let activeView: AppViewId = (typeof window !== 'undefined' && window.location.hash === '#atlas')
+    ? 'atlas'
+    : (typeof window !== 'undefined' && window.location.hash === '#smh')
+      ? 'smh'
+      : 'terminal';
   let isLauncherOpen: boolean = false;
   let isModalOpen: boolean = false;
   let isCalendarOpen: boolean = false;
@@ -163,6 +168,12 @@
         window.location.hash = activeView === 'atlas' ? '#atlas' : '';
       }
     }}
+    onOpenSmh={() => {
+      activeView = activeView === 'smh' ? 'terminal' : 'smh';
+      if (typeof window !== 'undefined') {
+        window.location.hash = activeView === 'smh' ? '#smh' : '';
+      }
+    }}
     onOpenCalendar={() => (isCalendarOpen = !isCalendarOpen)}
     onOpenPredictions={() => (isPredictionModalOpen = true)}
     onOpenLauncher={() => (isLauncherOpen = true)}
@@ -224,6 +235,8 @@
     </div>
   {:else if activeView === 'atlas'}
     <div class="view-viewport"><LiquidityAtlasView /></div>
+  {:else if activeView === 'smh'}
+    <div class="view-viewport"><SmhPredictiveView /></div>
   {:else if activeView === 'macro'}
     <div class="view-viewport"><MacroHubView /></div>
   {:else if activeView === 'predictions'}
@@ -268,7 +281,7 @@
     onSelectView={(v) => {
       activeView = v;
       if (typeof window !== 'undefined') {
-        window.location.hash = v === 'atlas' ? '#atlas' : '';
+        window.location.hash = v === 'atlas' ? '#atlas' : v === 'smh' ? '#smh' : '';
       }
     }}
     onClose={() => (isLauncherOpen = false)}

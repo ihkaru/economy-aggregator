@@ -13,6 +13,7 @@
   export let onRefresh: () => void;
   export let onOpenCalendar: () => void = () => {};
   export let onOpenAtlas: () => void = () => {};
+  export let onOpenSmh: () => void = () => {};
   export let onOpenPredictions: () => void = () => {};
   export let onOpenLauncher: () => void = () => {};
   export let activeView: string = 'terminal';
@@ -116,6 +117,16 @@
     >
       <Icons name="layers" size={12} />
       <span>FLOW ATLAS</span>
+    </button>
+
+    <button
+      class="nav-tool-btn"
+      class:active-nav={activeView === 'smh'}
+      on:click={onOpenSmh}
+      title="SMH Semiconductor 5d Lag-Ridge Signal (BUY / HOLD / SELL)"
+    >
+      <Icons name="trending" size={12} />
+      <span>SMH SIGNAL</span>
     </button>
 
     <button class="nav-tool-btn" on:click={onOpenCalendar} title="Macroeconomic Calendar (SDMX / Point-in-Time)">

@@ -24,6 +24,8 @@ pub mod spillover;
 pub mod spillover_breaks;
 pub mod spillover_diagnostics;
 pub mod synthetic_bond;
+pub mod smh_predictive;
+mod smh_predictive_math;
 
 pub use bitemporal::{MacroVintageRecord, PointInTimeEngine, VintageStage};
 pub use calendar_aligner::{AlignedPanel, TradingCalendarAligner};
@@ -58,6 +60,9 @@ pub use prospective_scorecard::{
 };
 pub use regime_transitions::detect_regime_transition;
 pub use reconciliation::{CandleDiscrepancy, DiscrepancyType, ReconciliationEngine, ReconciliationReport};
+pub use smh_predictive::{
+    evaluate_smh_predictive, SmhPredictiveInputs, SmhPredictiveResponse, TradeSignal,
+};
 pub use reconcile_cli::handle_reconcile;
 pub use runner::handle_analyze;
 pub use synthetic_bond::{DayCountConvention, SyntheticBondAccumulator};

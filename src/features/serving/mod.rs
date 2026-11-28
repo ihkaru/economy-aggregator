@@ -1,5 +1,6 @@
 pub mod analytics_routes;
 pub mod atlas_routes;
+pub mod smh_routes;
 pub mod auth;
 pub mod auth_routes;
 pub mod catalog_routes;
@@ -15,6 +16,7 @@ pub mod types;
 
 pub use analytics_routes::*;
 pub use atlas_routes::*;
+pub use smh_routes::*;
 pub use auth::*;
 pub use auth_routes::*;
 pub use catalog_routes::*;
