@@ -9,6 +9,7 @@
   import AppLauncherModal from './components/AppLauncherModal.svelte';
   import ApiKeyModal from './components/ApiKeyModal.svelte';
   import MacroHubView from './components/views/MacroHubView.svelte';
+  import LiquidityAtlasView from './components/views/LiquidityAtlasView.svelte';
   import PredictionMarketsView from './components/views/PredictionMarketsView.svelte';
   import ConsensusMatrixView from './components/views/ConsensusMatrixView.svelte';
   import LakehouseExplorerView from './components/views/LakehouseExplorerView.svelte';
@@ -31,7 +32,7 @@
   let selectedTimeframe: TimeframeOption = '1d';
   let candles: AggregatorCandle[] = [];
   let legendData: ChartLegendData | null = null;
-  let activeView: AppViewId = 'terminal';
+  let activeView: AppViewId = (typeof window !== 'undefined' && window.location.hash === '#atlas') ? 'atlas' : 'terminal';
   let isLauncherOpen: boolean = false;
   let isModalOpen: boolean = false;
   let isCalendarOpen: boolean = false;
@@ -156,6 +157,12 @@
     {activeView}
     onSelectTimeframe={handleTimeframeChange}
     onOpenSearch={() => (isModalOpen = true)}
+    onOpenAtlas={() => {
+      activeView = activeView === 'atlas' ? 'terminal' : 'atlas';
+      if (typeof window !== 'undefined') {
+        window.location.hash = activeView === 'atlas' ? '#atlas' : '';
+      }
+    }}
     onOpenCalendar={() => (isCalendarOpen = !isCalendarOpen)}
     onOpenPredictions={() => (isPredictionModalOpen = true)}
     onOpenLauncher={() => (isLauncherOpen = true)}
@@ -215,6 +222,8 @@
         onBackfillStateChange={(b) => (isBackfilling = b)}
       />
     </div>
+  {:else if activeView === 'atlas'}
+    <div class="view-viewport"><LiquidityAtlasView /></div>
   {:else if activeView === 'macro'}
     <div class="view-viewport"><MacroHubView /></div>
   {:else if activeView === 'predictions'}
@@ -256,7 +265,12 @@
   <AppLauncherModal
     isOpen={isLauncherOpen}
     {activeView}
-    onSelectView={(v) => (activeView = v)}
+    onSelectView={(v) => {
+      activeView = v;
+      if (typeof window !== 'undefined') {
+        window.location.hash = v === 'atlas' ? '#atlas' : '';
+      }
+    }}
     onClose={() => (isLauncherOpen = false)}
   />
 

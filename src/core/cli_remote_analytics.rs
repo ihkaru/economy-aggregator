@@ -78,3 +78,13 @@ pub async fn handle_remote_continuous_run(args: &[String], client: &RemoteClient
     let data = client.post_json(&path, None).await?;
     Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator continuous-status", "economy-aggregator transitions"]))
 }
+
+pub async fn handle_remote_atlas(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let mut q = Vec::new();
+    if let Some(v) = flag_val(args, &["--as-of"]) { q.push(("as_of", v)); }
+    if let Some(v) = flag_val(args, &["--range"]) { q.push(("range", v)); }
+    if let Some(v) = flag_val(args, &["--window-weeks", "--weeks"]) { q.push(("window_weeks", v)); }
+    if args.iter().any(|a| a == "--include-spillover") { q.push(("include_spillover", "true".to_string())); }
+    let data = client.get_json("/v1/analytics/liquidity-atlas", &q).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose", "economy-aggregator transitions"]))
+}

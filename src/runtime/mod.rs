@@ -1,10 +1,14 @@
 //! Composition Root Runtime Layer: wires pure analytics, storage ledgers, and background
 //! continuous supervision cleanly above Vertical Slices (`src/features/`).
 
+pub mod atlas_loader;
+mod atlas_series_builders;
 pub mod continuous_supervisor;
 pub mod prospective_loader;
 pub mod tree_loader;
 mod tree_loader_helpers;
+
+pub use atlas_loader::build_liquidity_atlas;
 
 pub use continuous_supervisor::ContinuousAnalyticsSupervisor;
 pub use prospective_loader::build_prospective_inputs;

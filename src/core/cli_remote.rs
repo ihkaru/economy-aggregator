@@ -188,6 +188,7 @@ pub async fn dispatch_remote(
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
         "obs-catalog" => Some(handle_remote_simple_get("/v1/observations/catalog", client).await),
         "liquidity-panel" => Some(handle_remote_simple_get("/v1/analytics/liquidity-panel", client).await),
+        "atlas" => Some(crate::core::cli_remote_analytics::handle_remote_atlas(args, client).await),
         "spillover" => Some(crate::core::cli_remote_analytics::handle_remote_spillover(args, client).await),
         "diagnose" => Some(crate::core::cli_remote_analytics::handle_remote_diagnose(args, client).await),
         "diagnose-history" => Some(crate::core::cli_remote_analytics::handle_remote_diagnose_history(args, client).await),

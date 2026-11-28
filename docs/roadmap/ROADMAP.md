@@ -51,6 +51,10 @@ flowchart TD
 | **M14** | **Closed-System Liquidity Observability & Bitemporal Observations** | Phase 306 – 325 | Completed (20/20) | [milestone_14_closed_system_liquidity_and_bitemporal_observations.md](milestone_14_closed_system_liquidity_and_bitemporal_observations.md) |
 | **M15** | **Full-History Depth, Official FRED REST v1 & Parser Remediation** | Phase 326 – 332 | Completed (7/7) | [milestone_15_full_history_depth_fred_and_parser_remediation.md](milestone_15_full_history_depth_fred_and_parser_remediation.md) |
 | **M16** | **Incremental Scheduling, Bond/Global Flows & Stage-2 Spillover Engine** | Phase 333 – 344 | Completed (12/12) | [milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md](milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md) |
+| **M17** | **Deterministic Liquidity Diagnostic Tree, Parquet Backtrack Ledger & Lineage** | Phase 345 – 350 | Completed (6/6) | [milestone_17_deterministic_diagnostic_tree_and_data_lineage.md](milestone_17_deterministic_diagnostic_tree_and_data_lineage.md) |
+| **M18** | **Continuous Analytics Supervisor & Event-Sourced Parquet Persistence** | Phase 351 – 357 | Completed (7/7) | [milestone_18_continuous_analytics_and_event_sourced_persistence.md](milestone_18_continuous_analytics_and_event_sourced_persistence.md) |
+| **M19** | **Epistemic Tree v1.1.0, Price-Neutral Leverage & Crypto Funding** | Phase 358 – 361 | Completed (4/4) | [milestone_19_epistemic_tree_v1_1_and_crypto_funding.md](milestone_19_epistemic_tree_v1_1_and_crypto_funding.md) |
+| **M20** | **6-Tank Synchronized Liquidity & Capital Flow Atlas** | Phase 362 – 367 | Completed (6/6) | [milestone_20_liquidity_capital_flow_atlas.md](milestone_20_liquidity_capital_flow_atlas.md) |
 
 ---
 

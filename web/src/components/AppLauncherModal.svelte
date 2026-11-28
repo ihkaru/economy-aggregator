@@ -31,6 +31,16 @@
       shortcut: '1',
     },
     {
+      id: 'atlas',
+      title: 'Capital Flow Atlas',
+      category: '6-TANK LIQUIDITY FLOWS',
+      description: 'Synchronized 6-tank capital flows with zero-lookahead date shifting & epistemic tree.',
+      badge: 'FLOW ATLAS',
+      icon: 'layers',
+      accentColor: '#06b6d4',
+      shortcut: '2',
+    },
+    {
       id: 'macro',
       title: 'Macro Hub',
       category: 'MACROECONOMICS',
@@ -38,7 +48,7 @@
       badge: 'PiT REVISIONS',
       icon: 'calendar',
       accentColor: '#f59e0b',
-      shortcut: '2',
+      shortcut: '3',
     },
     {
       id: 'predictions',
@@ -48,7 +58,7 @@
       badge: 'ORACLES',
       icon: 'trending',
       accentColor: '#8b5cf6',
-      shortcut: '3',
+      shortcut: '4',
     },
     {
       id: 'consensus',
@@ -58,7 +68,7 @@
       badge: 'VARIANCE',
       icon: 'layers',
       accentColor: '#089981',
-      shortcut: '4',
+      shortcut: '5',
     },
     {
       id: 'lakehouse',
@@ -68,7 +78,7 @@
       badge: 'STORAGE',
       icon: 'folder',
       accentColor: '#06b6d4',
-      shortcut: '5',
+      shortcut: '6',
     },
     {
       id: 'integrity',
@@ -78,7 +88,7 @@
       badge: 'GOVERNANCE',
       icon: 'shield',
       accentColor: '#ef4444',
-      shortcut: '6',
+      shortcut: '7',
     },
     {
       id: 'subscriptions',
@@ -88,7 +98,7 @@
       badge: 'DAEMON',
       icon: 'refresh',
       accentColor: '#10b981',
-      shortcut: '7',
+      shortcut: '8',
     },
   ];
 
@@ -112,7 +122,7 @@
     if (!isOpen) return;
     if (e.key === 'Escape') {
       onClose();
-    } else if (['1', '2', '3', '4', '5', '6'].includes(e.key) && !searchQuery) {
+    } else if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(e.key) && !searchQuery) {
       const idx = parseInt(e.key, 10) - 1;
       if (apps[idx]) {
         handleSelect(apps[idx].id);
@@ -149,7 +159,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Search datasets, views, or press 1-6..."
+          placeholder="Search datasets, views, or press 1-8..."
           class="search-input"
           autofocus
         />

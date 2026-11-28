@@ -1,3 +1,4 @@
+pub mod atlas_types;
 pub mod cli;
 pub mod cli_catch_up;
 pub mod cli_config;
@@ -16,6 +17,7 @@ pub mod series_catalog;
 pub mod subscription;
 pub mod types;
 
+pub use atlas_types::*;
 pub use cli::run_cli;
 pub use cli_config::{ClientConfig, GlobalCliOptions, ResolvedClientConfig};
 pub use cli_remote::{RemoteCliError, RemoteClient};

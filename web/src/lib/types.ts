@@ -158,7 +158,7 @@ export interface PredictionMarketCandle {
   venue: string;
 }
 
-export type AppViewId = 'terminal' | 'macro' | 'predictions' | 'consensus' | 'lakehouse' | 'integrity' | 'subscriptions';
+export type AppViewId = 'terminal' | 'atlas' | 'macro' | 'predictions' | 'consensus' | 'lakehouse' | 'integrity' | 'subscriptions';
 
 export interface SubscriptionItem {
   source: string;

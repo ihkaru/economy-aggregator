@@ -77,7 +77,7 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "status" => handle_status().await,
         "hash-password" => crate::core::cli_config::handle_hash_password(&rem[1..]),
         "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence"
-        | "obs-catalog" | "liquidity-panel" | "spillover" | "diagnose" | "diagnose-history"
+        | "obs-catalog" | "liquidity-panel" | "atlas" | "spillover" | "diagnose" | "diagnose-history"
         | "diagnose-run" | "transitions" | "prospective-scorecard" | "continuous-status"
         | "continuous-run" => {
             eprintln!("{}", serde_json::json!({
@@ -115,6 +115,7 @@ fn print_help() {
     "divergence                 Query macro vs prediction divergence (/v1/analytics/divergence)",
     "obs-catalog                Query observations catalog & coverage (/v1/observations/catalog)",
     "liquidity-panel            Query Stage-1/2 closed-system liquidity panel (/v1/analytics/liquidity-panel)",
+    "atlas                      Query 6-tank zero-lookahead capital flow atlas (/v1/analytics/liquidity-atlas)",
     "spillover                  Query Diebold-Yilmaz spillover matrix (/v1/analytics/liquidity-spillover)",
     "diagnose                   Run deterministic liquidity diagnostic tree (/v1/analytics/liquidity-tree)",
     "diagnose-history           List persisted diagnostic tree runs (/v1/analytics/liquidity-tree/history)",

@@ -98,6 +98,8 @@ src/
 │   ├── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & core JSON envelope handlers
 │   └── cli_remote_analytics.rs # Remote CLI handlers for diagnose, transitions, continuous & prospective OOS
 ├── runtime/                  # Composition Root (cleanly orchestrates storage + analytics above VSA slices)
+│   ├── atlas_loader.rs       # 6-Tank zero-lookahead Capital Flow Atlas loader (<= as_of)
+│   ├── atlas_series_builders.rs # Pure weekly/daily time-series & lag builders for Atlas tanks
 │   ├── tree_loader.rs        # Shared diagnostic input loader & lake watermark SHA-256 fingerprinter
 │   ├── prospective_loader.rs # Weekly/daily OOS panel builder for frozen prospective protocol v1.1.0
 │   └── continuous_supervisor.rs # Background idempotent continuous analytics loop, diffing & 24h compaction
@@ -105,11 +107,11 @@ src/
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo 10y Catch-Up, FRED REST v1 & Zero-Key Connectors (Treasury/OCC/FINRA/CFTC/CoinMetrics/BGeometrics)
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, ObservationReaders, DiagnosticTreeLedger & ContinuousAnalyticsStore (event-sourced Parquet + atomic checkpoints)
 │   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Flows, Weekly Panel, Stage-2 VAR/GFEVD, Diagnostic Tree, Regime Transitions & Prospective OOS Scorecard
-│   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, Diagnostic/Continuous/Prospective Routes, TTL cache, compression
+│   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, Liquidity Atlas API, Diagnostic/Continuous/Prospective Routes, TTL cache, compression
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/
-│   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons
-│   ├── lib/                  # api.ts, types.ts
+│   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons, atlas/{AtlasTankCard,AtlasDiagnosticStrip}, views/LiquidityAtlasView
+│   ├── lib/                  # api.ts, types.ts, atlas_types.ts, atlas_api.ts, atlas_chart.ts
 │   ├── app.css               # Obsidian terminal theme (#08090d), tabular numbers, 0px border-radius
 │   └── App.svelte            # Root layout (< 400 lines)
 ├── dist/                     # Pre-compiled static assets served directly at GET /

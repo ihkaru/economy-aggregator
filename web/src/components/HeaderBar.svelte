@@ -12,6 +12,7 @@
   export let onOpenSearch: () => void;
   export let onRefresh: () => void;
   export let onOpenCalendar: () => void = () => {};
+  export let onOpenAtlas: () => void = () => {};
   export let onOpenPredictions: () => void = () => {};
   export let onOpenLauncher: () => void = () => {};
   export let activeView: string = 'terminal';
@@ -107,6 +108,16 @@
 
   <!-- Right: Integrity Badge & Controls -->
   <div class="right-section">
+    <button
+      class="nav-tool-btn atlas-nav-btn"
+      class:active-nav={activeView === 'atlas'}
+      on:click={onOpenAtlas}
+      title="Capital Flow & Liquidity Atlas (6 Synchronized Tanks)"
+    >
+      <Icons name="layers" size={12} />
+      <span>FLOW ATLAS</span>
+    </button>
+
     <button class="nav-tool-btn" on:click={onOpenCalendar} title="Macroeconomic Calendar (SDMX / Point-in-Time)">
       <Icons name="calendar" size={12} />
       <span>CALENDAR</span>
@@ -347,6 +358,8 @@
     color: var(--text-bright);
     border-color: var(--border-contrast);
   }
+  .atlas-nav-btn { border-color: rgba(59, 130, 246, 0.45); color: #93c5fd; }
+  .atlas-nav-btn.active-nav { background: #1e2638; border-color: #3b82f6; color: #ffffff; }
 
   .action-btn {
     background: var(--bg-surface);

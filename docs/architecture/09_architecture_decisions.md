@@ -398,3 +398,18 @@
   Seluruh diagnosis otomatis kini bebas bias revaluasi pada OI derivatif, jujur terhadap jeda rilis H.8/FINRA/COT, dan memisahkan fakta akuntansi (Tier 1) dari interpretasi motif/rezim (Tier 4).
 * **Risiko yang Muncul:**  
   Konektor *funding rate* bursa publik (`binance_futures`, `bybit_v5`) dapat dibatasi *geo-blocking* pada jaringan klien tertentu, namun berjalan normal di server produksi ThinkStation dan tetap *fail-fast* terisolasi tanpa mencampur sumber.
+
+---
+
+### ADR-25: 6-Tank Synchronized Liquidity & Capital Flow Atlas dengan Time-Travel Nol-Lookahead (Milestone 20)
+* **Status:** Diterima
+* **Konteks:**  
+  Tabel atau laporan teks statis menyulitkan operator melihat serentak ke mana modal bergerak dan terparkir di seluruh kompartemen (*Equities SPY*, *Crypto BTC*, *Financial Gold*, *Short-Term Cash*, *Banks & Credit*, *Macro Fed Pipes*), terutama saat ingin membandingkan kondisi lintas tanggal historis tanpa mencemari pandangan historis dengan data masa depan (*look-ahead bias*) atau memperhalus rilis tertinggal (*H.8*, *FINRA*, *WRMFNS*, *COT*) melalui extrapolasi palsu.
+* **Keputusan:**  
+  1. Menambahkan `src/runtime/atlas_loader.rs`, `src/runtime/atlas_series_builders.rs`, `src/core/atlas_types.rs`, serta endpoint single-shot `GET /v1/analytics/liquidity-atlas?as_of=&range=&window_weeks=&include_spillover=` (`src/features/serving/atlas_routes.rs`) dan sub-perintah CLI `economy-aggregator atlas`.
+  2. Menegakkan penapisan keras `observation_ts <= as_of` pada setiap seri dan candle, menyertakan batas tanggal penuh lakehouse (`earliest_available_date`, `latest_available_date`), melampirkan status lapisan transformasi (`raw_as_is` / `raw_unit_scaled` / `upstream_seasonally_adjusted` / `upstream_split_adjusted` / `derived_adjusted`) dan `UNPRINTED LAG` untuk seri tertinggal tanpa mengisi palsu minggu yang belum rilis.
+  3. Membangun tampilan terminal Svelte tertanam `LiquidityAtlasView.svelte` + `AtlasTankCard.svelte` + `AtlasDiagnosticStrip.svelte` berbasis `lightweight-charts v5` yang sudah terpasang (`web/`), menghadirkan tombol geser tanggal kiri/kanan (`-4W`, `-1W`, pemilih tanggal `AS-OF`, `+1W`, `+4W`, `LATEST`, serta pintasan keyboard `ArrowLeft`/`ArrowRight`), *crosshair* tersinkronisasi lintas 6 tanki, *overlay switcher*, serta strip diagnosis `liquidity-tree-v1.1.0`, `transitions`, dan `prospective-scorecard`.
+* **Konsekuensi Positif:**  
+  Operator dapat langsung menggeser tanggal ke kiri/kanan di Web Terminal (`https://market.dvlpid.my.id/#atlas` atau tombol `FLOW ATLAS`), menginspeksi seluruh aliran modal 6 tanki secara paralel, memverifikasi sumber & batasan akuntansi tiap tanki, serta terhindar dari bias *look-ahead* dan *overclaiming* motif.
+* **Risiko yang Muncul:**  
+  Komponen `lightweight-charts` menampilkan sumbu tanggal harian/mingguan independen per kartu dan menyelaraskan nilai lintas tanki via kursor tanggal bersama (`findPointAtOrBefore`); perbandingan rentang yang sangat panjang (`all`, >10 tahun) memuat beberapa ratus titik JSON dalam satu respons (~250 KB sebelum kompresi ZSTD/GZIP Axum).

@@ -1,5 +1,5 @@
 <script lang="ts">
-  export let name: 'search' | 'refresh' | 'check' | 'close' | 'database' | 'calendar' | 'activity' | 'layers' | 'loader' | 'grid' | 'shield' | 'folder' | 'trending' | 'external-link' | 'arrow-up' | 'arrow-down';
+  export let name: 'search' | 'refresh' | 'check' | 'close' | 'database' | 'calendar' | 'activity' | 'layers' | 'loader' | 'grid' | 'shield' | 'folder' | 'trending' | 'external-link' | 'arrow-up' | 'arrow-down' | 'chevron-left' | 'chevron-right' | 'chevrons-left' | 'chevrons-right' | 'info' | 'alert-triangle';
   export let size: number = 14;
   export let classNames: string = '';
 </script>
@@ -94,5 +94,35 @@
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
     <line x1="12" y1="5" x2="12" y2="19"></line>
     <polyline points="19 12 12 19 5 12"></polyline>
+  </svg>
+{:else if name === 'chevron-left'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <polyline points="15 18 9 12 15 6"></polyline>
+  </svg>
+{:else if name === 'chevron-right'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </svg>
+{:else if name === 'chevrons-left'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <polyline points="11 17 6 12 11 7"></polyline>
+    <polyline points="18 17 13 12 18 7"></polyline>
+  </svg>
+{:else if name === 'chevrons-right'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <polyline points="13 17 18 12 13 7"></polyline>
+    <polyline points="6 17 11 12 6 7"></polyline>
+  </svg>
+{:else if name === 'info'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <rect x="3" y="3" width="18" height="18"></rect>
+    <line x1="12" y1="16" x2="12" y2="12"></line>
+    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+  </svg>
+{:else if name === 'alert-triangle'}
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class={classNames}>
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
   </svg>
 {/if}
