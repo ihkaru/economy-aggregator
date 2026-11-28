@@ -28,8 +28,11 @@ use crate::features::serving::auth_routes::{
 use crate::features::serving::catalog_routes::*;
 use crate::features::serving::diagnostic_tree_routes::{
     get_liquidity_tree_run_handler, list_liquidity_tree_history_handler,
-    query_liquidity_tree_handler,
+    list_liquidity_tree_transitions_handler, query_continuous_status_handler,
+    query_liquidity_tree_handler, query_prospective_scorecard_handler,
+    trigger_continuous_run_handler,
 };
+use crate::runtime::ContinuousAnalyticsSupervisor;
 use crate::features::serving::liquidity_analytics_routes::{
     query_liquidity_panel_handler, query_liquidity_spillover_handler,
 };
@@ -54,6 +57,7 @@ pub struct AppState {
     pub registry: RwLock<InstrumentRegistry>,
     pub sub_manager: Arc<SubscriptionManager>,
     pub orchestrator: Arc<IngestionOrchestrator>,
+    pub continuous_supervisor: Arc<ContinuousAnalyticsSupervisor>,
     pub start_time: Instant,
     pub candle_cache: RwLock<HashMap<String, (Instant, Vec<AggregatorCandle>)>>,
     pub macro_cache: RwLock<HashMap<String, (Instant, Vec<RichEconomicEvent>)>>,
@@ -76,12 +80,14 @@ impl AppState {
         sub_manager: Arc<SubscriptionManager>,
         orchestrator: Arc<IngestionOrchestrator>,
     ) -> Self {
+        let continuous_supervisor = Arc::new(ContinuousAnalyticsSupervisor::new(config.lake_dir.clone()));
         Self {
             config,
             resolver,
             registry: RwLock::new(registry),
             sub_manager,
             orchestrator,
+            continuous_supervisor,
             start_time: Instant::now(),
             candle_cache: RwLock::new(HashMap::new()),
             macro_cache: RwLock::new(HashMap::new()),
@@ -161,6 +167,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/analytics/liquidity-tree", get(query_liquidity_tree_handler))
         .route("/v1/analytics/liquidity-tree/history", get(list_liquidity_tree_history_handler))
         .route("/v1/analytics/liquidity-tree/runs/:run_id", get(get_liquidity_tree_run_handler))
+        .route("/v1/analytics/liquidity-tree/transitions", get(list_liquidity_tree_transitions_handler))
+        .route("/v1/analytics/prospective-scorecard", get(query_prospective_scorecard_handler))
+        .route("/v1/analytics/continuous/status", get(query_continuous_status_handler))
+        .route("/v1/analytics/continuous/run", post(trigger_continuous_run_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
         .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
         .route("/v1/subscriptions/:symbol", delete(delete_subscription_handler))

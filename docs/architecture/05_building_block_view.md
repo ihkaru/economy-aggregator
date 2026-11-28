@@ -91,15 +91,21 @@ src/
 │   ├── types.rs              # AggregatorCandle, EconomicEventRecord, Enums
 │   ├── observation_types.rs  # MetricObservation, DataProcessingLayer (RawAsIs/Adjusted) & SourceProvenance
 │   ├── diagnostic_types.rs   # EpistemicTier, DiagnosticNode, SourceLineageEntry, DiagnosticTreeReport
+│   ├── continuous_types.rs   # RegimeTransitionEvent, ContinuousAnalyticsCheckpoint, ProspectiveScorecardReport
 │   ├── config.rs             # LakehouseConfig & batas budget memori
 │   ├── cli.rs                # Agent-First CLI dispatcher & argument parser
 │   ├── cli_config.rs         # 3-tier remote config (flag > env > config.json) & secret masking
-│   └── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & JSON envelope handlers
+│   ├── cli_remote.rs         # Remote HTTP client (Bearer/X-API-Key) & core JSON envelope handlers
+│   └── cli_remote_analytics.rs # Remote CLI handlers for diagnose, transitions, continuous & prospective OOS
+├── runtime/                  # Composition Root (cleanly orchestrates storage + analytics above VSA slices)
+│   ├── tree_loader.rs        # Shared diagnostic input loader & lake watermark SHA-256 fingerprinter
+│   ├── prospective_loader.rs # Weekly/daily OOS panel builder for frozen prospective protocol v1.1.0
+│   └── continuous_supervisor.rs # Background idempotent continuous analytics loop, diffing & 24h compaction
 ├── features/                 # Vertical Slice Architecture
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo 10y Catch-Up, FRED REST v1 & Zero-Key Connectors (Treasury/OCC/FINRA/CFTC/CoinMetrics/BGeometrics)
-│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, Macro/Prediction/ObservationReaders & DiagnosticTreeLedger (lake/diagnostics/tree_runs/)
-│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Flows, Weekly Panel, Stage-2 VAR/GFEVD Spillover & Deterministic Diagnostic Tree
-│   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, Diagnostic Tree/Backtrack Routes, TTL cache, compression
+│   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, ObservationReaders, DiagnosticTreeLedger & ContinuousAnalyticsStore (event-sourced Parquet + atomic checkpoints)
+│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Flows, Weekly Panel, Stage-2 VAR/GFEVD, Diagnostic Tree, Regime Transitions & Prospective OOS Scorecard
+│   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, Diagnostic/Continuous/Prospective Routes, TTL cache, compression
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/
 │   ├── components/           # CandleChart, HeaderBar, TickerModal, InspectionBar, Icons

@@ -15,8 +15,10 @@ mod liquidity_tree_branches;
 pub mod macro_prediction_bridge;
 pub mod outlier;
 pub mod portfolio;
+pub mod prospective_scorecard;
 pub mod reconciliation;
 pub mod reconcile_cli;
+pub mod regime_transitions;
 pub mod runner;
 pub mod spillover;
 pub mod spillover_breaks;
@@ -50,6 +52,11 @@ pub use spillover_diagnostics::NullModel;
 pub use macro_prediction_bridge::{MacroPredictionBridge, MacroPredictionDivergence};
 pub use outlier::HampelFilter;
 pub use portfolio::{PortfolioEngine, PortfolioMetrics, SingleAssetMetrics};
+pub use prospective_scorecard::{
+    evaluate_prospective_scorecard, ProspectiveScorecardInputs, ProspectiveWeeklyObs,
+    OOS_START_WEEK, PROSPECTIVE_PROTOCOL_SHA256, PROSPECTIVE_PROTOCOL_VERSION,
+};
+pub use regime_transitions::detect_regime_transition;
 pub use reconciliation::{CandleDiscrepancy, DiscrepancyType, ReconciliationEngine, ReconciliationReport};
 pub use reconcile_cli::handle_reconcile;
 pub use runner::handle_analyze;

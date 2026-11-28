@@ -134,7 +134,7 @@ impl RemoteClient {
     }
 }
 
-fn flag_val(args: &[String], names: &[&str]) -> Option<String> {
+pub(crate) fn flag_val(args: &[String], names: &[&str]) -> Option<String> {
     let mut i = 0;
     while i < args.len() {
         let a = args[i].as_str();
@@ -151,7 +151,7 @@ fn flag_val(args: &[String], names: &[&str]) -> Option<String> {
     None
 }
 
-fn wrap_ok(base_url: &str, data: Value, next_steps: Vec<&str>) -> Value {
+pub(crate) fn wrap_ok(base_url: &str, data: Value, next_steps: Vec<&str>) -> Value {
     serde_json::json!({
         "success": true,
         "error": null,
@@ -188,10 +188,14 @@ pub async fn dispatch_remote(
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
         "obs-catalog" => Some(handle_remote_simple_get("/v1/observations/catalog", client).await),
         "liquidity-panel" => Some(handle_remote_simple_get("/v1/analytics/liquidity-panel", client).await),
-        "spillover" => Some(handle_remote_spillover(args, client).await),
-        "diagnose" => Some(handle_remote_diagnose(args, client).await),
-        "diagnose-history" => Some(handle_remote_diagnose_history(args, client).await),
-        "diagnose-run" => Some(handle_remote_diagnose_run(args, client).await),
+        "spillover" => Some(crate::core::cli_remote_analytics::handle_remote_spillover(args, client).await),
+        "diagnose" => Some(crate::core::cli_remote_analytics::handle_remote_diagnose(args, client).await),
+        "diagnose-history" => Some(crate::core::cli_remote_analytics::handle_remote_diagnose_history(args, client).await),
+        "diagnose-run" => Some(crate::core::cli_remote_analytics::handle_remote_diagnose_run(args, client).await),
+        "transitions" => Some(crate::core::cli_remote_analytics::handle_remote_transitions(args, client).await),
+        "prospective-scorecard" => Some(crate::core::cli_remote_analytics::handle_remote_prospective(args, client).await),
+        "continuous-status" => Some(crate::core::cli_remote_analytics::handle_remote_continuous_status(client).await),
+        "continuous-run" => Some(crate::core::cli_remote_analytics::handle_remote_continuous_run(args, client).await),
         _ => None,
     }
 }
@@ -352,45 +356,7 @@ async fn handle_remote_compact(args: &[String], client: &RemoteClient) -> Result
     Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator status"]))
 }
 
-async fn handle_remote_spillover(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
-    let mut q = Vec::new();
-    if let Some(v) = flag_val(args, &["--start", "--start-date"]) { q.push(("start_date", v)); }
-    if let Some(v) = flag_val(args, &["--end", "--end-date"]) { q.push(("end_date", v)); }
-    if let Some(v) = flag_val(args, &["--lags"]) { q.push(("lags", v)); }
-    if let Some(v) = flag_val(args, &["--horizon"]) { q.push(("horizon", v)); }
-    if let Some(v) = flag_val(args, &["--liquidity-mode"]) { q.push(("liquidity_mode", v)); }
-    if let Some(v) = flag_val(args, &["--null-mode"]) { q.push(("null_mode", v)); }
-    if let Some(v) = flag_val(args, &["--permutations"]) { q.push(("permutations", v)); }
-    if args.iter().any(|a| a == "--exclude-mmf") { q.push(("exclude_mmf", "true".to_string())); }
-    let data = client.get_json("/v1/analytics/liquidity-spillover", &q).await?;
-    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator liquidity-panel"]))
-}
-
 async fn handle_remote_simple_get(path: &str, client: &RemoteClient) -> Result<Value, RemoteCliError> {
     let data = client.get_json(path, &[]).await?;
     Ok(wrap_ok(client.base_url(), data, vec![]))
-}
-
-async fn handle_remote_diagnose(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
-    let mut q = Vec::new();
-    if let Some(v) = flag_val(args, &["--as-of"]) { q.push(("as_of", v)); }
-    if let Some(v) = flag_val(args, &["--window-weeks", "--weeks"]) { q.push(("window_weeks", v)); }
-    if args.iter().any(|a| a == "--persist") { q.push(("persist", "true".to_string())); }
-    if args.iter().any(|a| a == "--no-spillover") { q.push(("include_spillover", "false".to_string())); }
-    let data = client.get_json("/v1/analytics/liquidity-tree", &q).await?;
-    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-history"]))
-}
-
-async fn handle_remote_diagnose_history(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
-    let mut q = Vec::new();
-    if let Some(v) = flag_val(args, &["--limit"]) { q.push(("limit", v)); }
-    let data = client.get_json("/v1/analytics/liquidity-tree/history", &q).await?;
-    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-run <run_id>"]))
-}
-
-async fn handle_remote_diagnose_run(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
-    let id = args.first().filter(|a| !a.starts_with('-')).cloned()
-        .ok_or_else(|| RemoteCliError::config_or_auth("Usage: economy-aggregator diagnose-run <run_id>", None))?;
-    let data = client.get_json(&format!("/v1/analytics/liquidity-tree/runs/{}", id), &[]).await?;
-    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-history"]))
 }

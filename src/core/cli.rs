@@ -77,7 +77,9 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "status" => handle_status().await,
         "hash-password" => crate::core::cli_config::handle_hash_password(&rem[1..]),
         "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence"
-        | "obs-catalog" | "liquidity-panel" | "spillover" => {
+        | "obs-catalog" | "liquidity-panel" | "spillover" | "diagnose" | "diagnose-history"
+        | "diagnose-run" | "transitions" | "prospective-scorecard" | "continuous-status"
+        | "continuous-run" => {
             eprintln!("{}", serde_json::json!({
                 "success": false,
                 "error": format!("Command '{}' requires a remote server. Set --base-url, ECONOMY_AGGREGATOR_BASE_URL, or run 'economy-aggregator config set --base-url <url>'.", rem[0]),
@@ -117,6 +119,9 @@ fn print_help() {
     "diagnose                   Run deterministic liquidity diagnostic tree (/v1/analytics/liquidity-tree)",
     "diagnose-history           List persisted diagnostic tree runs (/v1/analytics/liquidity-tree/history)",
     "diagnose-run <run_id>      Backtrack a persisted diagnostic run (/v1/analytics/liquidity-tree/runs/:id)",
+    "transitions                List event-sourced regime shifts & blind-spot diffs (/v1/analytics/liquidity-tree/transitions)",
+    "prospective-scorecard      Evaluate frozen prospective OOS protocol v1.1.0 (/v1/analytics/prospective-scorecard)",
+    "continuous-status|run      Inspect or trigger idempotent continuous analytics (/v1/analytics/continuous/*)",
     "search                     Search multi-source symbols (local or remote)",
     "subscribe                  Subscribe to a symbol for autonomous live ingestion",
     "unsubscribe                Remove an active ingestion subscription",

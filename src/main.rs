@@ -78,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_api_keys(api_keys)
             .with_ui_auth(session_secret, ui_admin, oidc_config),
     );
+    state.continuous_supervisor.start();
 
     // Asynchronous background cache pre-warmer for core instruments
     let prewarm_state = state.clone();

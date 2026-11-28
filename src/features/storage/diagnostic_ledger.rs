@@ -1,6 +1,7 @@
 //! Persistent Append-Only Arrow/Parquet ZSTD(3) Ledger for Deterministic Diagnostic Tree Runs (Phase 348).
 //! Stored strictly under <lake_dir>/diagnostics/tree_runs/year=YYYY/ — isolated from raw lake/observations/.
 
+use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -8,7 +9,7 @@ use std::sync::Arc;
 use arrow::array::{Array, Int64Array, StringArray, TimestampNanosecondArray, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
@@ -115,6 +116,137 @@ impl DiagnosticTreeLedger {
         }
         Ok(None)
     }
+
+    /// Returns the newest persisted full DiagnosticTreeReport matching `window_weeks`.
+    pub fn latest_run_for_window(
+        &self,
+        window_weeks: usize,
+    ) -> Result<Option<DiagnosticTreeReport>, String> {
+        let files = collect_parquet_files(&self.base_dir);
+        let mut summaries = Vec::new();
+        for path in files {
+            if let Ok(rows) = read_summaries_from_file(&path) {
+                for r in rows {
+                    if r.window_weeks == window_weeks {
+                        summaries.push(r);
+                    }
+                }
+            }
+        }
+        summaries.sort_by(|a, b| b.evaluated_at_utc.cmp(&a.evaluated_at_utc));
+        match summaries.first() {
+            Some(s) => self.get_run(&s.run_id),
+            None => Ok(None),
+        }
+    }
+
+    /// Non-destructive bin-packing compaction per `year=YYYY/` partition (dedups by run_id, zero data loss).
+    pub fn compact_year_partitions(&self, min_files: usize) -> Result<usize, String> {
+        let Ok(entries) = fs::read_dir(&self.base_dir) else { return Ok(0) };
+        let threshold = min_files.max(2);
+        let mut removed = 0usize;
+        for entry in entries.flatten() {
+            let year_dir = entry.path();
+            if !year_dir.is_dir() {
+                continue;
+            }
+            let files = collect_parquet_files(&year_dir);
+            if files.len() < threshold {
+                continue;
+            }
+            let mut by_id: BTreeMap<String, DiagnosticTreeReport> = BTreeMap::new();
+            for p in &files {
+                if let Ok(reps) = read_all_reports_from_file(p) {
+                    for rep in reps {
+                        by_id.insert(rep.run_id.clone(), rep);
+                    }
+                }
+            }
+            let mut reports: Vec<DiagnosticTreeReport> = by_id.into_values().collect();
+            reports.sort_by_key(|r| r.evaluated_at_utc);
+            if reports.is_empty() {
+                continue;
+            }
+            let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+            let dest = year_dir.join(format!("compacted_{}.parquet", stamp));
+            write_reports_batch(&dest, &reports)?;
+            for old in files {
+                if old != dest {
+                    let _ = fs::remove_file(old);
+                    removed += 1;
+                }
+            }
+        }
+        Ok(removed)
+    }
+}
+
+fn write_reports_batch(dest: &Path, reports: &[DiagnosticTreeReport]) -> Result<(), String> {
+    let tmp = dest.with_extension("parquet.tmp");
+    let run_ids: Vec<&str> = reports.iter().map(|r| r.run_id.as_str()).collect();
+    let ts: Vec<i64> = reports.iter().map(|r| r.evaluated_at_utc.timestamp_nanos_opt().unwrap_or(0)).collect();
+    let as_ofs: Vec<&str> = reports.iter().map(|r| r.as_of_date.as_str()).collect();
+    let wins: Vec<u32> = reports.iter().map(|r| r.window_weeks as u32).collect();
+    let vers: Vec<&str> = reports.iter().map(|r| r.protocol_version.as_str()).collect();
+    let regs: Vec<&str> = reports.iter().map(|r| r.root_regime.as_str()).collect();
+    let leaves: Vec<&str> = reports.iter().map(|r| r.terminal_leaf_id.as_str()).collect();
+    let tiers: Vec<&str> = reports.iter().map(|r| r.terminal_epistemic_tier.as_str()).collect();
+    let bs: Vec<i64> = reports.iter().map(|r| r.blind_spots.len() as i64).collect();
+    let st: Vec<i64> = reports.iter().map(|r| r.source_lineage.iter().filter(|s| s.is_stale).count() as i64).collect();
+    let shas: Vec<&str> = reports.iter().map(|r| r.tree_checksum_sha256.as_str()).collect();
+    let paths_json: Vec<String> = reports.iter().map(|r| serde_json::to_string(&r.active_path).unwrap_or_default()).collect();
+    let full_json: Vec<String> = reports.iter().map(|r| serde_json::to_string(r).unwrap_or_default()).collect();
+    let path_refs: Vec<&str> = paths_json.iter().map(String::as_str).collect();
+    let full_refs: Vec<&str> = full_json.iter().map(String::as_str).collect();
+
+    let batch = RecordBatch::try_new(
+        DiagnosticTreeLedger::schema(),
+        vec![
+            Arc::new(StringArray::from(run_ids)),
+            Arc::new(TimestampNanosecondArray::from(ts).with_timezone("UTC")),
+            Arc::new(StringArray::from(as_ofs)),
+            Arc::new(UInt32Array::from(wins)),
+            Arc::new(StringArray::from(vers)),
+            Arc::new(StringArray::from(regs)),
+            Arc::new(StringArray::from(leaves)),
+            Arc::new(StringArray::from(tiers)),
+            Arc::new(Int64Array::from(bs)),
+            Arc::new(Int64Array::from(st)),
+            Arc::new(StringArray::from(shas)),
+            Arc::new(StringArray::from(path_refs)),
+            Arc::new(StringArray::from(full_refs)),
+        ],
+    )
+    .map_err(|e| format!("Arrow batch error: {}", e))?;
+
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap_or_default()))
+        .build();
+    let file = File::create(&tmp).map_err(|e| format!("Create tmp parquet failed: {}", e))?;
+    let mut writer = ArrowWriter::try_new(file, DiagnosticTreeLedger::schema(), Some(props))
+        .map_err(|e| format!("Parquet writer init failed: {}", e))?;
+    writer.write(&batch).map_err(|e| format!("Parquet write failed: {}", e))?;
+    writer.close().map_err(|e| format!("Parquet close failed: {}", e))?;
+    fs::rename(&tmp, dest).map_err(|e| format!("Atomic rename failed: {}", e))
+}
+
+fn read_all_reports_from_file(path: &Path) -> Result<Vec<DiagnosticTreeReport>, String> {
+    let file = File::open(path).map_err(|e| e.to_string())?;
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .map_err(|e| e.to_string())?
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for batch_res in reader {
+        let b = batch_res.map_err(|e| e.to_string())?;
+        let full_jsons = b.column(12).as_any().downcast_ref::<StringArray>().ok_or("col 12")?;
+        for i in 0..b.num_rows() {
+            if let Ok(rep) = serde_json::from_str::<DiagnosticTreeReport>(full_jsons.value(i)) {
+                out.push(rep);
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn collect_parquet_files(dir: &Path) -> Vec<PathBuf> {

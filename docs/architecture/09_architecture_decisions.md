@@ -368,3 +368,18 @@
   Setiap diagnosis kondisi likuiditas dapat direproduksi secara deterministik, dibacktrack balik hingga checksum file mentah dan kelemahan sumbernya, serta secara jujur berhenti pada daun `BLIND_SPOT` untuk melahirkan antrean pertanyaan & celah data baru tanpa mengarang rasionalisasi.
 * **Risiko yang Muncul:**  
   Ambang simpul pohon (`liquidity-tree-v1.0.0`) bersifat protokol deskriptif yang dibekukan; penambahan cabang baru wajib melalui versi protokol baru dan preregistrasi sebelum evaluasi prospektif agar tidak melanggar disiplin *anti-fishing*.
+
+---
+
+### ADR-23: Continuous Analytics Supervisor, Persistensi Event-Sourced Parquet 4-Lapis & Prospective OOS Scorecard (Milestone 18)
+* **Status:** Diterima
+* **Konteks:**  
+  Pasca-Milestone 17, ingesti data sudah berjalan otomatis 24/7, namun eksekusi pohon diagnostik, persistensi riwayat, deteksi perubahan rezim, dan pemantauan protokol prospektif (`prospective_rules_2026_11_28.json`) masih bersifat *on-demand*. Tanpa penjadwal otomatis ber-deduplikasi *watermark/checksum*, riwayat harian akan berlubang jika tidak dipanggil atau sebaliknya menumpuk *small-file sprawl* Parquet bila dipanggil berulang.
+* **Keputusan:**  
+  1. Memisahkan *composition root* ke `src/runtime/` (`tree_loader.rs`, `prospective_loader.rs`, `continuous_supervisor.rs`) agar `features/analytics/` tetap komputasi murni tanpa I/O dan `features/storage/` tetap penyimpanan murni tanpa ketergantungan analitik.
+  2. Menerapkan persistensi *event-sourced* 4 lapis di bawah `lake/diagnostics/` (terisolasi 100% dari `lake/observations/`): (a) `tree_runs/year=YYYY/` (snapshot Parquet ZSTD(3) + *non-destructive bin-packing compaction*), (b) `transitions/year=YYYY/` (event perubahan daun/rezim/blind-spot/*stale-freshened* dengan kolom Arrow bertipe + JSON diff), (c) `prospective_oos/year=YYYY/` (akumulator OOS protokol beku `v1.1.0` dengan kunci *anti-peeking* & kuantil *strictly expanding*), serta (d) `checkpoints/continuous_analytics_state.json` (tulis atomik `.tmp -> sync_all -> rename`).
+  3. Menjalankan `ContinuousAnalyticsSupervisor` otomatis saat boot (`src/main.rs`) dengan gerbang *lake watermark hash* + deduplikasi `tree_checksum_sha256` (menulis hanya bila data/hari berubah) dan auto-compaction 24 jam, serta mengekspos `/v1/analytics/continuous/status`, `POST /v1/analytics/continuous/run`, `/v1/analytics/liquidity-tree/transitions`, `/v1/analytics/prospective-scorecard`, dan sub-perintah CLI remote terkait.
+* **Konsekuensi Positif:**  
+  Sistem kini mendukung *continuous analytics* penuh tanpa *file bloat*, tahan restart container lewat checkpoint atomik, mendeteksi pergeseran rezim & resolusi *blind-spot* secara otomatis, serta mengakumulasi evaluasi prospektif 2026–2031 bebas bias *peeking*.
+* **Risiko yang Muncul:**  
+  Kompaksi *bin-packing* membutuhkan pembacaan seluruh fragmen dalam satu partisi tahunan; karena partisi dibatasi per tahun dan rata-rata hanya ~1–4 snapshot unik per hari, jejak memori tetap <5 MB.
