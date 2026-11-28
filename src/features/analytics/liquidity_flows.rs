@@ -25,6 +25,8 @@ pub struct ImpliedNetFlowPoint {
     pub implied_net_flow_usd: f64,
     pub aum_source: String,
     pub price_source: String,
+    #[serde(default)]
+    pub split_or_glitch_adjusted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +91,7 @@ pub fn compute_implied_net_flows(
             implied_net_flow_usd: net_flow,
             aum_source: curr_obs.provenance.source.clone(),
             price_source: px_src.to_string(),
+            split_or_glitch_adjusted: false,
         });
     }
     out
@@ -167,6 +170,7 @@ pub fn compute_exact_share_flows(
             implied_net_flow_usd: exact_flow,
             aum_source: curr_aum.provenance.source.clone(),
             price_source: "ssga_nav_exact".to_string(),
+            split_or_glitch_adjusted: is_inverse_jump,
         });
     }
     out

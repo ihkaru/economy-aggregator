@@ -353,3 +353,18 @@
   Siklus ulang observasi berhenti menulis ribuan baris duplikat (mengurangi beban disk dan menghindari `HTTP 429`), `/v1/observations/catalog` merespons dalam milidetik, dan analisis transmisi guncangan likuiditas 6 kompartemen kini dapat dijalankan secara deterministik langsung dari endpoint API maupun CLI.
 * **Risiko yang Muncul:**  
   Estimasi OLS `VAR(p)` mensyaratkan jumlah minggu selaras yang memadai (`T > p + N*p + 6`) dan akan gagal cepat (`HTTP 422`) bila jendela tanggal yang diminta terlalu sempit atau seri memiliki varians nol.
+
+---
+
+### ADR-22: Pohon Diagnostik Likuiditas Deterministik, Ledger Parquet Persisten, & Taksonomi Lineage As-Is vs Adjusted (Milestone 17)
+* **Status:** Diterima
+* **Konteks:**  
+  Pengguna dan agen analitik membutuhkan mekanisme penelusuran terstruktur untuk menjawab *"ke mana uang global sedang berpindah atau menetap saat ini?"* secara deterministik tanpa halusinasi LLM, tanpa *data dredging* (*forking paths*), serta dengan pemisahan eksplisit antara observasi mentah *as-is* vs data yang telah di-*adjust* (baik oleh penyedia hulu seperti Fed H.8 SA / Yahoo split maupun olahan internal seperti split-guard SSGA).
+* **Keputusan:**  
+  1. Menambahkan enumerasi `DataProcessingLayer` (`raw_as_is`, `raw_unit_scaled`, `upstream_seasonally_adjusted`, `upstream_split_adjusted`, `derived_adjusted`) beserta `raw_value_preserved` & `adjustment_note` di `SeriesCatalog` dan respons `/v1/observations/catalog` serta `/v1/observations/matrix`, sekaligus menambahkan flag `split_or_glitch_adjusted` per baris di `ImpliedNetFlowPoint` tanpa memutasi baris mentah di Parquet.
+  2. Membangun mesin pohon keputusan deterministik `liquidity_tree.rs` (`protocol_version = "liquidity-tree-v1.0.0"`) dengan pelabelan tingkat epistemik (`Tier1_Accounting` s.d. `Tier4_HypothesisGauge` dan `BlindSpot`), deteksi `STALE_LAG` otomatis untuk seri bulanan (`FINRA`), penghitung `tree_checksum_sha256`, serta lampiran penuh `source_lineage` (*source*, *source_url*, *source_checksum*, *batch_id*, *data_layer*, dan *known_limitation*).
+  3. Membangun `DiagnosticTreeLedger` (`src/features/storage/diagnostic_ledger.rs`) berbasis Apache Arrow/Parquet `ZSTD(3)` *append-only* yang terisolasi di `lake/diagnostics/tree_runs/year=YYYY/` (terpisah penuh dari `lake/observations/`) dan diekspos melalui `/v1/analytics/liquidity-tree`, `/v1/analytics/liquidity-tree/history`, `/v1/analytics/liquidity-tree/runs/:run_id`, serta sub-perintah CLI `diagnose`, `diagnose-history`, dan `diagnose-run`.
+* **Konsekuensi Positif:**  
+  Setiap diagnosis kondisi likuiditas dapat direproduksi secara deterministik, dibacktrack balik hingga checksum file mentah dan kelemahan sumbernya, serta secara jujur berhenti pada daun `BLIND_SPOT` untuk melahirkan antrean pertanyaan & celah data baru tanpa mengarang rasionalisasi.
+* **Risiko yang Muncul:**  
+  Ambang simpul pohon (`liquidity-tree-v1.0.0`) bersifat protokol deskriptif yang dibekukan; penambahan cabang baru wajib melalui versi protokol baru dan preregistrasi sebelum evaluasi prospektif agar tidak melanggar disiplin *anti-fishing*.

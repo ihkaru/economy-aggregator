@@ -189,6 +189,9 @@ pub async fn dispatch_remote(
         "obs-catalog" => Some(handle_remote_simple_get("/v1/observations/catalog", client).await),
         "liquidity-panel" => Some(handle_remote_simple_get("/v1/analytics/liquidity-panel", client).await),
         "spillover" => Some(handle_remote_spillover(args, client).await),
+        "diagnose" => Some(handle_remote_diagnose(args, client).await),
+        "diagnose-history" => Some(handle_remote_diagnose_history(args, client).await),
+        "diagnose-run" => Some(handle_remote_diagnose_run(args, client).await),
         _ => None,
     }
 }
@@ -366,4 +369,28 @@ async fn handle_remote_spillover(args: &[String], client: &RemoteClient) -> Resu
 async fn handle_remote_simple_get(path: &str, client: &RemoteClient) -> Result<Value, RemoteCliError> {
     let data = client.get_json(path, &[]).await?;
     Ok(wrap_ok(client.base_url(), data, vec![]))
+}
+
+async fn handle_remote_diagnose(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let mut q = Vec::new();
+    if let Some(v) = flag_val(args, &["--as-of"]) { q.push(("as_of", v)); }
+    if let Some(v) = flag_val(args, &["--window-weeks", "--weeks"]) { q.push(("window_weeks", v)); }
+    if args.iter().any(|a| a == "--persist") { q.push(("persist", "true".to_string())); }
+    if args.iter().any(|a| a == "--no-spillover") { q.push(("include_spillover", "false".to_string())); }
+    let data = client.get_json("/v1/analytics/liquidity-tree", &q).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-history"]))
+}
+
+async fn handle_remote_diagnose_history(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let mut q = Vec::new();
+    if let Some(v) = flag_val(args, &["--limit"]) { q.push(("limit", v)); }
+    let data = client.get_json("/v1/analytics/liquidity-tree/history", &q).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-run <run_id>"]))
+}
+
+async fn handle_remote_diagnose_run(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let id = args.first().filter(|a| !a.starts_with('-')).cloned()
+        .ok_or_else(|| RemoteCliError::config_or_auth("Usage: economy-aggregator diagnose-run <run_id>", None))?;
+    let data = client.get_json(&format!("/v1/analytics/liquidity-tree/runs/{}", id), &[]).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator diagnose-history"]))
 }

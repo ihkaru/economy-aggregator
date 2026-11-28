@@ -1,6 +1,7 @@
 pub mod arrow_schema;
 pub mod buffer;
 pub mod compactor;
+pub mod diagnostic_ledger;
 pub mod macro_arrow_schema;
 pub mod macro_reader;
 pub mod observation_reader;
@@ -17,6 +18,7 @@ pub mod writer;
 pub use arrow_schema::{candle_arrow_schema, candles_to_record_batch, record_batch_to_candles};
 pub use buffer::MicroBatchBuffer;
 pub use compactor::{CompactionResult, LakeCompactor};
+pub use diagnostic_ledger::DiagnosticTreeLedger;
 pub use macro_arrow_schema::{macro_event_arrow_schema, macro_events_to_record_batch, record_batch_to_macro_events};
 pub use macro_reader::LakeMacroReader;
 pub use observation_reader::{ObservationFilter, ObservationReader, SeriesCoverageSummary, SeriesWatermark};

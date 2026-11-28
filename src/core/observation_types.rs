@@ -38,6 +38,33 @@ impl ObservationFrequency {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum DataProcessingLayer {
+    /// Stored verbatim as published upstream (value == raw_value); zero scaling/adjustment.
+    RawAsIs,
+    /// raw_value preserved untouched; value applies constant unit scale (e.g. $M -> USD) only.
+    RawUnitScaled,
+    /// Upstream publisher applies seasonal adjustment prior to publication (e.g. Fed H.8 SA).
+    UpstreamSeasonallyAdjusted,
+    /// Upstream feed retroactively split-adjusts historical closes (e.g. Yahoo Finance 1d candles).
+    UpstreamSplitAdjusted,
+    /// Computed internally or isolated in domain='derived'; never mutates raw lake observations.
+    DerivedAdjusted,
+}
+
+impl DataProcessingLayer {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RawAsIs => "raw_as_is",
+            Self::RawUnitScaled => "raw_unit_scaled",
+            Self::UpstreamSeasonallyAdjusted => "upstream_seasonally_adjusted",
+            Self::UpstreamSplitAdjusted => "upstream_split_adjusted",
+            Self::DerivedAdjusted => "derived_adjusted",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SourceTier {
     OfficialApi,
     OfficialFile,

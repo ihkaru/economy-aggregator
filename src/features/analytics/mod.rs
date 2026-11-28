@@ -10,6 +10,8 @@ pub mod futures_roll;
 pub mod fx_normalizer;
 pub mod liquidity_flows;
 pub mod liquidity_panel;
+pub mod liquidity_tree;
+mod liquidity_tree_branches;
 pub mod macro_prediction_bridge;
 pub mod outlier;
 pub mod portfolio;
@@ -35,6 +37,9 @@ pub use liquidity_flows::{
 pub use liquidity_panel::{
     align_to_friday_date, build_weekly_flow_panel, WeeklyFlowPanel, WeeklyFlowRow,
     WeeklyPanelInputs,
+};
+pub use liquidity_tree::{
+    evaluate_liquidity_tree, DiagnosticTreeInputs, DiagnosticTreeMetrics, TREE_PROTOCOL_VERSION,
 };
 pub use spillover::{
     compute_diebold_yilmaz_spillover, compute_diebold_yilmaz_spillover_full,

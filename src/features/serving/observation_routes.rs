@@ -215,6 +215,20 @@ pub async fn query_observations_matrix_handler(
                 .and_then(|meta| meta.limitation_note.as_ref().map(|n| (sid.clone(), n.clone())))
         })
         .collect();
+    let data_layers_by_series: BTreeMap<String, serde_json::Value> = cols
+        .iter()
+        .filter_map(|sid| {
+            let meta = catalog.get(sid)?;
+            Some((
+                sid.clone(),
+                serde_json::json!({
+                    "data_layer": meta.data_layer.as_str(),
+                    "raw_value_preserved": meta.raw_value_preserved,
+                    "adjustment_note": meta.adjustment_note,
+                }),
+            ))
+        })
+        .collect();
     let frequency_quality_flags: BTreeMap<String, String> = cols
         .iter()
         .filter_map(|sid| {
@@ -269,6 +283,7 @@ pub async fn query_observations_matrix_handler(
         "forward_fill": ffill,
         "columns": col_list,
         "sources_by_series": sources_by_series,
+        "data_layers_by_series": data_layers_by_series,
         "limitation_warnings": limitation_warnings,
         "frequency_quality_flags": frequency_quality_flags,
         "row_count": matrix_rows.len(),

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use crate::core::observation_types::ObservationFrequency;
+use crate::core::observation_types::{DataProcessingLayer, ObservationFrequency};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeriesMetadata {
@@ -16,6 +16,9 @@ pub struct SeriesMetadata {
     pub description: String,
     pub primary_source: String,
     pub fallback_sources: Vec<String>,
+    pub data_layer: DataProcessingLayer,
+    pub raw_value_preserved: bool,
+    pub adjustment_note: Option<String>,
     pub limitation_note: Option<String>,
 }
 
@@ -59,18 +62,25 @@ impl SeriesCatalog {
                  description: &str,
                  primary_source: &str,
                  fallback: &[&str],
-                 limitation: Option<&str>| SeriesMetadata {
-            series_id: series_id.to_string(),
-            domain: domain.to_string(),
-            compartment: compartment.map(str::to_string),
-            entity_id: entity_id.to_string(),
-            metric_name: metric_name.to_string(),
-            frequency,
-            unit: unit.to_string(),
-            description: description.to_string(),
-            primary_source: primary_source.to_string(),
-            fallback_sources: fallback.iter().map(|s| (*s).to_string()).collect(),
-            limitation_note: limitation.map(str::to_string),
+                 limitation: Option<&str>| {
+            let (data_layer, raw_value_preserved, adjustment_note) =
+                classify_data_layer(series_id, domain, primary_source);
+            SeriesMetadata {
+                series_id: series_id.to_string(),
+                domain: domain.to_string(),
+                compartment: compartment.map(str::to_string),
+                entity_id: entity_id.to_string(),
+                metric_name: metric_name.to_string(),
+                frequency,
+                unit: unit.to_string(),
+                description: description.to_string(),
+                primary_source: primary_source.to_string(),
+                fallback_sources: fallback.iter().map(|s| (*s).to_string()).collect(),
+                data_layer,
+                raw_value_preserved,
+                adjustment_note: adjustment_note.map(str::to_string),
+                limitation_note: limitation.map(str::to_string),
+            }
         };
 
         let entries = vec![
@@ -125,5 +135,53 @@ impl SeriesCatalog {
         ];
 
         Self::from_entries(entries)
+    }
+}
+
+/// Deterministic As-Is vs Adjusted classification so every consumer knows whether a stored
+/// series is untouched upstream raw, unit-scaled only, upstream SA/split-adjusted, or derived.
+pub fn classify_data_layer(
+    series_id: &str,
+    domain: &str,
+    primary_source: &str,
+) -> (DataProcessingLayer, bool, Option<&'static str>) {
+    if domain == "derived" || primary_source.starts_with("economy_aggregator") {
+        return (
+            DataProcessingLayer::DerivedAdjusted,
+            true,
+            Some("Derived internally from raw lake series; raw_value retains pre-conversion flow."),
+        );
+    }
+    match series_id {
+        "macro:US:FRED_TOTBKCR_USD" | "macro:US:FRED_BANK_DEPOSITS_USD" | "macro:US:BANK_CREDIT_USD" => (
+            DataProcessingLayer::UpstreamSeasonallyAdjusted,
+            true,
+            Some("Seasonally adjusted (SA) upstream by Federal Reserve H.8; raw_value preserved in $B, value scaled to USD."),
+        ),
+        "macro:US:FRED_WALCL_USD"
+        | "macro:US:FRED_WTREGEN_USD"
+        | "macro:US:FRED_RRPONTSYD_USD"
+        | "macro:US:FRED_WRMFNS_USD"
+        | "macro:US:FRED_WM2NS_USD"
+        | "macro:EU:FRED_ECB_ASSETS_EUR"
+        | "macro:JP:FRED_BOJ_ASSETS_JPY"
+        | "credit:US:FINRA_MARGIN_DEBT_USD"
+        | "macro:US:TGA_BALANCE_USD"
+        | "macro:US:FED_TOTAL_ASSETS_USD"
+        | "macro:US:FED_H41_RESERVE_FACTORS_USD" => (
+            DataProcessingLayer::RawUnitScaled,
+            true,
+            Some("Not seasonally adjusted (NSA) raw upstream figure preserved in raw_value; value applies constant unit scale only."),
+        ),
+        s if s.starts_with("etf:") && primary_source == "ssga_xlsx" => (
+            DataProcessingLayer::RawAsIs,
+            true,
+            Some("Unadjusted raw SSGA XLSX shares & AUM preserved as-is (historical splits untouched in Parquet; split adjustment occurs strictly in derived Stage-1 flows)."),
+        ),
+        _ => (
+            DataProcessingLayer::RawAsIs,
+            true,
+            Some("Stored verbatim as published upstream (value == raw_value); zero scaling or statistical adjustment."),
+        ),
     }
 }

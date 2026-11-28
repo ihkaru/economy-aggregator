@@ -26,6 +26,10 @@ use crate::features::serving::auth_routes::{
     oidc_login_handler,
 };
 use crate::features::serving::catalog_routes::*;
+use crate::features::serving::diagnostic_tree_routes::{
+    get_liquidity_tree_run_handler, list_liquidity_tree_history_handler,
+    query_liquidity_tree_handler,
+};
 use crate::features::serving::liquidity_analytics_routes::{
     query_liquidity_panel_handler, query_liquidity_spillover_handler,
 };
@@ -154,6 +158,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/analytics/divergence", get(query_divergence_handler))
         .route("/v1/analytics/liquidity-panel", get(query_liquidity_panel_handler))
         .route("/v1/analytics/liquidity-spillover", get(query_liquidity_spillover_handler))
+        .route("/v1/analytics/liquidity-tree", get(query_liquidity_tree_handler))
+        .route("/v1/analytics/liquidity-tree/history", get(list_liquidity_tree_history_handler))
+        .route("/v1/analytics/liquidity-tree/runs/:run_id", get(get_liquidity_tree_run_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
         .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
         .route("/v1/subscriptions/:symbol", delete(delete_subscription_handler))
