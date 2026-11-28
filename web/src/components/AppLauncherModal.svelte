@@ -51,6 +51,16 @@
       shortcut: 'S',
     },
     {
+      id: 'supply_chain',
+      title: 'Supply-Chain Analyzer',
+      category: 'CROSS-STOCK LEAD-LAG',
+      description: 'Persistent Supply-Chain Graph + Top 5 of 20 Tech lead-lag BUY/HOLD/SELL analyzer.',
+      badge: 'TOP 5 TECH',
+      icon: 'activity',
+      accentColor: '#38bdf8',
+      shortcut: 'C',
+    },
+    {
       id: 'macro',
       title: 'Macro Hub',
       category: 'MACROECONOMICS',

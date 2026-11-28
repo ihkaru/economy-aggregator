@@ -11,6 +11,7 @@
   import MacroHubView from './components/views/MacroHubView.svelte';
   import LiquidityAtlasView from './components/views/LiquidityAtlasView.svelte';
   import SmhPredictiveView from './components/views/SmhPredictiveView.svelte';
+  import SupplyChainView from './components/views/SupplyChainView.svelte';
   import PredictionMarketsView from './components/views/PredictionMarketsView.svelte';
   import ConsensusMatrixView from './components/views/ConsensusMatrixView.svelte';
   import LakehouseExplorerView from './components/views/LakehouseExplorerView.svelte';
@@ -37,7 +38,9 @@
     ? 'atlas'
     : (typeof window !== 'undefined' && window.location.hash === '#smh')
       ? 'smh'
-      : 'terminal';
+      : (typeof window !== 'undefined' && window.location.hash === '#supply-chain')
+        ? 'supply_chain'
+        : 'terminal';
   let isLauncherOpen: boolean = false;
   let isModalOpen: boolean = false;
   let isCalendarOpen: boolean = false;
@@ -174,6 +177,12 @@
         window.location.hash = activeView === 'smh' ? '#smh' : '';
       }
     }}
+    onOpenSupplyChain={() => {
+      activeView = activeView === 'supply_chain' ? 'terminal' : 'supply_chain';
+      if (typeof window !== 'undefined') {
+        window.location.hash = activeView === 'supply_chain' ? '#supply-chain' : '';
+      }
+    }}
     onOpenCalendar={() => (isCalendarOpen = !isCalendarOpen)}
     onOpenPredictions={() => (isPredictionModalOpen = true)}
     onOpenLauncher={() => (isLauncherOpen = true)}
@@ -237,6 +246,8 @@
     <div class="view-viewport"><LiquidityAtlasView /></div>
   {:else if activeView === 'smh'}
     <div class="view-viewport"><SmhPredictiveView /></div>
+  {:else if activeView === 'supply_chain'}
+    <div class="view-viewport"><SupplyChainView /></div>
   {:else if activeView === 'macro'}
     <div class="view-viewport"><MacroHubView /></div>
   {:else if activeView === 'predictions'}
@@ -281,7 +292,7 @@
     onSelectView={(v) => {
       activeView = v;
       if (typeof window !== 'undefined') {
-        window.location.hash = v === 'atlas' ? '#atlas' : v === 'smh' ? '#smh' : '';
+        window.location.hash = v === 'atlas' ? '#atlas' : v === 'smh' ? '#smh' : v === 'supply_chain' ? '#supply-chain' : '';
       }
     }}
     onClose={() => (isLauncherOpen = false)}

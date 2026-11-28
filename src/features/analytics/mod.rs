@@ -26,6 +26,7 @@ pub mod spillover_diagnostics;
 pub mod synthetic_bond;
 pub mod smh_predictive;
 mod smh_predictive_math;
+pub mod supply_chain_analysis;
 
 pub use bitemporal::{MacroVintageRecord, PointInTimeEngine, VintageStage};
 pub use calendar_aligner::{AlignedPanel, TradingCalendarAligner};
@@ -63,6 +64,7 @@ pub use reconciliation::{CandleDiscrepancy, DiscrepancyType, ReconciliationEngin
 pub use smh_predictive::{
     evaluate_smh_predictive, SmhPredictiveInputs, SmhPredictiveResponse, TradeSignal,
 };
+pub use supply_chain_analysis::{evaluate_supply_chain_lead_lag, SupplyChainAnalysisResponse};
 pub use reconcile_cli::handle_reconcile;
 pub use runner::handle_analyze;
 pub use synthetic_bond::{DayCountConvention, SyntheticBondAccumulator};

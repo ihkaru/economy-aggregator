@@ -15,6 +15,7 @@ pub mod observation_types;
 pub mod prediction_types;
 pub mod series_catalog;
 pub mod subscription;
+pub mod supply_chain;
 pub mod types;
 
 pub use atlas_types::*;

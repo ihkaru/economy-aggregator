@@ -14,6 +14,7 @@
   export let onOpenCalendar: () => void = () => {};
   export let onOpenAtlas: () => void = () => {};
   export let onOpenSmh: () => void = () => {};
+  export let onOpenSupplyChain: () => void = () => {};
   export let onOpenPredictions: () => void = () => {};
   export let onOpenLauncher: () => void = () => {};
   export let activeView: string = 'terminal';
@@ -127,6 +128,16 @@
     >
       <Icons name="trending" size={12} />
       <span>SMH SIGNAL</span>
+    </button>
+
+    <button
+      class="nav-tool-btn"
+      class:active-nav={activeView === 'supply_chain'}
+      on:click={onOpenSupplyChain}
+      title="Supply-Chain Lead-Lag Analyzer (Top 5 Tech + 20 Targets)"
+    >
+      <Icons name="activity" size={12} />
+      <span>SUPPLY CHAIN</span>
     </button>
 
     <button class="nav-tool-btn" on:click={onOpenCalendar} title="Macroeconomic Calendar (SDMX / Point-in-Time)">
@@ -348,48 +359,12 @@
     letter-spacing: 0.5px;
   }
 
-  .nav-tool-btn {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    height: 26px;
-    padding: 0 7px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 0px;
-    outline: none;
-  }
-
-  .nav-tool-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-bright);
-    border-color: var(--border-contrast);
-  }
+  .nav-tool-btn { background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-muted); height: 26px; padding: 0 7px; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; cursor: pointer; border-radius: 0px; outline: none; }
+  .nav-tool-btn:hover { background: var(--bg-hover); color: var(--text-bright); border-color: var(--border-contrast); }
   .atlas-nav-btn { border-color: rgba(59, 130, 246, 0.45); color: #93c5fd; }
   .atlas-nav-btn.active-nav { background: #1e2638; border-color: #3b82f6; color: #ffffff; }
-
-  .action-btn {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    width: 26px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    outline: none;
-  }
-
-  .action-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-bright);
-    border-color: var(--border-contrast);
-  }
+  .action-btn { background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-muted); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; outline: none; }
+  .action-btn:hover { background: var(--bg-hover); color: var(--text-bright); border-color: var(--border-contrast); }
 
   .spinning :global(svg) { animation: spin 1s linear infinite; }
   .logout-btn { color: #93a3b8; border-color: #2d3446; }
