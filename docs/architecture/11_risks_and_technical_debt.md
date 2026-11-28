@@ -1,8 +1,8 @@
 # 11. Risks and Technical Debt
 
 > [!INFO] **Architecture Provenance & Freshness**
-> - **Verified Commit**: `a33d55e`
-> - **Verified Timestamp**: `2026-11-28T16:53:02+07:00`
+> - **Verified Commit**: `cc33f87`
+> - **Verified Timestamp**: `2026-11-28T17:33:57+07:00`
 > - **Tracked Paths**: `src/`, `Cargo.toml`
 > - **Drift Status**: `verified`
 
