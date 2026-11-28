@@ -222,10 +222,13 @@ impl SubscriptionManager {
             make("yahoo", "GLD", "commodities", &["1d"], Some(300)),
             make("yahoo", "IAU", "commodities", &["1d"], Some(300)),
             make("yahoo", "IBIT", "equities", &["1d"], Some(300)),
-            // 7. Closed-System Liquidity & Flow Observations (Zero-Key Macro, TradFi, Crypto)
-            make("liquidity_macro", "US_MACRO_LIQUIDITY", "observations", &["1d"], Some(3600)),
-            make("tradfi_flows", "TRADFI_FLOWS_COT", "observations", &["1d"], Some(3600)),
-            make("crypto_flows", "CRYPTO_FLOWS_OI", "observations", &["1d"], Some(3600)),
+            make("yahoo", "BIL", "equities", &["1d"], Some(300)),
+            make("yahoo", "JNK", "equities", &["1d"], Some(300)),
+            make("yahoo", "SPTL", "equities", &["1d"], Some(300)),
+            // 7. Closed-System Liquidity & Flow Observations (Frequency-Aware Cadence)
+            make("liquidity_macro", "US_MACRO_LIQUIDITY", "observations", &["1d"], Some(21_600)),
+            make("tradfi_flows", "TRADFI_FLOWS_COT", "observations", &["1d"], Some(21_600)),
+            make("crypto_flows", "CRYPTO_FLOWS_OI", "observations", &["1d"], Some(3_600)),
         ]
     }
 }

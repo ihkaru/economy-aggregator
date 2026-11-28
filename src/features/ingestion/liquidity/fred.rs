@@ -1,4 +1,4 @@
-//! Official St. Louis Fed (FRED REST v1) Connector for Macro Liquidity & Credit Stress (Phase 326).
+//! Official St. Louis Fed (FRED REST v1) Connector for Macro Liquidity & Credit Stress (Phase 326 + 337).
 //! Activated cleanly when FRED_API_KEY is present; never leaks the API key into persisted provenance.
 
 use chrono::Utc;
@@ -27,6 +27,7 @@ struct FredObsRow {
 pub struct FredSeriesSpec {
     pub fred_id: &'static str,
     pub series_id: &'static str,
+    pub entity_id: &'static str,
     pub compartment: &'static str,
     pub metric_name: &'static str,
     pub frequency: ObservationFrequency,
@@ -35,69 +36,19 @@ pub struct FredSeriesSpec {
 }
 
 pub const CANONICAL_FRED_SPECS: &[FredSeriesSpec] = &[
-    FredSeriesSpec {
-        fred_id: "WALCL",
-        series_id: "macro:US:FRED_WALCL_USD",
-        compartment: "macro_control",
-        metric_name: "fed_total_assets_usd",
-        frequency: ObservationFrequency::Weekly,
-        scale_factor: 1_000_000.0,
-        unit: "usd",
-    },
-    FredSeriesSpec {
-        fred_id: "WTREGEN",
-        series_id: "macro:US:FRED_WTREGEN_USD",
-        compartment: "macro_control",
-        metric_name: "tga_balance_usd",
-        frequency: ObservationFrequency::Weekly,
-        scale_factor: 1_000_000.0,
-        unit: "usd",
-    },
-    FredSeriesSpec {
-        fred_id: "RRPONTSYD",
-        series_id: "macro:US:FRED_RRPONTSYD_USD",
-        compartment: "fiat_park",
-        metric_name: "on_rrp_usd",
-        frequency: ObservationFrequency::Daily,
-        scale_factor: 1_000_000_000.0,
-        unit: "usd",
-    },
-    FredSeriesSpec {
-        fred_id: "TOTBKCR",
-        series_id: "macro:US:FRED_TOTBKCR_USD",
-        compartment: "deleveraging",
-        metric_name: "bank_credit_usd",
-        frequency: ObservationFrequency::Weekly,
-        scale_factor: 1_000_000_000.0,
-        unit: "usd",
-    },
-    FredSeriesSpec {
-        fred_id: "DTB3",
-        series_id: "macro:US:FRED_DTB3_PCT",
-        compartment: "fiat_park",
-        metric_name: "tbill_3m_pct",
-        frequency: ObservationFrequency::Daily,
-        scale_factor: 1.0,
-        unit: "percent",
-    },
-    FredSeriesSpec {
-        fred_id: "T10Y2Y",
-        series_id: "macro:US:FRED_T10Y2Y_PCT",
-        compartment: "macro_control",
-        metric_name: "yield_curve_10y2y_pct",
-        frequency: ObservationFrequency::Daily,
-        scale_factor: 1.0,
-        unit: "percent",
-    },
-    FredSeriesSpec {
-        fred_id: "BAMLH0A0HYM2",
-        series_id: "macro:US:FRED_HY_OAS_PCT",
-        compartment: "deleveraging",
-        metric_name: "hy_credit_spread_pct",
-        frequency: ObservationFrequency::Daily,
-        scale_factor: 1.0,
-        unit: "percent",
-    },
+    FredSeriesSpec { fred_id: "WALCL", series_id: "macro:US:FRED_WALCL_USD", entity_id: "US", compartment: "macro_control", metric_name: "fed_total_assets_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "WTREGEN", series_id: "macro:US:FRED_WTREGEN_USD", entity_id: "US", compartment: "macro_control", metric_name: "tga_balance_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "RRPONTSYD", series_id: "macro:US:FRED_RRPONTSYD_USD", entity_id: "US", compartment: "fiat_park", metric_name: "on_rrp_usd", frequency: ObservationFrequency::Daily, scale_factor: 1_000_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "TOTBKCR", series_id: "macro:US:FRED_TOTBKCR_USD", entity_id: "US", compartment: "deleveraging", metric_name: "bank_credit_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "DTB3", series_id: "macro:US:FRED_DTB3_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "tbill_3m_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
+    FredSeriesSpec { fred_id: "T10Y2Y", series_id: "macro:US:FRED_T10Y2Y_PCT", entity_id: "US", compartment: "macro_control", metric_name: "yield_curve_10y2y_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
+    FredSeriesSpec { fred_id: "BAMLH0A0HYM2", series_id: "macro:US:FRED_HY_OAS_PCT", entity_id: "US", compartment: "deleveraging", metric_name: "hy_credit_spread_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
+    FredSeriesSpec { fred_id: "WRMFNS", series_id: "macro:US:FRED_WRMFNS_USD", entity_id: "US", compartment: "fiat_park", metric_name: "retail_mmf_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
+    FredSeriesSpec { fred_id: "ECBASSETSW", series_id: "macro:EU:FRED_ECB_ASSETS_EUR", entity_id: "EU", compartment: "macro_control", metric_name: "ecb_total_assets_eur", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000.0, unit: "eur" },
+    FredSeriesSpec { fred_id: "JPNASSETS", series_id: "macro:JP:FRED_BOJ_ASSETS_JPY", entity_id: "JP", compartment: "macro_control", metric_name: "boj_total_assets_jpy", frequency: ObservationFrequency::Monthly, scale_factor: 100_000_000.0, unit: "jpy" },
+    FredSeriesSpec { fred_id: "SOFR", series_id: "macro:US:FRED_SOFR_PCT", entity_id: "US", compartment: "fiat_park", metric_name: "sofr_pct", frequency: ObservationFrequency::Daily, scale_factor: 1.0, unit: "percent" },
+    FredSeriesSpec { fred_id: "STLFSI4", series_id: "macro:US:FRED_STLFSI4_IDX", entity_id: "US", compartment: "deleveraging", metric_name: "financial_stress_idx", frequency: ObservationFrequency::Weekly, scale_factor: 1.0, unit: "index" },
+    FredSeriesSpec { fred_id: "WM2NS", series_id: "macro:US:FRED_WM2NS_USD", entity_id: "US", compartment: "macro_control", metric_name: "m2_money_supply_usd", frequency: ObservationFrequency::Weekly, scale_factor: 1_000_000_000.0, unit: "usd" },
 ];
 
 pub struct FredFetcher {
@@ -139,7 +90,6 @@ impl FredFetcher {
             "{}/fred/series/observations?series_id={}&api_key={}&file_type=json&observation_start={}",
             self.base_url, spec.fred_id, self.api_key, observation_start
         );
-        // Security invariant: never persist api_key inside Parquet provenance source_url.
         let safe_provenance_url = format!(
             "{}/fred/series/observations?series_id={}&file_type=json&observation_start={}",
             self.base_url, spec.fred_id, observation_start
@@ -168,7 +118,7 @@ impl FredFetcher {
                 series_id: spec.series_id,
                 domain: "macro_liquidity",
                 compartment: Some(spec.compartment),
-                entity_id: "US",
+                entity_id: spec.entity_id,
                 metric_name: spec.metric_name,
                 frequency: spec.frequency,
                 value: raw_num * spec.scale_factor,

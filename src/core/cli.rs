@@ -76,7 +76,8 @@ pub async fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error + 
         "reconcile" => crate::features::analytics::handle_reconcile(&rem[1..]).await,
         "status" => handle_status().await,
         "hash-password" => crate::core::cli_config::handle_hash_password(&rem[1..]),
-        "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence" => {
+        "health" | "catalog" | "candles" | "partitions" | "predictions" | "audit" | "divergence"
+        | "obs-catalog" | "liquidity-panel" | "spillover" => {
             eprintln!("{}", serde_json::json!({
                 "success": false,
                 "error": format!("Command '{}' requires a remote server. Set --base-url, ECONOMY_AGGREGATOR_BASE_URL, or run 'economy-aggregator config set --base-url <url>'.", rem[0]),
@@ -110,6 +111,9 @@ fn print_help() {
     "predictions                Query remote prediction markets (/v1/prediction-markets/events)",
     "audit                      Run remote lakehouse integrity audit (/v1/integrity/audit)",
     "divergence                 Query macro vs prediction divergence (/v1/analytics/divergence)",
+    "obs-catalog                Query observations catalog & coverage (/v1/observations/catalog)",
+    "liquidity-panel            Query Stage-1/2 closed-system liquidity panel (/v1/analytics/liquidity-panel)",
+    "spillover                  Query Diebold-Yilmaz spillover matrix (/v1/analytics/liquidity-spillover)",
     "search                     Search multi-source symbols (local or remote)",
     "subscribe                  Subscribe to a symbol for autonomous live ingestion",
     "unsubscribe                Remove an active ingestion subscription",

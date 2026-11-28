@@ -26,11 +26,13 @@ use crate::features::serving::auth_routes::{
     oidc_login_handler,
 };
 use crate::features::serving::catalog_routes::*;
+use crate::features::serving::liquidity_analytics_routes::{
+    query_liquidity_panel_handler, query_liquidity_spillover_handler,
+};
 use crate::features::serving::macro_routes::query_macro_calendar_handler;
 use crate::features::serving::observation_routes::{
-    query_liquidity_panel_handler, query_observations_catalog_handler,
-    query_observations_handler, query_observations_matrix_handler,
-    trigger_observations_sync_handler,
+    query_observations_catalog_handler, query_observations_handler,
+    query_observations_matrix_handler, trigger_observations_sync_handler,
 };
 use crate::features::serving::prediction_routes::{
     query_prediction_candles_handler, query_prediction_contracts_handler,
@@ -39,7 +41,7 @@ use crate::features::serving::session::{derive_session_key, LoginRateLimiter, Oi
 use crate::features::serving::subscription_routes::*;
 use crate::features::serving::types::*;
 use crate::features::storage::{
-    CandleResampler, InstrumentRegistry, LakeReader, PartitionResolver,
+    CandleResampler, InstrumentRegistry, LakeReader, PartitionResolver, SeriesCoverageSummary,
 };
 
 pub struct AppState {
@@ -54,6 +56,7 @@ pub struct AppState {
     pub prediction_contracts_cache: RwLock<HashMap<String, (Instant, Vec<PredictionMarketContract>)>>,
     pub catalog_cache: RwLock<Option<(Instant, Vec<InstrumentCatalogItem>)>>,
     pub partitions_cache: RwLock<Option<(Instant, Vec<PartitionItem>)>>,
+    pub obs_catalog_cache: RwLock<Option<(Instant, Vec<SeriesCoverageSummary>)>>,
     pub api_keys: Vec<String>,
     pub ui_admin: Option<UiAdminAccount>,
     pub session_key: Key,
@@ -81,6 +84,7 @@ impl AppState {
             prediction_contracts_cache: RwLock::new(HashMap::new()),
             catalog_cache: RwLock::new(None),
             partitions_cache: RwLock::new(None),
+            obs_catalog_cache: RwLock::new(None),
             api_keys: Vec::new(),
             ui_admin: None,
             session_key: Key::generate(),
@@ -149,6 +153,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/prediction-markets/markets/:id/candles", get(query_prediction_candles_handler))
         .route("/v1/analytics/divergence", get(query_divergence_handler))
         .route("/v1/analytics/liquidity-panel", get(query_liquidity_panel_handler))
+        .route("/v1/analytics/liquidity-spillover", get(query_liquidity_spillover_handler))
         .route("/v1/integrity/audit", get(integrity_audit_handler))
         .route("/v1/subscriptions", get(list_subscriptions_handler).post(add_subscription_handler))
         .route("/v1/subscriptions/:symbol", delete(delete_subscription_handler))

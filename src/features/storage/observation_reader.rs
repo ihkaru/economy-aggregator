@@ -5,6 +5,7 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use chrono::{DateTime, Datelike, Utc};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::core::observation_types::{sanitize_partition_component, MetricObservation};
@@ -40,6 +41,16 @@ pub struct SeriesCoverageSummary {
     pub sources: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SeriesWatermark {
+    pub series_id: String,
+    pub source: String,
+    pub min_year: i32,
+    pub max_ts_utc: DateTime<Utc>,
+    pub latest_known_at_utc: DateTime<Utc>,
+    pub year_partitions: usize,
+}
+
 pub struct ObservationReader {
     resolver: PartitionResolver,
 }
@@ -72,50 +83,30 @@ impl ObservationReader {
         rows
     }
 
-    pub fn summarize_coverage(&self) -> Vec<SeriesCoverageSummary> {
-        let rows = self.read_observations(&ObservationFilter {
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let mut grouped: HashMap<String, Vec<MetricObservation>> = HashMap::new();
-        for r in rows {
-            grouped.entry(r.series_id.clone()).or_default().push(r);
+    /// Fast watermark scan reading only the latest year partition per series (parallelized via Rayon).
+    pub fn scan_watermarks(&self) -> HashMap<String, SeriesWatermark> {
+        let obs_root = self.resolver.base_lake_dir().join("observations");
+        if !obs_root.exists() {
+            return HashMap::new();
         }
+        let series_dirs = collect_all_series_dirs(&obs_root);
+        let items: Vec<(String, SeriesWatermark)> = series_dirs
+            .par_iter()
+            .filter_map(|sp| scan_single_series_watermark(sp))
+            .collect();
+        items.into_iter().collect()
+    }
 
-        let mut summaries = Vec::with_capacity(grouped.len());
-        for (series_id, list) in grouped {
-            let first = &list[0];
-            let mut sources = BTreeSet::new();
-            let mut min_ts = first.observation_ts_utc;
-            let mut max_ts = first.observation_ts_utc;
-            let mut latest_known = first.known_at_utc;
-            for r in &list {
-                sources.insert(r.provenance.source.clone());
-                if r.observation_ts_utc < min_ts {
-                    min_ts = r.observation_ts_utc;
-                }
-                if r.observation_ts_utc > max_ts {
-                    max_ts = r.observation_ts_utc;
-                }
-                if r.known_at_utc > latest_known {
-                    latest_known = r.known_at_utc;
-                }
-            }
-            summaries.push(SeriesCoverageSummary {
-                series_id,
-                domain: first.domain.clone(),
-                compartment: first.compartment.clone(),
-                entity_id: first.entity_id.clone(),
-                metric_name: first.metric_name.clone(),
-                frequency: first.frequency.as_str().to_string(),
-                unit: first.unit.clone(),
-                row_count: list.len(),
-                min_ts_utc: min_ts,
-                max_ts_utc: max_ts,
-                latest_known_at_utc: latest_known,
-                sources: sources.into_iter().collect(),
-            });
+    pub fn summarize_coverage(&self) -> Vec<SeriesCoverageSummary> {
+        let obs_root = self.resolver.base_lake_dir().join("observations");
+        if !obs_root.exists() {
+            return Vec::new();
         }
+        let series_dirs = collect_all_series_dirs(&obs_root);
+        let mut summaries: Vec<SeriesCoverageSummary> = series_dirs
+            .par_iter()
+            .filter_map(|sp| summarize_single_series_dir(sp))
+            .collect();
         summaries.sort_by(|a, b| a.series_id.cmp(&b.series_id));
         summaries
     }
@@ -272,4 +263,137 @@ fn resolve_bitemporal_latest(rows: Vec<MetricObservation>) -> Vec<MetricObservat
     let mut resolved: Vec<MetricObservation> = best.into_values().collect();
     resolved.sort_by_key(|r| (r.series_id.clone(), r.observation_ts_utc));
     resolved
+}
+
+fn collect_all_series_dirs(obs_root: &Path) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let Ok(domains) = fs::read_dir(obs_root) else { return dirs };
+    for dom in domains.filter_map(Result::ok) {
+        let dp = dom.path();
+        if !dp.is_dir() {
+            continue;
+        }
+        let Ok(series) = fs::read_dir(&dp) else { continue };
+        for s in series.filter_map(Result::ok) {
+            if s.path().is_dir() {
+                dirs.push(s.path());
+            }
+        }
+    }
+    dirs
+}
+
+fn list_year_dirs_sorted(series_dir: &Path) -> Vec<(i32, PathBuf)> {
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(series_dir) else { return out };
+    for e in entries.filter_map(Result::ok) {
+        let p = e.path();
+        if !p.is_dir() {
+            continue;
+        }
+        if let Some(y) = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|s| s.strip_prefix("year="))
+            .and_then(|s| s.parse::<i32>().ok())
+        {
+            out.push((y, p));
+        }
+    }
+    out.sort_by_key(|(y, _)| *y);
+    out
+}
+
+fn read_parquets_in_dir(dir: &Path) -> Vec<MetricObservation> {
+    let mut out = Vec::new();
+    let Ok(files) = fs::read_dir(dir) else { return out };
+    for f in files.filter_map(Result::ok) {
+        let p = f.path();
+        if p.extension().and_then(|e| e.to_str()) != Some("parquet") {
+            continue;
+        }
+        let Ok(file) = File::open(&p) else { continue };
+        let Ok(builder) = ParquetRecordBatchReaderBuilder::try_new(file) else { continue };
+        let Ok(mut rdr) = builder.build() else { continue };
+        while let Some(Ok(batch)) = rdr.next() {
+            if let Ok(rows) = record_batch_to_observations(&batch) {
+                out.extend(rows);
+            }
+        }
+    }
+    out
+}
+
+fn scan_single_series_watermark(series_dir: &Path) -> Option<(String, SeriesWatermark)> {
+    let years = list_year_dirs_sorted(series_dir);
+    let (min_year, _) = years.first()?;
+    let (_, max_dir) = years.last()?;
+    let rows = read_parquets_in_dir(max_dir);
+    let first = rows.first()?;
+    let mut max_ts = first.observation_ts_utc;
+    let mut latest_known = first.known_at_utc;
+    let series_id = first.series_id.clone();
+    let source = first.provenance.source.clone();
+    for r in &rows {
+        if r.observation_ts_utc > max_ts {
+            max_ts = r.observation_ts_utc;
+        }
+        if r.known_at_utc > latest_known {
+            latest_known = r.known_at_utc;
+        }
+    }
+    Some((
+        series_id.clone(),
+        SeriesWatermark {
+            series_id,
+            source,
+            min_year: *min_year,
+            max_ts_utc: max_ts,
+            latest_known_at_utc: latest_known,
+            year_partitions: years.len(),
+        },
+    ))
+}
+
+fn summarize_single_series_dir(series_dir: &Path) -> Option<SeriesCoverageSummary> {
+    let years = list_year_dirs_sorted(series_dir);
+    if years.is_empty() {
+        return None;
+    }
+    let mut all_rows = Vec::new();
+    for (_, yd) in &years {
+        all_rows.extend(read_parquets_in_dir(yd));
+    }
+    let resolved = resolve_bitemporal_latest(all_rows);
+    let first = resolved.first()?;
+    let mut sources = BTreeSet::new();
+    let mut min_ts = first.observation_ts_utc;
+    let mut max_ts = first.observation_ts_utc;
+    let mut latest_known = first.known_at_utc;
+    for r in &resolved {
+        sources.insert(r.provenance.source.clone());
+        if r.observation_ts_utc < min_ts {
+            min_ts = r.observation_ts_utc;
+        }
+        if r.observation_ts_utc > max_ts {
+            max_ts = r.observation_ts_utc;
+        }
+        if r.known_at_utc > latest_known {
+            latest_known = r.known_at_utc;
+        }
+    }
+    Some(SeriesCoverageSummary {
+        series_id: first.series_id.clone(),
+        domain: first.domain.clone(),
+        compartment: first.compartment.clone(),
+        entity_id: first.entity_id.clone(),
+        metric_name: first.metric_name.clone(),
+        frequency: first.frequency.as_str().to_string(),
+        unit: first.unit.clone(),
+        row_count: resolved.len(),
+        min_ts_utc: min_ts,
+        max_ts_utc: max_ts,
+        latest_known_at_utc: latest_known,
+        sources: sources.into_iter().collect(),
+    })
 }

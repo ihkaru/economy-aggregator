@@ -19,7 +19,7 @@ pub use buffer::MicroBatchBuffer;
 pub use compactor::{CompactionResult, LakeCompactor};
 pub use macro_arrow_schema::{macro_event_arrow_schema, macro_events_to_record_batch, record_batch_to_macro_events};
 pub use macro_reader::LakeMacroReader;
-pub use observation_reader::{ObservationFilter, ObservationReader, SeriesCoverageSummary};
+pub use observation_reader::{ObservationFilter, ObservationReader, SeriesCoverageSummary, SeriesWatermark};
 pub use observation_schema::{
     observation_arrow_schema, observations_to_record_batch, record_batch_to_observations,
 };

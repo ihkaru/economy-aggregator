@@ -146,6 +146,7 @@ fn invalidate_serving_caches(state: &AppState) {
     if let Ok(mut c) = state.macro_cache.write() { c.clear(); }
     if let Ok(mut c) = state.catalog_cache.write() { *c = None; }
     if let Ok(mut c) = state.partitions_cache.write() { *c = None; }
+    if let Ok(mut c) = state.obs_catalog_cache.write() { *c = None; }
 }
 
 pub async fn trigger_catch_up_handler(

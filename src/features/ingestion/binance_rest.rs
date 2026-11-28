@@ -125,6 +125,37 @@ impl BinanceRestFetcher {
 
         Ok(candles)
     }
+
+    /// Paginates forward across multiple 1,000-bar Binance REST calls for deep multi-year backfills.
+    pub async fn fetch_klines_paginated(
+        &self,
+        symbol: &str,
+        canonical_symbol: &str,
+        interval: &str,
+        start_time: Option<i64>,
+        max_bars: usize,
+    ) -> Result<Vec<AggregatorCandle>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut cursor = start_time;
+        let mut all = Vec::new();
+        let max_pages = (max_bars / 1000).clamp(1, 6);
+        for _ in 0..max_pages {
+            let batch = self
+                .fetch_klines(symbol, canonical_symbol, interval, cursor, None, Some(1000))
+                .await?;
+            let count = batch.len();
+            if count == 0 {
+                break;
+            }
+            let last_ms = batch.last().map(|c| c.timestamp_utc.timestamp_millis());
+            all.extend(batch);
+            if count < 1000 || all.len() >= max_bars {
+                break;
+            }
+            cursor = last_ms.map(|ms| ms + 1);
+            tokio::time::sleep(Duration::from_millis(150)).await;
+        }
+        Ok(all)
+    }
 }
 
 /// Helper function to parse Binance header `x-mbx-used-weight-1m`.

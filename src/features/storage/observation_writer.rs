@@ -65,6 +65,59 @@ impl ObservationWriter {
         Ok(written)
     }
 
+    /// Writes only rows that are new, have a higher revision_seq, or changed value vs existing partition rows.
+    /// Returns the exact count of new/revised rows persisted (0 if everything is unchanged -> zero new files!).
+    pub fn write_incremental(&self, observations: &[MetricObservation]) -> std::io::Result<usize> {
+        if observations.is_empty() {
+            return Ok(0);
+        }
+        for obs in observations {
+            obs.validate()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+        }
+        let deduped = self.deduplicate(observations);
+        let mut by_part: HashMap<PathBuf, Vec<&MetricObservation>> = HashMap::new();
+        for obs in &deduped {
+            let dir = self.resolver.resolve_observation_partition(
+                &obs.domain,
+                &obs.series_id,
+                obs.observation_ts_utc.year(),
+            );
+            by_part.entry(dir).or_default().push(obs);
+        }
+
+        let mut total_written = 0usize;
+        for (dir, group) in by_part {
+            let mut delta: Vec<&MetricObservation> = if dir.exists() {
+                let existing = read_partition_latest_map(&dir);
+                group
+                    .into_iter()
+                    .filter(|o| {
+                        let k = (
+                            o.series_id.clone(),
+                            o.provenance.source.clone(),
+                            o.observation_ts_utc.timestamp_nanos_opt().unwrap_or(0),
+                        );
+                        match existing.get(&k) {
+                            None => true,
+                            Some((rev, val)) => o.revision_seq > *rev || (o.value - *val).abs() > 1e-12,
+                        }
+                    })
+                    .collect()
+            } else {
+                group
+            };
+            if delta.is_empty() {
+                continue;
+            }
+            delta.sort_by_key(|o| (o.observation_ts_utc, Reverse(o.known_at_utc)));
+            fs::create_dir_all(&dir)?;
+            let _ = self.write_chunk(&dir, &delta)?;
+            total_written += delta.len();
+        }
+        Ok(total_written)
+    }
+
     pub fn deduplicate<'a>(&self, rows: &'a [MetricObservation]) -> Vec<&'a MetricObservation> {
         let mut map: HashMap<String, &'a MetricObservation> = HashMap::with_capacity(rows.len());
         for r in rows {
@@ -186,4 +239,36 @@ fn collect_leaf_dirs(root: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()>
         out.push(root.to_path_buf());
     }
     Ok(())
+}
+
+fn read_partition_latest_map(dir: &Path) -> HashMap<(String, String, i64), (u32, f64)> {
+    let mut map: HashMap<(String, String, i64), (u32, f64)> = HashMap::new();
+    let Ok(entries) = fs::read_dir(dir) else { return map };
+    for entry in entries.filter_map(Result::ok) {
+        let p = entry.path();
+        if p.extension().and_then(|e| e.to_str()) != Some("parquet") {
+            continue;
+        }
+        let Ok(f) = File::open(&p) else { continue };
+        let Ok(builder) = ParquetRecordBatchReaderBuilder::try_new(f) else { continue };
+        let Ok(mut rdr) = builder.build() else { continue };
+        while let Some(Ok(batch)) = rdr.next() {
+            if let Ok(rows) = record_batch_to_observations(&batch) {
+                for r in rows {
+                    let k = (
+                        r.series_id,
+                        r.provenance.source,
+                        r.observation_ts_utc.timestamp_nanos_opt().unwrap_or(0),
+                    );
+                    match map.get(&k) {
+                        Some((prev_rev, _)) if r.revision_seq < *prev_rev => {}
+                        _ => {
+                            map.insert(k, (r.revision_seq, r.value));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    map
 }

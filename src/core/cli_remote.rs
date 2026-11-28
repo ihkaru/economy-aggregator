@@ -186,6 +186,9 @@ pub async fn dispatch_remote(
         "observations" => Some(crate::core::cli_observations::handle_observations_remote(args, client).await),
         "audit" => Some(handle_remote_simple_get("/v1/integrity/audit", client).await),
         "divergence" => Some(handle_remote_simple_get("/v1/analytics/divergence", client).await),
+        "obs-catalog" => Some(handle_remote_simple_get("/v1/observations/catalog", client).await),
+        "liquidity-panel" => Some(handle_remote_simple_get("/v1/analytics/liquidity-panel", client).await),
+        "spillover" => Some(handle_remote_spillover(args, client).await),
         _ => None,
     }
 }
@@ -344,6 +347,16 @@ async fn handle_remote_compact(args: &[String], client: &RemoteClient) -> Result
     let body = serde_json::json!({ "min_files": min_files });
     let data = client.post_json("/v1/storage/compact", Some(&body)).await?;
     Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator status"]))
+}
+
+async fn handle_remote_spillover(args: &[String], client: &RemoteClient) -> Result<Value, RemoteCliError> {
+    let mut q = Vec::new();
+    if let Some(v) = flag_val(args, &["--start", "--start-date"]) { q.push(("start_date", v)); }
+    if let Some(v) = flag_val(args, &["--end", "--end-date"]) { q.push(("end_date", v)); }
+    if let Some(v) = flag_val(args, &["--lags"]) { q.push(("lags", v)); }
+    if let Some(v) = flag_val(args, &["--horizon"]) { q.push(("horizon", v)); }
+    let data = client.get_json("/v1/analytics/liquidity-spillover", &q).await?;
+    Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator liquidity-panel"]))
 }
 
 async fn handle_remote_simple_get(path: &str, client: &RemoteClient) -> Result<Value, RemoteCliError> {

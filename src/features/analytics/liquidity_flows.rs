@@ -94,6 +94,65 @@ pub fn compute_implied_net_flows(
     out
 }
 
+/// Converts BTC-denominated Spot ETF flows (BGeometrics) into USD using daily BTCUSDT close prices.
+pub fn compute_btc_etf_usd_flows(
+    btc_flow_obs: &[MetricObservation],
+    btc_candles: &[AggregatorCandle],
+) -> Vec<MetricObservation> {
+    if btc_flow_obs.is_empty() || btc_candles.is_empty() {
+        return Vec::new();
+    }
+    let mut prices_by_day: BTreeMap<chrono::NaiveDate, (f64, &str)> = BTreeMap::new();
+    for c in btc_candles {
+        if c.close > 0.0 && c.close.is_finite() {
+            prices_by_day.insert(c.timestamp_utc.date_naive(), (c.close, c.source.as_str()));
+        }
+    }
+    let now = Utc::now();
+    let batch_id = format!("btc_usd_{}", &Uuid::new_v4().to_string()[..6]);
+    let mut out = Vec::new();
+    for obs in btc_flow_obs {
+        if !obs.value.is_finite() {
+            continue;
+        }
+        let d = obs.observation_ts_utc.date_naive();
+        let Some(&(px, px_src)) = prices_by_day.get(&d) else { continue };
+        let usd = obs.value * px;
+        out.push(MetricObservation {
+            observation_ts_utc: obs.observation_ts_utc,
+            known_at_utc: now,
+            revision_seq: obs.revision_seq,
+            series_id: "etf:BTC_US:implied_flow_usd".to_string(),
+            domain: "derived".to_string(),
+            compartment: Some("crypto".to_string()),
+            entity_id: "BTC_US_ETFS".to_string(),
+            metric_name: "net_flow_usd".to_string(),
+            frequency: ObservationFrequency::Daily,
+            value: usd,
+            raw_value: Some(obs.value),
+            unit: "usd".to_string(),
+            provenance: SourceProvenance {
+                source: "economy_aggregator_stage1".to_string(),
+                source_series_id: format!("{}*BTCUSDT_close", obs.series_id),
+                source_url: "internal://analytics/liquidity_flows/btc_usd".to_string(),
+                source_tier: SourceTier::Derived,
+                source_checksum: None,
+                batch_id: batch_id.clone(),
+                extra_json: Some(
+                    serde_json::json!({
+                        "flow_btc": obs.value,
+                        "btc_close_usd": px,
+                        "flow_source": obs.provenance.source,
+                        "price_source": px_src,
+                    })
+                    .to_string(),
+                ),
+            },
+        });
+    }
+    out
+}
+
 /// Computes Fed Net Liquidity = WALCL - TGA - ON_RRP aligned by latest available prior observation.
 pub fn compute_fed_net_liquidity(
     fed_assets: &[MetricObservation],

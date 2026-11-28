@@ -1,15 +1,29 @@
 //! Autonomous Ingestion Orchestrator managing background gap catch-up and live feeds for containers.
 
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use crate::core::config::LakehouseConfig;
-use crate::core::subscription::SubscriptionManager;
+use crate::core::subscription::{SubscriptionItem, SubscriptionManager};
 use crate::features::ingestion::catch_up::{CatchUpEngine, CatchUpSummary};
+
+/// Evaluates whether a subscription is due to run based on its configured `poll_interval_secs`.
+pub fn is_subscription_due(
+    sub: &SubscriptionItem,
+    last_ran: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+) -> bool {
+    let interval_secs = sub.poll_interval_secs.unwrap_or(900).max(60) as i64;
+    match last_ran {
+        None => true,
+        Some(prev) => now.signed_duration_since(prev).num_seconds() >= interval_secs,
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrchestratorStatus {
@@ -63,10 +77,24 @@ impl IngestionOrchestrator {
             }
             info!("🛡️ Autonomous Ingestion Orchestrator booting up in background");
 
-            // 1. Initial Gap Catch-Up Run
-            run_gap_catch_up(&config, &sub_manager, &status_arc).await;
+            // 0. Startup compaction cleanup (merges any micro-chunk sprawl >= 4 files before catch-up)
+            let boot_lake = config.lake_dir.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::features::storage::LakeCompactor::default().compact_all(&boot_lake, 4)
+            })
+            .await;
 
-            // 2. Periodic Polling, Live Stream & Auto-Compaction Supervisor Loop
+            // 1. Initial Gap Catch-Up Run
+            let mut last_ran: HashMap<String, DateTime<Utc>> = HashMap::new();
+            run_gap_catch_up(&config, &sub_manager, &status_arc).await;
+            let boot_done = Utc::now();
+            if let Ok(subs) = sub_manager.list_active() {
+                for s in subs {
+                    last_ran.insert(format!("{}:{}", s.source, s.symbol), boot_done);
+                }
+            }
+
+            // 2. Per-Subscription Cadence Supervisor & Auto-Compaction Loop
             let mut tick_counter: u64 = 0;
             loop {
                 sleep(Duration::from_secs(60)).await;
@@ -81,7 +109,6 @@ impl IngestionOrchestrator {
                     }
                 };
 
-                // Update status counters
                 {
                     if let Ok(mut st) = status_arc.write() {
                         st.active_subscriptions_count = active_subs.len();
@@ -89,9 +116,30 @@ impl IngestionOrchestrator {
                     }
                 }
 
-                // Every 15 minutes (15 ticks): Trigger incremental catch-up for scheduled items
-                if tick_counter % 15 == 0 {
-                    run_gap_catch_up(&config, &sub_manager, &status_arc).await;
+                // Trigger ONLY subscriptions whose configured `poll_interval_secs` has elapsed
+                let now = Utc::now();
+                let due_subs: Vec<SubscriptionItem> = active_subs
+                    .into_iter()
+                    .filter(|s| {
+                        let key = format!("{}:{}", s.source, s.symbol);
+                        is_subscription_due(s, last_ran.get(&key).copied(), now)
+                    })
+                    .collect();
+                if !due_subs.is_empty() {
+                    let engine = CatchUpEngine::new(config.clone());
+                    let mut total_new = 0usize;
+                    for sub in &due_subs {
+                        let summaries = engine.catch_up_subscription(sub, false).await;
+                        total_new += summaries.iter().map(|s| s.candles_ingested).sum::<usize>();
+                        last_ran.insert(format!("{}:{}", sub.source, sub.symbol), Utc::now());
+                    }
+                    if let Ok(mut st) = status_arc.write() {
+                        st.last_catch_up_utc = Some(Utc::now().to_rfc3339());
+                        st.total_candles_ingested_session += total_new;
+                    }
+                    if total_new > 0 {
+                        info!("✅ Cadence sync finished across {} due subscription(s): +{} new rows", due_subs.len(), total_new);
+                    }
                 }
 
                 // Every 6 hours (360 ticks): Compact small Parquet micro-chunks off the async worker

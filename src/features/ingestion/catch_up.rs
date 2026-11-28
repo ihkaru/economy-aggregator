@@ -88,8 +88,15 @@ impl CatchUpEngine {
                 && watermark
                     .earliest_date
                     .is_some_and(|e| (chrono::Utc::now().date_naive() - e).num_days() <= 400);
+            let needs_deep_binance = sub.source.eq_ignore_ascii_case("binance")
+                && tf == "1d"
+                && watermark.total_rows > 0
+                && watermark.total_rows <= 1005
+                && watermark
+                    .earliest_date
+                    .is_some_and(|e| (chrono::Utc::now().date_naive() - e).num_days() <= 1100);
 
-            if !watermark.has_gap && !force && !needs_10y_expansion {
+            if !watermark.has_gap && !force && !needs_10y_expansion && !needs_deep_binance {
                 summaries.push(CatchUpSummary {
                     source: sub.source.clone(),
                     symbol: sub.symbol.clone(),
@@ -134,19 +141,26 @@ impl CatchUpEngine {
         let result = match sub.source.to_lowercase().as_str() {
             "binance" => {
                 let fetcher = BinanceRestFetcher::default();
-                let start_time = watermark
-                    .latest_timestamp_utc
-                    .map(|ts| ts.timestamp_millis() + 1000);
-                fetcher
-                    .fetch_klines(
-                        &sub.symbol,
-                        &sub.symbol,
-                        timeframe,
-                        start_time,
-                        None,
-                        Some(1000),
-                    )
-                    .await
+                let deep_d1 = timeframe == "1d"
+                    && (watermark.total_rows == 0
+                        || (watermark.total_rows <= 1005
+                            && watermark.earliest_date.is_some_and(|e| (chrono::Utc::now().date_naive() - e).num_days() <= 1100)));
+                let start_time = if deep_d1 {
+                    Some(1_502_928_000_000_i64) // 2017-08-17T00:00:00Z (Binance BTCUSDT launch)
+                } else {
+                    watermark
+                        .latest_timestamp_utc
+                        .map(|ts| ts.timestamp_millis() + 1000)
+                };
+                if deep_d1 {
+                    fetcher
+                        .fetch_klines_paginated(&sub.symbol, &sub.symbol, timeframe, start_time, 4000)
+                        .await
+                } else {
+                    fetcher
+                        .fetch_klines(&sub.symbol, &sub.symbol, timeframe, start_time, None, Some(1000))
+                        .await
+                }
             }
             "tradingview" | "tv" => {
                 let fetcher = crate::features::ingestion::tradingview::TradingViewFetcher::default();

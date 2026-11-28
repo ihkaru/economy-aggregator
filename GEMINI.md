@@ -95,8 +95,8 @@ src/
 
 ---
 
-## 3. Implementation Roadmap (332 Granular Phases across 15 Milestones)
-Pengembangan jangka panjang diorganisasi ke dalam 15 Milestone yang mencakup 332 fase atomik terukur:
+## 3. Implementation Roadmap (344 Granular Phases across 16 Milestones)
+Pengembangan jangka panjang diorganisasi ke dalam 16 Milestone yang mencakup 344 fase atomik terukur:
 - Master Index: [`docs/roadmap/ROADMAP.md`](docs/roadmap/ROADMAP.md)
   - **M1 (Phase 001 - 025):** Core Lakehouse & Storage Engine ([docs/roadmap/milestone_1_core_storage.md](docs/roadmap/milestone_1_core_storage.md))
   - **M2 (Phase 026 - 055):** Cryptocurrency High-Frequency Engine ([docs/roadmap/milestone_2_crypto.md](docs/roadmap/milestone_2_crypto.md))
@@ -113,6 +113,7 @@ Pengembangan jangka panjang diorganisasi ke dalam 15 Milestone yang mencakup 332
   - **M13 (Phase 298 - 305):** Production Hardening, Auto-Compaction, Security & Standalone Web Auth ([docs/roadmap/milestone_13_production_hardening_compaction_and_security.md](docs/roadmap/milestone_13_production_hardening_compaction_and_security.md))
   - **M14 (Phase 306 - 325):** Closed-System Liquidity Observability, Bitemporal Observations & Zero-Key Connectors ([docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md](docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md))
   - **M15 (Phase 326 - 332):** Full-History Depth, Official FRED REST v1 & Parser Remediation ([docs/roadmap/milestone_15_full_history_depth_fred_and_parser_remediation.md](docs/roadmap/milestone_15_full_history_depth_fred_and_parser_remediation.md))
+  - **M16 (Phase 333 - 344):** Incremental Scheduling, Bond/Global Flows & Stage-2 Spillover Engine ([docs/roadmap/milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md](docs/roadmap/milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md))
 
 ---
 

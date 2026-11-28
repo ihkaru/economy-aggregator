@@ -39,6 +39,30 @@ impl SsgaXlsxFetcher {
         self.fetch_ssga_workbook(url, "GLD", "gold", batch_id).await
     }
 
+    pub async fn fetch_bil_history(
+        &self,
+        batch_id: &str,
+    ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
+        let url = "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-bil.xlsx";
+        self.fetch_ssga_workbook(url, "BIL", "fiat_park", batch_id).await
+    }
+
+    pub async fn fetch_jnk_history(
+        &self,
+        batch_id: &str,
+    ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
+        let url = "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-jnk.xlsx";
+        self.fetch_ssga_workbook(url, "JNK", "deleveraging", batch_id).await
+    }
+
+    pub async fn fetch_sptl_history(
+        &self,
+        batch_id: &str,
+    ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
+        let url = "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-sptl.xlsx";
+        self.fetch_ssga_workbook(url, "SPTL", "fiat_park", batch_id).await
+    }
+
     pub async fn fetch_ssga_workbook(
         &self,
         url: &str,

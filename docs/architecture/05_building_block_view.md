@@ -96,7 +96,7 @@ src/
 ├── features/                 # Vertical Slice Architecture
 │   ├── ingestion/            # SanityGate, Binance WS/REST, Yahoo 10y Catch-Up, FRED REST v1 & Zero-Key Connectors (Treasury/OCC/FINRA/CFTC/CoinMetrics/BGeometrics)
 │   ├── storage/              # Parquet Writer, Compactor, Hive Resolver, LakeReader, Macro/Prediction & ObservationReaders
-│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Liquidity Flows
+│   ├── analytics/            # Calendar Aligner, FX Normalizer, HampelFilter, Portfolio Engine, Stage-1 Flows, Weekly Panel & Stage-2 VAR/GFEVD Spillover
 │   └── serving/              # Axum REST endpoints, Auth/CSRF, Observation Matrix API, TTL cache, compression
 web/                          # Built-in High-Density Svelte 4 Terminal (Zero Rounded Corners, 100% Google Sans)
 ├── src/

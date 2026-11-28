@@ -63,6 +63,16 @@ impl TreasuryFetcher {
         page_size: usize,
         batch_id: &str,
     ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
+        self.fetch_tga_balance_since("2016-01-01", page_size, batch_id)
+            .await
+    }
+
+    pub async fn fetch_tga_balance_since(
+        &self,
+        start_date: &str,
+        page_size: usize,
+        batch_id: &str,
+    ) -> Result<Vec<MetricObservation>, Box<dyn std::error::Error + Send + Sync>> {
         let clamped_size = page_size.clamp(1, 10_000);
         let now = Utc::now();
         let mut out = Vec::new();
@@ -70,8 +80,8 @@ impl TreasuryFetcher {
 
         loop {
             let url = format!(
-                "{}/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance?filter=record_date:gte:2016-01-01&sort=-record_date&page[number]={}&page[size]={}",
-                self.fiscal_base, page, clamped_size
+                "{}/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance?filter=record_date:gte:{}&sort=-record_date&page[number]={}&page[size]={}",
+                self.fiscal_base, start_date, page, clamped_size
             );
             let (bytes, checksum) = fetch_bytes_with_checksum(&self.client, &url).await?;
             let parsed: FiscalDataResp = serde_json::from_slice(&bytes)?;

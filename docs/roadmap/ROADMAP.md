@@ -2,7 +2,7 @@
 
 **Scope:** Production-Grade High-Performance Financial & Macroeconomic Data Aggregator  
 **Target Runtime:** 100% Native Rust (Zero-GC, Memory Budget $\le$ 50 MB Idle / $\le$ 150 MB Load)  
-**Total Granular Phases:** 332 Atomic Implementation Phases across 15 Major Milestones.
+**Total Granular Phases:** 344 Atomic Implementation Phases across 16 Major Milestones.
 
 ---
 
@@ -26,6 +26,7 @@ flowchart TD
     M6 & M12 --> M13[M13: Production Hardening, Auto-Compaction & Security Audit<br/>Phase 298 - 305]
     M1 & M10 & M13 --> M14[M14: Closed-System Liquidity & Bitemporal Observations<br/>Phase 306 - 325]
     M14 --> M15[M15: Full-History Depth, FRED REST v1 & Parser Remediation<br/>Phase 326 - 332]
+    M15 --> M16[M16: Incremental Scheduling, Bond/Global Flows & Stage-2 Spillover<br/>Phase 333 - 344]
 ```
 
 ---
@@ -49,6 +50,7 @@ flowchart TD
 | **M13** | **Production Hardening, Auto-Compaction, Security & Web Auth** | Phase 298 – 305 | Completed (8/8) | [milestone_13_production_hardening_compaction_and_security.md](milestone_13_production_hardening_compaction_and_security.md) |
 | **M14** | **Closed-System Liquidity Observability & Bitemporal Observations** | Phase 306 – 325 | Completed (20/20) | [milestone_14_closed_system_liquidity_and_bitemporal_observations.md](milestone_14_closed_system_liquidity_and_bitemporal_observations.md) |
 | **M15** | **Full-History Depth, Official FRED REST v1 & Parser Remediation** | Phase 326 – 332 | Completed (7/7) | [milestone_15_full_history_depth_fred_and_parser_remediation.md](milestone_15_full_history_depth_fred_and_parser_remediation.md) |
+| **M16** | **Incremental Scheduling, Bond/Global Flows & Stage-2 Spillover Engine** | Phase 333 – 344 | Completed (12/12) | [milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md](milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md) |
 
 ---
 

@@ -338,3 +338,18 @@
   Panel likuiditas dan derivatif memperoleh histori utuh 2016–2026 (`FRED_WALCL_USD`, `TGA_BALANCE_USD`, `TBILL_3M_PCT`, `SPY`/`GLD` Stage-1 ~2.512 titik, `OCC` 24 bulan, dan `FINRA Margin Debt` 358 bulan sejak 1997) dalam biner Rust tunggal bebas kebocoran lintas-sumber.
 * **Risiko yang Muncul:**  
   Perubahan skema/URL statis eksternal atau perubahan kebijakan WAF/TLS penyedia pihak ketiga tetap dimonitor lewat kegagalan *fail-fast* pada laporan sinkronisasi.
+
+---
+
+### ADR-21: Penjadwalan Ingesti Berbasis Frekuensi & Watermark Inkremental, Ekspansi Aliran Obligasi/Global, & Engine Spillover VAR/GFEVD Rust Native
+* **Status:** Diterima
+* **Konteks:**  
+  Evaluasi operasional pasca-M15 menunjukkan bahwa `IngestionOrchestrator` masih menjalankan penarikan penuh (~64.080 baris observasi) tiap 15 menit tanpa menghormati `poll_interval_secs` maupun frekuensi publikasi (`1d`/`1w`/`1M`), sehingga menumpuk file chunk mikroskopis dan memperlambat `/v1/observations/catalog`. Di sisi model "Balon Air", masih terdapat celah data MMF mingguan, aliran ETF obligasi/kas harian, normalisasi USD Spot BTC ETF, serta ketiadaan engine keterhubungan Tahap 2 (*Diebold-Yilmaz spillover*) di dalam Rust.
+* **Keputusan:**  
+  1. Menerapkan penjadwal per-subscription (`is_subscription_due`) di `IngestionOrchestrator`, pembersihan kompaksi awal saat boot, gerbang watermark per-seri (`ObservationReader::scan_watermarks` + `is_series_fresh`), dan penulisan inkremental bebas duplikat (`ObservationWriter::write_incremental`), disertai TTL cache 60 detik pada `/v1/observations/catalog` serta paginasi multi-tahun Binance `BTCUSDT`.
+  2. Menambahkan 6 seri FRED mingguan/global (`WRMFNS`, `ECBASSETSW`, `JPNASSETS`, `SOFR`, `STLFSI4`, `WM2NS`), konektor SSGA XLSX obligasi/T-Bill harian (`BIL`, `JNK`, `SPTL`), konversi USD Spot BTC ETF (`compute_btc_etf_usd_flows`), serta flag kualitas frekuensi (`1M_step_carry_on_1w`) di `/v1/observations/matrix`.
+  3. Membangun `liquidity_panel.rs` (panel aliran mingguan tersinkronisasi Jumat EOW) dan `spillover.rs` (OLS `VAR(p)` + *Generalized FEVD* Diebold-Yilmaz 100% Rust tanpa dependensi eksternal) yang diekspos melalui `/v1/analytics/liquidity-panel`, `/v1/analytics/liquidity-spillover`, serta sub-perintah CLI remote `obs-catalog`, `liquidity-panel`, dan `spillover`.
+* **Konsekuensi Positif:**  
+  Siklus ulang observasi berhenti menulis ribuan baris duplikat (mengurangi beban disk dan menghindari `HTTP 429`), `/v1/observations/catalog` merespons dalam milidetik, dan analisis transmisi guncangan likuiditas 6 kompartemen kini dapat dijalankan secara deterministik langsung dari endpoint API maupun CLI.
+* **Risiko yang Muncul:**  
+  Estimasi OLS `VAR(p)` mensyaratkan jumlah minggu selaras yang memadai (`T > p + N*p + 6`) dan akan gagal cepat (`HTTP 422`) bila jendela tanggal yang diminta terlalu sempit atau seri memiliki varians nol.

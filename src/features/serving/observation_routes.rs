@@ -103,12 +103,31 @@ pub async fn query_observations_handler(
 pub async fn query_observations_catalog_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let lake_dir = state.config.lake_dir.clone();
-    let coverage = tokio::task::spawn_blocking(move || {
-        ObservationReader::new(PartitionResolver::new(lake_dir)).summarize_coverage()
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let cached = {
+        let guard = state.obs_catalog_cache.read().unwrap_or_else(|e| e.into_inner());
+        guard.as_ref().and_then(|(ts, cov)| {
+            if ts.elapsed() < std::time::Duration::from_secs(60) {
+                Some(cov.clone())
+            } else {
+                None
+            }
+        })
+    };
+    let coverage = match cached {
+        Some(c) => c,
+        None => {
+            let lake_dir = state.config.lake_dir.clone();
+            let fresh = tokio::task::spawn_blocking(move || {
+                ObservationReader::new(PartitionResolver::new(lake_dir)).summarize_coverage()
+            })
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            if let Ok(mut guard) = state.obs_catalog_cache.write() {
+                *guard = Some((std::time::Instant::now(), fresh.clone()));
+            }
+            fresh
+        }
+    };
 
     let catalog = SeriesCatalog::new_canonical();
     Ok(Json(serde_json::json!({
@@ -196,6 +215,18 @@ pub async fn query_observations_matrix_handler(
                 .and_then(|meta| meta.limitation_note.as_ref().map(|n| (sid.clone(), n.clone())))
         })
         .collect();
+    let frequency_quality_flags: BTreeMap<String, String> = cols
+        .iter()
+        .filter_map(|sid| {
+            let meta = catalog.get(sid)?;
+            let freq = meta.frequency.as_str();
+            if (freq == "1M" || freq == "1Q") && (resample == "1w" || resample == "w" || resample == "1d") && ffill {
+                Some((sid.clone(), format!("{}_step_carry_on_{}", freq, resample)))
+            } else {
+                None
+            }
+        })
+        .collect();
 
     if ffill {
         let mut last_seen: BTreeMap<String, f64> = BTreeMap::new();
@@ -239,6 +270,7 @@ pub async fn query_observations_matrix_handler(
         "columns": col_list,
         "sources_by_series": sources_by_series,
         "limitation_warnings": limitation_warnings,
+        "frequency_quality_flags": frequency_quality_flags,
         "row_count": matrix_rows.len(),
         "rows": matrix_rows
     }))
@@ -251,119 +283,13 @@ pub async fn trigger_observations_sync_handler(
 ) -> impl IntoResponse {
     let target = q.target.unwrap_or_else(|| "all".to_string());
     let report = sync_observations(&state.config, &target).await;
+    if let Ok(mut guard) = state.obs_catalog_cache.write() {
+        *guard = None;
+    }
     Json(serde_json::json!({
         "success": true,
         "report": report
     }))
-}
-
-pub async fn query_liquidity_panel_handler(
-    State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let lake_dir = state.config.lake_dir.clone();
-    let payload = tokio::task::spawn_blocking(move || {
-        let resolver = PartitionResolver::new(lake_dir.clone());
-        let obs_reader = ObservationReader::new(resolver);
-
-        let spy_aum = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["etf:SPY:aum_usd".to_string()],
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let gld_aum = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["etf:GLD:aum_usd".to_string()],
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let fred_walcl = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["macro:US:FRED_WALCL_USD".to_string()],
-            source: Some("fred_api".to_string()),
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let (fed_assets, fed_series_used) = if !fred_walcl.is_empty() {
-            (fred_walcl, "macro:US:FRED_WALCL_USD (fred_api)")
-        } else {
-            (
-                obs_reader.read_observations(&ObservationFilter {
-                    series_ids: vec!["macro:US:FED_TOTAL_ASSETS_USD".to_string()],
-                    source: Some("fed_h41_html".to_string()),
-                    resolve_latest_revision: true,
-                    ..Default::default()
-                }),
-                "macro:US:FED_TOTAL_ASSETS_USD (fed_h41_html)",
-            )
-        };
-        let tga = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["macro:US:TGA_BALANCE_USD".to_string()],
-            source: Some("treasury_fiscaldata".to_string()),
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let fred_rrp = obs_reader.read_observations(&ObservationFilter {
-            series_ids: vec!["macro:US:FRED_RRPONTSYD_USD".to_string()],
-            source: Some("fred_api".to_string()),
-            resolve_latest_revision: true,
-            ..Default::default()
-        });
-        let (rrp, rrp_series_used) = if !fred_rrp.is_empty() {
-            (fred_rrp, "macro:US:FRED_RRPONTSYD_USD (fred_api)")
-        } else {
-            (
-                obs_reader.read_observations(&ObservationFilter {
-                    series_ids: vec!["macro:US:ON_RRP_USD".to_string()],
-                    source: Some("nyfed_api".to_string()),
-                    resolve_latest_revision: true,
-                    ..Default::default()
-                }),
-                "macro:US:ON_RRP_USD (nyfed_api)",
-            )
-        };
-
-        let spy_px = crate::features::storage::LakeReader::read_candles(
-            &lake_dir,
-            Some("equities"),
-            "SPY",
-            "1d",
-            None,
-            None,
-        )
-        .unwrap_or_default();
-        let gld_px = crate::features::storage::LakeReader::read_candles(
-            &lake_dir,
-            Some("commodities"),
-            "GLD",
-            "1d",
-            None,
-            None,
-        )
-        .unwrap_or_default();
-
-        let spy_flows = crate::features::analytics::compute_implied_net_flows(&spy_aum, &spy_px, "SPY", "equities");
-        let gld_flows = crate::features::analytics::compute_implied_net_flows(&gld_aum, &gld_px, "GLD", "gold");
-        let net_liq = crate::features::analytics::compute_fed_net_liquidity(&fed_assets, &tga, &rrp);
-
-        serde_json::json!({
-            "success": true,
-            "stage1_implied_flows": {
-                "SPY_count": spy_flows.len(),
-                "GLD_count": gld_flows.len(),
-                "SPY_latest": spy_flows.iter().rev().take(30).cloned().collect::<Vec<_>>(),
-                "GLD_latest": gld_flows.iter().rev().take(30).cloned().collect::<Vec<_>>(),
-            },
-            "fed_net_liquidity": {
-                "count": net_liq.len(),
-                "fed_assets_series_used": fed_series_used,
-                "tga_series_used": "macro:US:TGA_BALANCE_USD (treasury_fiscaldata)",
-                "on_rrp_series_used": rrp_series_used,
-                "latest": net_liq.iter().rev().take(30).cloned().collect::<Vec<_>>(),
-            }
-        })
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(payload))
 }
 
 fn align_to_friday_str(d: NaiveDate) -> String {
