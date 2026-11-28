@@ -132,6 +132,8 @@ impl SeriesCatalog {
             m("etf:SPTL:shares_outstanding", "etf_flow", Some("fiat_park"), "SPTL", "shares_outstanding", ObservationFrequency::Daily, "shares", "SPDR Portfolio Long Term Treasury ETF Shares Outstanding (SSGA)", "ssga_xlsx", &[], None),
             m("etf:BTC_US:implied_flow_usd", "derived", Some("crypto"), "BTC_US_ETFS", "net_flow_usd", ObservationFrequency::Daily, "usd", "US Spot BTC ETF Daily Implied USD Net Flow (BGeometrics BTC * BTCUSDT)", "economy_aggregator_stage1", &[], Some("Derived Stage-1 series linking bgeometrics BTC flow and binance BTCUSDT close")),
             m("deriv:BYBIT_BTC:open_interest_contracts", "derivatives_oi", Some("deleveraging"), "BTC", "open_interest_contracts", ObservationFrequency::Daily, "contracts", "Bybit V5 BTC Perpetual Open Interest", "bybit_v5", &[], Some("Methodological break: Bybit transitioned OI reporting from bilateral to unilateral calculation")),
+            m("deriv:BYBIT_BTC:funding_rate_8h", "derivatives_funding", Some("deleveraging"), "BYBIT_BTCUSDT", "funding_rate_8h", ObservationFrequency::Irregular, "rate_8h", "Bybit V5 BTCUSDT Perpetual 8-Hour Funding Rate", "bybit_v5", &[], Some("Raw 8-hour perpetual funding rate (decimal, e.g. 0.0001 = 1 bp / 8h); isolated from Binance")),
+            m("deriv:BINANCE_BTC:funding_rate_8h", "derivatives_funding", Some("deleveraging"), "BINANCE_BTCUSDT", "funding_rate_8h", ObservationFrequency::Irregular, "rate_8h", "Binance Futures BTCUSDT Perpetual 8-Hour Funding Rate", "binance_futures", &[], Some("Raw 8-hour perpetual funding rate (decimal, e.g. 0.0001 = 1 bp / 8h); isolated from Bybit")),
         ];
 
         Self::from_entries(entries)

@@ -381,4 +381,10 @@ async fn run_crypto_tasks(
         persist_and_record(lake_dir, "bybit_btc_oi", "bybit_v5", false, ex.fetch_bybit_btc_oi(200, batch_id).await, tasks).await;
         persist_and_record(lake_dir, "deribit_btc_oi", "deribit", false, ex.fetch_deribit_btc_oi_snapshot(batch_id).await, tasks).await;
     }
+    if is_series_fresh(wms.get("deriv:BINANCE_BTC:funding_rate_8h"), ObservationFrequency::Daily, now) {
+        push_skipped(tasks, "crypto_funding_rates", "exchanges");
+    } else {
+        persist_and_record(lake_dir, "binance_btc_funding", "binance_futures", false, ex.fetch_binance_btc_funding_rate(1000, batch_id).await, tasks).await;
+        persist_and_record(lake_dir, "bybit_btc_funding", "bybit_v5", false, ex.fetch_bybit_btc_funding_rate(200, batch_id).await, tasks).await;
+    }
 }

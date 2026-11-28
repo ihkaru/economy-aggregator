@@ -44,6 +44,11 @@ fn test_m17_series_catalog_explicit_as_is_vs_adjusted_layers() {
     let btc_usd = cat.get("etf:BTC_US:implied_flow_usd").unwrap();
     assert_eq!(btc_usd.data_layer, DataProcessingLayer::DerivedAdjusted);
 
+    let bin_fund = cat.get("deriv:BINANCE_BTC:funding_rate_8h").unwrap();
+    assert_eq!(bin_fund.data_layer, DataProcessingLayer::RawAsIs);
+    let byb_fund = cat.get("deriv:BYBIT_BTC:funding_rate_8h").unwrap();
+    assert_eq!(byb_fund.data_layer, DataProcessingLayer::RawAsIs);
+
     // Verify split_or_glitch_adjusted flag transparency without mutating raw SSGA rows
     let mk = |d: u32, sid: &str, v: f64| MetricObservation {
         observation_ts_utc: Utc.with_ymd_and_hms(2026, 5, d, 23, 59, 59).unwrap(),
@@ -124,7 +129,7 @@ fn test_m17_deterministic_tree_routing_blind_spot_and_parquet_ledger_roundtrip()
     assert!(r1.blind_spots.len() >= 2, "Must emit both unobserved destination and stale FINRA lag");
     assert!(r1.nodes.iter().any(|n| n.node_id == "Q3_CREDIT_AND_MACRO_CONTRACTION" && n.status == NodeEvalStatus::StaleLag));
 
-    // Case 2: Risk-off + primary outflow + BIL & WRMFNS inflows -> DEFENSIVE_CASH_ROTATION
+    // Case 2: Drawdown + primary outflow + BIL & WRMFNS inflows -> neutral LEAF_PRIMARY_OUTFLOW_WITH_CASH_INFLOWS
     let rot_rep = evaluate_liquidity_tree(DiagnosticTreeInputs {
         as_of_date: as_of,
         window_weeks: 4,
@@ -132,14 +137,48 @@ fn test_m17_deterministic_tree_routing_blind_spot_and_parquet_ledger_roundtrip()
             spy_return_pct: Some(-3.8),
             spy_exact_flow_usd: Some(-2.5e9),
             bil_exact_flow_usd: Some(1.8e9),
+            dtb3_latest_pct: Some(4.16),
+            sofr_latest_pct: Some(3.95),
             delta_wrmfns_usd: Some(22.0e9),
             delta_wrmfns_pct: Some(0.85),
+            h8_covers_latest_market_date: true,
+            ..Default::default()
+        },
+        source_lineage: sample_lineage.clone(),
+    });
+    assert_eq!(rot_rep.protocol_version, "liquidity-tree-v1.1.0");
+    assert_eq!(rot_rep.terminal_leaf_id, "LEAF_PRIMARY_OUTFLOW_WITH_CASH_INFLOWS");
+    assert_eq!(rot_rep.terminal_epistemic_tier, EpistemicTier::Tier2Replicated);
+    let q2 = rot_rep.nodes.iter().find(|n| n.node_id == "Q2_DEFENSIVE_CASH_PARKING").unwrap();
+    assert!(q2.metrics.get("dash_for_cash_gld_out_and_bil_in").is_none(), "pseudo-OOS flag must be removed in v1.1.0");
+    assert_eq!(q2.metrics["dtb3_latest_pct"], 4.16);
+
+    // Case 3 (v1.1.0 Price-Neutral OI Guard): nominal USD OI drops -8B with BTC -22%,
+    // but contract OI RISES +12% and SPY has primary inflows while BTC ETF outflows ->
+    // MUST NOT falsely label deleveraging or Tier2Replicated, and MUST emit H.8 lag blind spot!
+    let div_rep = evaluate_liquidity_tree(DiagnosticTreeInputs {
+        as_of_date: as_of,
+        window_weeks: 4,
+        metrics: DiagnosticTreeMetrics {
+            spy_return_pct: Some(-3.6),
+            btc_return_pct: Some(-22.6),
+            spy_exact_flow_usd: Some(7.88e9),
+            btc_etf_flow_usd: Some(-5.68e9),
+            gld_exact_flow_usd: Some(-1.52e9),
+            bil_exact_flow_usd: Some(3.28e9),
+            delta_btc_oi_usd: Some(-7.81e9),
+            delta_btc_oi_contracts: Some(11_570.0),
+            delta_btc_oi_contracts_pct: Some(12.0),
+            btc_funding_rate_8h_avg_bps: Some(0.75),
+            h8_covers_latest_market_date: false,
+            finra_is_stale: true,
             ..Default::default()
         },
         source_lineage: sample_lineage,
     });
-    assert_eq!(rot_rep.terminal_leaf_id, "LEAF_DEFENSIVE_CASH_ROTATION");
-    assert_eq!(rot_rep.terminal_epistemic_tier, EpistemicTier::Tier2Replicated);
+    assert_eq!(div_rep.terminal_leaf_id, "LEAF_CROSS_COMPARTMENT_DIVERGENCE_CRYPTO_OUT_EQUITY_IN");
+    assert_eq!(div_rep.terminal_epistemic_tier, EpistemicTier::Tier1Accounting);
+    assert!(div_rep.blind_spots.iter().any(|b| b.missing_data_gap.contains("H.8")), "must disclose H.8 lag blind spot");
 
     // Persistent Append-Only Parquet Ledger round-trip (isolated under lake/diagnostics/tree_runs/)
     let dir = TempDir::new().unwrap();

@@ -383,3 +383,18 @@
   Sistem kini mendukung *continuous analytics* penuh tanpa *file bloat*, tahan restart container lewat checkpoint atomik, mendeteksi pergeseran rezim & resolusi *blind-spot* secara otomatis, serta mengakumulasi evaluasi prospektif 2026–2031 bebas bias *peeking*.
 * **Risiko yang Muncul:**  
   Kompaksi *bin-packing* membutuhkan pembacaan seluruh fragmen dalam satu partisi tahunan; karena partisi dibatasi per tahun dan rata-rata hanya ~1–4 snapshot unik per hari, jejak memori tetap <5 MB.
+
+---
+
+### ADR-24: Upgrade Protokol Pohon `liquidity-tree-v1.1.0` (Netralitas Epistemik, OI Berbasis Kontrak + Funding Rate, & Pengungkapan Lag H.8) (Milestone 19)
+* **Status:** Diterima
+* **Konteks:**  
+  Audit epistemik pasca-Milestone 18 menemukan bahwa `liquidity-tree-v1.0.0` (1) mencampur revaluasi harga BTC ke dalam `bgeometrics_oi_usd` sehingga melabeli penurunan USD OI sebagai *deleveraging* padahal kontrak OI Bybit justru naik, (2) menyematkan flag pseudo-OOS `dash_for_cash_gld_out_and_bil_in` di `Q2`, (3) menggunakan kata bermuatan motif (*defensive*, *dip-buying*, *profit-taking*) tanpa kontrol yield `DTB3`/`SOFR`, dan (4) belum menghubungkan sensor `HY OAS`, `STLFSI4`, `CFTC COT Gold`, `Bybit OI Contracts`, maupun *perpetual funding rate* ke pohon.
+* **Keputusan:**  
+  1. Membersihkan snapshot turunan `v1.0.0` di `lake/diagnostics/` (tanpa menyentuh `lake/observations/`) dan menaikkan protokol ke `liquidity-tree-v1.1.0` dengan bahasa akuntansi murni serta pencabutan flag `dash_for_cash_gld_out_and_bil_in`.
+  2. Mengganti predikat *deleveraging* kripto di `Q3` menjadi OI berbasis kontrak (`deriv:BYBIT_BTC:open_interest_contracts`) didampingi konektor *zero-key* 8-jam *perpetual funding rate* (`deriv:BINANCE_BTC:funding_rate_8h` & `deriv:BYBIT_BTC:funding_rate_8h`, lapisan `raw_as_is`), serta menyambungkan `FRED_HY_OAS_PCT`, `FRED_SOFR_PCT`, `FRED_DTB3_PCT`, `FRED_STLFSI4_IDX`, dan `cot:GOLD:managed_money_net`.
+  3. Menambahkan verifikasi `h8_covers_latest_market_date` agar *blind-spot* eksplisit terbit setiap kali Fed H.8 belum mencakup minggu koreksi terbaru, dan membatasi label `Tier2Replicated` khusus pada pemicu FINRA/WRMFNS segar.
+* **Konsekuensi Positif:**  
+  Seluruh diagnosis otomatis kini bebas bias revaluasi pada OI derivatif, jujur terhadap jeda rilis H.8/FINRA/COT, dan memisahkan fakta akuntansi (Tier 1) dari interpretasi motif/rezim (Tier 4).
+* **Risiko yang Muncul:**  
+  Konektor *funding rate* bursa publik (`binance_futures`, `bybit_v5`) dapat dibatasi *geo-blocking* pada jaringan klien tertentu, namun berjalan normal di server produksi ThinkStation dan tetap *fail-fast* terisolasi tanpa mencampur sumber.

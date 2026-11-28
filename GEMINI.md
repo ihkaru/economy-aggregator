@@ -92,11 +92,15 @@ src/
    - **Venue/Bursa Tetap Utuh:** Pada sumber data multi-bursa seperti TradingView (misalnya `COINBASE:BTCUSD`, `BINANCE:BTCUSDT`, `BITSTAMP:BTCUSD`, `NASDAQ:AAPL`, `IDX:BBCA`), namespace bursa/venue **wajib dipertahankan secara utuh** di level persistensi (`symbol`, `raw_symbol`, partisi Hive `symbol=COINBASE_BTCUSD`, dan metadata bursa).
    - **Dilarang Normalisasi/Folding Implisit:** Sistem dilarang keras memotong prefix bursa secara sepihak atau melipat instrumen dari bursa berbeda ke dalam satu ticker generik (seperti melipat `COINBASE:BTCUSD` dan `BINANCE:BTCUSDT` menjadi `BTCUSD`). Keragaman harga, likuiditas, spread antar-bursa, dan atribut mikrostruktur pasar adalah fakta empiris berharga yang tidak boleh hilang.
    - **Identitas Berbasis Natural Tuple `(source, symbol)`:** Seluruh alur ingesti, langganan (*subscriptions*), dan penyimpanan danau data hanya mengenali instrumen berdasarkan pasangan alami `(source, symbol)`. Penyatuan simbol atau pemetaan kanonikal (*canonical mapping*) adalah hak prerogatif konsumen analitika hilir (*downstream*), bukan urusan ingesti hulu.
+13. **Invarian Zero-Poisoning & Penghapusan Tuntas Data Salah Hitung / Salah Waktu (*Hard-Purge Mandate*):**
+   - **Dilarang Mempersistenkan Output Cacat:** Segala hasil komputasi yang salah hitung, merusak asumsi *as-is* maupun versi *adjusted*/*derived* (mis. mencampur nilai USD yang bias revaluasi harga sebagai kontraksi kontrak, mencampur SA vs NSA tanpa label, atau melampirkan aturan pseudo-OOS sebagai status rezim), maupun mengandung **kesalahan waktu/kalender** (mis. minggu parsial belum tutup ikut dihitung selesai, salah *alignment* tanggal, atau *look-ahead*) **tidak boleh dipersistenkan**.
+   - **Wajib *Hard Purge* Artefak Cacat:** Jika hasil salah hitung atau salah waktu terlanjur tersimpan di partisi turunan (`lake/diagnostics/`, *checkpoints*, atau artefak *derived*), berkas cacat tersebut **wajib dihapus bersih secara fisik** sebelum/setelah perbaikan agar tidak mencemari riwayat, transisi rezim, maupun interpretasi pengguna.
+   - **Isolasi Ketat Lapisan *Raw* vs *Derived*:** Pembersihan kesalahan *derived* dilarang menyentuh partisi `lake/observations/` dan `lake/candles/` yang valid; sebaliknya jika korupsinya berasal dari parser/timestamp ingesti mentah, partisi korup tersebut wajib dihapus dan di-*re-ingest* bersih dari sumber asli.
 
 ---
 
-## 3. Implementation Roadmap (344 Granular Phases across 16 Milestones)
-Pengembangan jangka panjang diorganisasi ke dalam 16 Milestone yang mencakup 344 fase atomik terukur:
+## 3. Implementation Roadmap (361 Granular Phases across 19 Milestones)
+Pengembangan jangka panjang diorganisasi ke dalam 19 Milestone yang mencakup 361 fase atomik terukur:
 - Master Index: [`docs/roadmap/ROADMAP.md`](docs/roadmap/ROADMAP.md)
   - **M1 (Phase 001 - 025):** Core Lakehouse & Storage Engine ([docs/roadmap/milestone_1_core_storage.md](docs/roadmap/milestone_1_core_storage.md))
   - **M2 (Phase 026 - 055):** Cryptocurrency High-Frequency Engine ([docs/roadmap/milestone_2_crypto.md](docs/roadmap/milestone_2_crypto.md))
@@ -114,6 +118,9 @@ Pengembangan jangka panjang diorganisasi ke dalam 16 Milestone yang mencakup 344
   - **M14 (Phase 306 - 325):** Closed-System Liquidity Observability, Bitemporal Observations & Zero-Key Connectors ([docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md](docs/roadmap/milestone_14_closed_system_liquidity_and_bitemporal_observations.md))
   - **M15 (Phase 326 - 332):** Full-History Depth, Official FRED REST v1 & Parser Remediation ([docs/roadmap/milestone_15_full_history_depth_fred_and_parser_remediation.md](docs/roadmap/milestone_15_full_history_depth_fred_and_parser_remediation.md))
   - **M16 (Phase 333 - 344):** Incremental Scheduling, Bond/Global Flows & Stage-2 Spillover Engine ([docs/roadmap/milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md](docs/roadmap/milestone_16_incremental_scheduling_bond_flows_and_stage2_econometrics.md))
+  - **M17 (Phase 345 - 350):** Deterministic Liquidity Diagnostic Tree, Parquet Backtrack Ledger & As-Is/Adjusted Lineage ([docs/roadmap/milestone_17_deterministic_diagnostic_tree_and_data_lineage.md](docs/roadmap/milestone_17_deterministic_diagnostic_tree_and_data_lineage.md))
+  - **M18 (Phase 351 - 357):** Continuous Analytics Supervisor, 4-Layer Event-Sourced Parquet Persistence & Prospective OOS Scorecard ([docs/roadmap/milestone_18_continuous_analytics_and_event_sourced_persistence.md](docs/roadmap/milestone_18_continuous_analytics_and_event_sourced_persistence.md))
+  - **M19 (Phase 358 - 361):** Epistemic Tree `v1.1.0`, Price-Neutral Crypto Leverage (Contracts + 8h Funding) & Full Sensor Wiring ([docs/roadmap/milestone_19_epistemic_tree_v1_1_and_crypto_funding.md](docs/roadmap/milestone_19_epistemic_tree_v1_1_and_crypto_funding.md))
 
 ---
 

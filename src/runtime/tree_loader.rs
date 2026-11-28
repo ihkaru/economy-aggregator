@@ -1,20 +1,23 @@
-//! Shared Lake Input Loader & Watermark Fingerprinter for Diagnostic Trees (Phase 355).
+//! Shared Lake Input Loader & Watermark Fingerprinter for Diagnostic Trees (`v1.1.0`, Phase 359).
 //! Single source of truth shared by REST routes and ContinuousAnalyticsSupervisor.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 use chrono::{Duration, NaiveDate};
 
-use crate::core::diagnostic_types::SourceLineageEntry;
 use crate::core::observation_types::{sha256_hex, DataProcessingLayer, MetricObservation};
 use crate::core::series_catalog::SeriesCatalog;
 use crate::core::types::AggregatorCandle;
 use crate::features::analytics::{
     build_weekly_flow_panel, compute_btc_etf_usd_flows, compute_diebold_yilmaz_spillover_full,
     compute_exact_share_flows, compute_fed_net_liquidity, DiagnosticTreeInputs,
-    DiagnosticTreeMetrics, ImpliedNetFlowPoint, NullModel, WeeklyPanelInputs,
+    DiagnosticTreeMetrics, NullModel, WeeklyPanelInputs,
 };
 use crate::features::storage::{LakeReader, ObservationFilter, ObservationReader, PartitionResolver};
+use crate::runtime::tree_loader_helpers::{
+    candle_window_return_pct, funding_window_bps, push_obs_lineage, push_px_lineage,
+    stock_window_delta, sum_flow_delta_v, sum_flow_exact, sum_obs_window,
+};
 
 /// Computes a deterministic SHA-256 fingerprint over all observation watermarks and core candle endpoints.
 pub fn compute_lake_watermark_hash(lake_dir: &Path) -> String {
@@ -92,7 +95,11 @@ pub fn build_tree_inputs(
 
     let btc_etf_raw = read_one("etf:BTC_US:bgeometrics_flow_btc", Some("bgeometrics"));
     let btc_onchain = read_one("onchain:BTC:coinmetrics_netflow_usd", Some("coinmetrics_community"));
-    let btc_oi = read_one("deriv:BTC:bgeometrics_oi_usd", Some("bgeometrics"));
+    let btc_oi_usd = read_one("deriv:BTC:bgeometrics_oi_usd", Some("bgeometrics"));
+    let bybit_oi_c = read_one("deriv:BYBIT_BTC:open_interest_contracts", Some("bybit_v5"));
+    let bin_fund = read_one("deriv:BINANCE_BTC:funding_rate_8h", Some("binance_futures"));
+    let bybit_fund = read_one("deriv:BYBIT_BTC:funding_rate_8h", Some("bybit_v5"));
+
     let wrmfns = read_one("macro:US:FRED_WRMFNS_USD", Some("fred_api"));
     let bank_dep = read_one("macro:US:FRED_BANK_DEPOSITS_USD", Some("fred_api"));
     let bank_cred = read_one("macro:US:FRED_TOTBKCR_USD", Some("fred_api"));
@@ -100,6 +107,11 @@ pub fn build_tree_inputs(
     let walcl = read_one("macro:US:FRED_WALCL_USD", Some("fred_api"));
     let tga = read_one("macro:US:TGA_BALANCE_USD", Some("treasury_fiscaldata"));
     let rrp = read_one("macro:US:FRED_RRPONTSYD_USD", Some("fred_api"));
+    let sofr = read_one("macro:US:FRED_SOFR_PCT", Some("fred_api"));
+    let dtb3 = read_one("macro:US:FRED_DTB3_PCT", Some("fred_api"));
+    let hy_oas = read_one("macro:US:FRED_HY_OAS_PCT", Some("fred_api"));
+    let stlfsi4 = read_one("macro:US:FRED_STLFSI4_IDX", Some("fred_api"));
+    let cot_gold = read_one("cot:GOLD:managed_money_net", Some("cftc_cot"));
     let stbl = read_one("stablecoin:ALL:mcap_usd", Some("defillama"));
     let finra = read_one("credit:US:FINRA_MARGIN_DEBT_USD", Some("finra_xlsx"));
 
@@ -118,11 +130,26 @@ pub fn build_tree_inputs(
     let (delta_m2, _) = stock_window_delta(&wm2, win_start);
     let (delta_rrp, _) = stock_window_delta(&rrp, win_start);
     let (delta_stbl, _) = stock_window_delta(&stbl, win_start);
-    let (delta_oi, _) = stock_window_delta(&btc_oi, win_start);
+    let (delta_oi_usd, _) = stock_window_delta(&btc_oi_usd, win_start);
+    let (delta_oi_c, delta_oi_c_pct) = stock_window_delta(&bybit_oi_c, win_start);
+    let (delta_hy_pct, _) = stock_window_delta(&hy_oas, win_start);
+    let (cot_gold_delta, _) = stock_window_delta(&cot_gold, win_start);
+    let fund_series = if !bin_fund.is_empty() { &bin_fund } else { &bybit_fund };
+    let (fund_avg_bps, fund_latest_bps) = funding_window_bps(fund_series, win_start);
+
     let finra_is_stale = finra.last().map_or(true, |o| {
         let d = o.observation_ts_utc.date_naive();
         d <= win_start || (as_of - d).num_days() > 45
     });
+    let cot_gold_is_stale = cot_gold.last().map_or(true, |o| {
+        let d = o.observation_ts_utc.date_naive();
+        d <= win_start || (as_of - d).num_days() > 14
+    });
+    let latest_spy_date = spy_px.last().map(|c| c.timestamp_utc.date_naive());
+    let h8_covers_latest = match (bank_cred.last(), latest_spy_date) {
+        (Some(h8), Some(sd)) => h8.observation_ts_utc.date_naive() >= sd,
+        _ => false,
+    };
     let finra_delta_pct = if finra.len() >= 2 && finra[finra.len() - 2].value > 0.0 {
         Some(((finra[finra.len() - 1].value / finra[finra.len() - 2].value) - 1.0) * 100.0)
     } else {
@@ -140,7 +167,6 @@ pub fn build_tree_inputs(
     };
 
     let (sp_z, sp_ba, sp_wp) = if include_spillover {
-        let start_reg = NaiveDate::from_ymd_opt(2022, 1, 1);
         let wp = build_weekly_flow_panel(
             &WeeklyPanelInputs {
                 spy_flows: &spy_fl,
@@ -155,7 +181,7 @@ pub fn build_tree_inputs(
                 bank_credit_stock: &bank_cred,
                 fed_net_liq_stock: &nl_pts,
             },
-            start_reg,
+            NaiveDate::from_ymd_opt(2022, 1, 1),
             Some(as_of),
         );
         let cols: Vec<String> = [
@@ -186,67 +212,33 @@ pub fn build_tree_inputs(
         (None, None, None)
     };
 
-    let mut lineage = Vec::new();
-    let push_obs_lin = |lin: &mut Vec<SourceLineageEntry>, sid: &str, rows: &[MetricObservation], max_lag: i64, nodes: &[&str]| {
-        let meta = catalog.get(sid);
-        let last = rows.last();
-        let lag = last.map(|o| (as_of - o.observation_ts_utc.date_naive()).num_days());
-        lin.push(SourceLineageEntry {
-            series_id: sid.to_string(),
-            source: last.map(|o| o.provenance.source.clone()).or_else(|| meta.map(|m| m.primary_source.clone())).unwrap_or_else(|| "missing".to_string()),
-            source_series_id: last.map(|o| o.provenance.source_series_id.clone()).unwrap_or_default(),
-            source_url: last.map(|o| o.provenance.source_url.clone()).unwrap_or_default(),
-            source_checksum: last.and_then(|o| o.provenance.source_checksum.clone()),
-            batch_id: last.map(|o| o.provenance.batch_id.clone()).unwrap_or_default(),
-            data_layer: meta.map(|m| m.data_layer).unwrap_or(DataProcessingLayer::RawAsIs),
-            raw_value_preserved: meta.map(|m| m.raw_value_preserved).unwrap_or(true),
-            adjustment_note: meta.and_then(|m| m.adjustment_note.clone()),
-            known_limitation: meta.and_then(|m| m.limitation_note.clone()),
-            latest_observation_utc: last.map(|o| o.observation_ts_utc.to_rfc3339()),
-            stale_lag_days: lag,
-            is_stale: lag.map_or(true, |d| d > max_lag),
-            used_by_nodes: nodes.iter().map(|s| (*s).to_string()).collect(),
-        });
-    };
-    let push_px_lin = |lin: &mut Vec<SourceLineageEntry>, sid: &str, cs: &[AggregatorCandle], layer: DataProcessingLayer, adj: &str, nodes: &[&str]| {
-        let last = cs.last();
-        let lag = last.map(|c| (as_of - c.timestamp_utc.date_naive()).num_days());
-        lin.push(SourceLineageEntry {
-            series_id: sid.to_string(),
-            source: last.map(|c| c.source.clone()).unwrap_or_else(|| "missing".to_string()),
-            source_series_id: sid.to_string(),
-            source_url: "lake://market/candles".to_string(),
-            source_checksum: None,
-            batch_id: "candles_parquet".to_string(),
-            data_layer: layer,
-            raw_value_preserved: true,
-            adjustment_note: Some(adj.to_string()),
-            known_limitation: None,
-            latest_observation_utc: last.map(|c| c.timestamp_utc.to_rfc3339()),
-            stale_lag_days: lag,
-            is_stale: lag.map_or(true, |d| d > 7),
-            used_by_nodes: nodes.iter().map(|s| (*s).to_string()).collect(),
-        });
-    };
-
-    push_px_lin(&mut lineage, "candle:SPY:1d", &spy_px, DataProcessingLayer::UpstreamSplitAdjusted, "Yahoo Finance daily close is retroactively split-adjusted (dividends excluded).", &["Q0_MARKET_REGIME"]);
-    push_px_lin(&mut lineage, "candle:BTCUSDT:1d", &btc_px, DataProcessingLayer::RawAsIs, "Binance spot 1d close stored verbatim.", &["Q0_MARKET_REGIME"]);
-    push_px_lin(&mut lineage, "candle:^MOVE:1d", &move_px, DataProcessingLayer::RawAsIs, "ICE BofA MOVE bond volatility index close stored verbatim.", &["Q6_SYSTEMIC_CONTEXT_GAUGE"]);
-    push_obs_lin(&mut lineage, "etf:SPY:shares_outstanding", &spy_sh, 7, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "etf:BIL:shares_outstanding", &bil_sh, 7, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
-    push_obs_lin(&mut lineage, "etf:JNK:shares_outstanding", &jnk_sh, 7, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "etf:GLD:shares_outstanding", &gld_sh, 7, &["Q2_DEFENSIVE_CASH_PARKING"]);
-    push_obs_lin(&mut lineage, "etf:BTC_US:bgeometrics_flow_btc", &btc_etf_raw, 10, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_WRMFNS_USD", &wrmfns, 21, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_BANK_DEPOSITS_USD", &bank_dep, 21, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_TOTBKCR_USD", &bank_cred, 21, &["Q3_CREDIT_AND_MACRO_CONTRACTION", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_WM2NS_USD", &wm2, 35, &["Q3_CREDIT_AND_MACRO_CONTRACTION", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_WALCL_USD", &walcl, 14, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
-    push_obs_lin(&mut lineage, "macro:US:TGA_BALANCE_USD", &tga, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
-    push_obs_lin(&mut lineage, "macro:US:FRED_RRPONTSYD_USD", &rrp, 7, &["Q5_CASH_PARKING_RETENTION"]);
-    push_obs_lin(&mut lineage, "stablecoin:ALL:mcap_usd", &stbl, 7, &["Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
-    push_obs_lin(&mut lineage, "deriv:BTC:bgeometrics_oi_usd", &btc_oi, 10, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
-    push_obs_lin(&mut lineage, "credit:US:FINRA_MARGIN_DEBT_USD", &finra, 45, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    let mut lin = Vec::new();
+    push_px_lineage(&mut lin, as_of, "candle:SPY:1d", &spy_px, DataProcessingLayer::UpstreamSplitAdjusted, "Yahoo Finance daily close is retroactively split-adjusted (dividends excluded).", &["Q0_MARKET_REGIME"]);
+    push_px_lineage(&mut lin, as_of, "candle:BTCUSDT:1d", &btc_px, DataProcessingLayer::RawAsIs, "Binance spot 1d close stored verbatim.", &["Q0_MARKET_REGIME"]);
+    push_px_lineage(&mut lin, as_of, "candle:^MOVE:1d", &move_px, DataProcessingLayer::RawAsIs, "ICE BofA MOVE bond volatility index close stored verbatim.", &["Q6_SYSTEMIC_CONTEXT_GAUGE"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "etf:SPY:shares_outstanding", &spy_sh, 7, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "etf:BIL:shares_outstanding", &bil_sh, 7, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "etf:JNK:shares_outstanding", &jnk_sh, 7, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "etf:GLD:shares_outstanding", &gld_sh, 7, &["Q2_DEFENSIVE_CASH_PARKING"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "etf:BTC_US:bgeometrics_flow_btc", &btc_etf_raw, 10, &["Q1_ETF_REVAL_VS_PRIMARY", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_DTB3_PCT", &dtb3, 7, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_SOFR_PCT", &sofr, 7, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_HY_OAS_PCT", &hy_oas, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION", "Q6_SYSTEMIC_CONTEXT_GAUGE"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_STLFSI4_IDX", &stlfsi4, 14, &["Q6_SYSTEMIC_CONTEXT_GAUGE"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "cot:GOLD:managed_money_net", &cot_gold, 14, &["Q2_DEFENSIVE_CASH_PARKING"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_WRMFNS_USD", &wrmfns, 21, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_BANK_DEPOSITS_USD", &bank_dep, 21, &["Q2_DEFENSIVE_CASH_PARKING", "Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_TOTBKCR_USD", &bank_cred, 21, &["Q3_CREDIT_AND_MACRO_CONTRACTION", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_WM2NS_USD", &wm2, 35, &["Q3_CREDIT_AND_MACRO_CONTRACTION", "Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_WALCL_USD", &walcl, 14, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:TGA_BALANCE_USD", &tga, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "macro:US:FRED_RRPONTSYD_USD", &rrp, 7, &["Q5_CASH_PARKING_RETENTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "stablecoin:ALL:mcap_usd", &stbl, 7, &["Q4_RALLY_QUALITY_REVAL_VS_INFLOW"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "deriv:BYBIT_BTC:open_interest_contracts", &bybit_oi_c, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "deriv:BINANCE_BTC:funding_rate_8h", &bin_fund, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "deriv:BYBIT_BTC:funding_rate_8h", &bybit_fund, 7, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "deriv:BTC:bgeometrics_oi_usd", &btc_oi_usd, 10, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
+    push_obs_lineage(&mut lin, &catalog, as_of, "credit:US:FINRA_MARGIN_DEBT_USD", &finra, 45, &["Q3_CREDIT_AND_MACRO_CONTRACTION"]);
 
     DiagnosticTreeInputs {
         as_of_date: as_of,
@@ -270,71 +262,25 @@ pub fn build_tree_inputs(
             delta_walcl_minus_tga_usd: delta_walcl_tga,
             delta_on_rrp_usd: delta_rrp,
             delta_stablecoin_usd: delta_stbl,
-            delta_btc_oi_usd: delta_oi,
+            delta_btc_oi_usd: delta_oi_usd,
+            delta_btc_oi_contracts: delta_oi_c,
+            delta_btc_oi_contracts_pct: delta_oi_c_pct,
+            btc_funding_rate_8h_avg_bps: fund_avg_bps,
+            btc_funding_rate_latest_bps: fund_latest_bps,
+            sofr_latest_pct: sofr.last().map(|o| o.value),
+            dtb3_latest_pct: dtb3.last().map(|o| o.value),
+            hy_oas_latest_pct: hy_oas.last().map(|o| o.value),
+            delta_hy_oas_bps: delta_hy_pct.map(|p| p * 100.0),
+            stlfsi4_latest: stlfsi4.last().map(|o| o.value),
+            cot_gold_managed_money_delta: cot_gold_delta,
+            cot_gold_is_stale,
+            h8_covers_latest_market_date: h8_covers_latest,
             finra_margin_delta_pct: finra_delta_pct,
             finra_is_stale,
             spillover_ex_rrp_z: sp_z,
             spillover_ex_rrp_bias_adj_pct: sp_ba,
             spillover_wild_break_p: sp_wp,
         },
-        source_lineage: lineage,
+        source_lineage: lin,
     }
-}
-
-fn candle_window_return_pct(cs: &[AggregatorCandle], win_start: NaiveDate) -> Option<f64> {
-    let end = cs.last()?;
-    if end.timestamp_utc.date_naive() <= win_start {
-        return None;
-    }
-    let start = cs.iter().rev().find(|c| c.timestamp_utc.date_naive() <= win_start)?.close;
-    (start > 0.0).then(|| ((end.close / start) - 1.0) * 100.0)
-}
-
-fn sum_flow_exact(pts: &[ImpliedNetFlowPoint], win_start: NaiveDate) -> Option<f64> {
-    let mut sum = 0.0;
-    let mut cnt = 0usize;
-    for p in pts {
-        if p.timestamp_utc.date_naive() > win_start && p.implied_net_flow_usd.is_finite() {
-            sum += p.implied_net_flow_usd;
-            cnt += 1;
-        }
-    }
-    (cnt > 0).then_some(sum)
-}
-
-fn sum_flow_delta_v(pts: &[ImpliedNetFlowPoint], win_start: NaiveDate) -> Option<f64> {
-    let mut sum = 0.0;
-    let mut cnt = 0usize;
-    for p in pts {
-        if p.timestamp_utc.date_naive() > win_start && p.delta_v_usd.is_finite() {
-            sum += p.delta_v_usd;
-            cnt += 1;
-        }
-    }
-    (cnt > 0).then_some(sum)
-}
-
-fn sum_obs_window(obs: &[MetricObservation], win_start: NaiveDate) -> Option<f64> {
-    let mut sum = 0.0;
-    let mut cnt = 0usize;
-    for o in obs {
-        if o.observation_ts_utc.date_naive() > win_start && o.value.is_finite() {
-            sum += o.value;
-            cnt += 1;
-        }
-    }
-    (cnt > 0).then_some(sum)
-}
-
-fn stock_window_delta(obs: &[MetricObservation], win_start: NaiveDate) -> (Option<f64>, Option<f64>) {
-    let Some(end) = obs.last() else { return (None, None) };
-    if end.observation_ts_utc.date_naive() <= win_start {
-        return (None, None);
-    }
-    let Some(start) = obs.iter().rev().find(|o| o.observation_ts_utc.date_naive() <= win_start) else {
-        return (None, None);
-    };
-    let diff = end.value - start.value;
-    let pct = (start.value > 0.0).then(|| (diff / start.value) * 100.0);
-    (Some(diff), pct)
 }
