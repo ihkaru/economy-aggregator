@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { fetchSmhPredictive, type SmhPredictiveResponse } from '../../lib/smh_api';
   import { createSmhPriceChart, type SmhChartHandle } from '../../lib/smh_chart';
 
@@ -13,6 +13,19 @@
   let chartHandle: SmhChartHandle | null = null;
   let resizeObserver: ResizeObserver | null = null;
 
+  function ensureChart() {
+    if (chartContainer && !chartHandle) {
+      chartHandle = createSmhPriceChart(chartContainer);
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 0 && height > 0) chartHandle?.resize(width, height);
+        }
+      });
+      resizeObserver.observe(chartContainer);
+    }
+  }
+
   async function load(targetAsOf?: string) {
     loading = true;
     errorMsg = null;
@@ -20,6 +33,8 @@
       const res = await fetchSmhPredictive(targetAsOf, range);
       data = res;
       if (!targetAsOf) asOf = res.as_of;
+      await tick();
+      ensureChart();
       if (chartHandle) {
         chartHandle.update(res);
       }
@@ -51,16 +66,6 @@
   }
 
   onMount(async () => {
-    if (chartContainer) {
-      chartHandle = createSmhPriceChart(chartContainer);
-      resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) chartHandle?.resize(width, height);
-        }
-      });
-      resizeObserver.observe(chartContainer);
-    }
     await load();
   });
 
