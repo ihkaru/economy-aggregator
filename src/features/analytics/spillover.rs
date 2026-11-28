@@ -19,6 +19,11 @@ pub struct SpilloverReport {
     pub lags: usize,
     pub horizon: usize,
     pub total_connectedness_index_pct: f64,
+    pub null_noise_tci_pct: f64,
+    pub null_tci_p95_pct: f64,
+    pub bias_adjusted_tci_pct: f64,
+    pub permutation_p_value: f64,
+    pub statistically_significant: bool,
     pub connectedness_matrix_pct: Vec<Vec<f64>>,
     pub directional: Vec<DirectionalSpillover>,
 }
@@ -52,7 +57,70 @@ pub fn compute_diebold_yilmaz_spillover(
 
     // Standardize each series (z-score) so USD scale differences do not distort variance shares.
     let z_rows = standardize_columns(raw_rows, n)?;
+    let (tci, norm, directional) = estimate_var_gfevd(&z_rows, columns, p, h_steps)?;
 
+    // Deterministic 200-iteration column-permutation placebo test to quantify finite-sample bias.
+    let n_perm = 200usize;
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15 ^ ((t_total as u64) << 16) ^ (n as u64);
+    let mut null_tcis = Vec::with_capacity(n_perm);
+    let mut hits = 0usize;
+    let mut perm_buf = z_rows.clone();
+    for _ in 0..n_perm {
+        for j in 0..n {
+            for i in (1..t_total).rev() {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                let swap_idx = (seed as usize) % (i + 1);
+                let tmp = perm_buf[i][j];
+                perm_buf[i][j] = perm_buf[swap_idx][j];
+                perm_buf[swap_idx][j] = tmp;
+            }
+        }
+        if let Ok((nt, _, _)) = estimate_var_gfevd(&perm_buf, columns, p, h_steps) {
+            if nt >= tci {
+                hits += 1;
+            }
+            null_tcis.push(nt);
+        }
+    }
+    null_tcis.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let null_mean = if null_tcis.is_empty() {
+        0.0
+    } else {
+        null_tcis.iter().sum::<f64>() / (null_tcis.len() as f64)
+    };
+    let p95_idx = ((null_tcis.len() as f64) * 0.95).floor() as usize;
+    let null_p95 = null_tcis
+        .get(p95_idx.min(null_tcis.len().saturating_sub(1)))
+        .copied()
+        .unwrap_or(0.0);
+    let p_val = ((hits + 1) as f64) / ((null_tcis.len() + 1) as f64);
+
+    Ok(SpilloverReport {
+        columns: columns.to_vec(),
+        observations_used: t_total - p,
+        lags: p,
+        horizon: h_steps,
+        total_connectedness_index_pct: tci,
+        null_noise_tci_pct: null_mean,
+        null_tci_p95_pct: null_p95,
+        bias_adjusted_tci_pct: tci - null_mean,
+        permutation_p_value: p_val,
+        statistically_significant: p_val < 0.05,
+        connectedness_matrix_pct: norm,
+        directional,
+    })
+}
+
+fn estimate_var_gfevd(
+    z_rows: &[Vec<f64>],
+    columns: &[String],
+    p: usize,
+    h_steps: usize,
+) -> Result<(f64, Vec<Vec<f64>>, Vec<DirectionalSpillover>), String> {
+    let t_total = z_rows.len();
+    let n = columns.len();
     // Build OLS design matrix X (T_eff x K) with intercept + p lags, and target Y (T_eff x N).
     let t_eff = t_total - p;
     let k = 1 + n * p;
@@ -201,15 +269,7 @@ pub fn compute_diebold_yilmaz_spillover(
         });
     }
 
-    Ok(SpilloverReport {
-        columns: columns.to_vec(),
-        observations_used: t_eff,
-        lags: p,
-        horizon: h_steps,
-        total_connectedness_index_pct: off_diag_sum / (n as f64),
-        connectedness_matrix_pct: norm,
-        directional,
-    })
+    Ok((off_diag_sum / (n as f64), norm, directional))
 }
 
 fn standardize_columns(rows: &[Vec<f64>], n: usize) -> Result<Vec<Vec<f64>>, String> {

@@ -26,8 +26,9 @@ pub use corporate_actions::{AdjustedBar, AdjustedPricePoint, CorporateActionAdju
 pub use futures_roll::{ForexSessionNormalizer, FuturesRollEngine, FuturesRollEvent, RollMethod};
 pub use fx_normalizer::FxNormalizer;
 pub use liquidity_flows::{
-    compute_btc_etf_usd_flows, compute_fed_net_liquidity, compute_implied_net_flows,
-    net_flows_to_observations, FedNetLiquidityPoint, ImpliedNetFlowPoint,
+    compute_btc_etf_usd_flows, compute_exact_share_flows, compute_fed_net_liquidity,
+    compute_implied_net_flows, net_flows_to_observations, FedNetLiquidityPoint,
+    ImpliedNetFlowPoint,
 };
 pub use liquidity_panel::{
     align_to_friday_date, build_weekly_flow_panel, WeeklyFlowPanel, WeeklyFlowRow,

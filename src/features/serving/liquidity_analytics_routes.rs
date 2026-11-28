@@ -11,7 +11,8 @@ use serde::Deserialize;
 
 use crate::features::analytics::{
     build_weekly_flow_panel, compute_btc_etf_usd_flows, compute_diebold_yilmaz_spillover,
-    compute_fed_net_liquidity, compute_implied_net_flows, WeeklyFlowPanel, WeeklyPanelInputs,
+    compute_exact_share_flows, compute_fed_net_liquidity, compute_implied_net_flows,
+    WeeklyFlowPanel, WeeklyPanelInputs,
 };
 use crate::features::serving::rest::AppState;
 use crate::features::storage::{LakeReader, ObservationFilter, ObservationReader, PartitionResolver};
@@ -63,6 +64,12 @@ fn load_liquidity_bundle(
     let jnk_aum = read_one("etf:JNK:aum_usd", Some("ssga_xlsx"));
     let sptl_aum = read_one("etf:SPTL:aum_usd", Some("ssga_xlsx"));
 
+    let spy_sh = read_one("etf:SPY:shares_outstanding", Some("ssga_xlsx"));
+    let gld_sh = read_one("etf:GLD:shares_outstanding", Some("ssga_xlsx"));
+    let bil_sh = read_one("etf:BIL:shares_outstanding", Some("ssga_xlsx"));
+    let jnk_sh = read_one("etf:JNK:shares_outstanding", Some("ssga_xlsx"));
+    let sptl_sh = read_one("etf:SPTL:shares_outstanding", Some("ssga_xlsx"));
+
     let fred_walcl = read_one("macro:US:FRED_WALCL_USD", Some("fred_api"));
     let (fed_assets, fed_series_used) = if !fred_walcl.is_empty() {
         (fred_walcl, "macro:US:FRED_WALCL_USD (fred_api)")
@@ -86,11 +93,23 @@ fn load_liquidity_bundle(
     let read_px = |ac: &str, sym: &str| {
         LakeReader::read_candles(lake_dir, Some(ac), sym, "1d", None, None).unwrap_or_default()
     };
-    let spy_flows = compute_implied_net_flows(&spy_aum, &read_px("equities", "SPY"), "SPY", "equities");
-    let gld_flows = compute_implied_net_flows(&gld_aum, &read_px("commodities", "GLD"), "GLD", "gold");
-    let bil_flows = compute_implied_net_flows(&bil_aum, &read_px("equities", "BIL"), "BIL", "fiat_park");
-    let jnk_flows = compute_implied_net_flows(&jnk_aum, &read_px("equities", "JNK"), "JNK", "deleveraging");
-    let sptl_flows = compute_implied_net_flows(&sptl_aum, &read_px("equities", "SPTL"), "SPTL", "fiat_park");
+    let resolve_flow = |aum: &[crate::core::observation_types::MetricObservation],
+                        sh: &[crate::core::observation_types::MetricObservation],
+                        ac: &str,
+                        sym: &str,
+                        comp: &str| {
+        let exact = compute_exact_share_flows(aum, sh, sym, comp);
+        if !exact.is_empty() {
+            exact
+        } else {
+            compute_implied_net_flows(aum, &read_px(ac, sym), sym, comp)
+        }
+    };
+    let spy_flows = resolve_flow(&spy_aum, &spy_sh, "equities", "SPY", "equities");
+    let gld_flows = resolve_flow(&gld_aum, &gld_sh, "commodities", "GLD", "gold");
+    let bil_flows = resolve_flow(&bil_aum, &bil_sh, "equities", "BIL", "fiat_park");
+    let jnk_flows = resolve_flow(&jnk_aum, &jnk_sh, "equities", "JNK", "deleveraging");
+    let sptl_flows = resolve_flow(&sptl_aum, &sptl_sh, "equities", "SPTL", "fiat_park");
     let btc_etf_usd = compute_btc_etf_usd_flows(&btc_etf_raw, &read_px("crypto", "BTCUSDT"));
     let nl_points = compute_fed_net_liquidity(&fed_assets, &tga, &rrp);
 

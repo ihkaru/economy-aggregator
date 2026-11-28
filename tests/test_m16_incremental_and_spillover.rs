@@ -18,7 +18,7 @@ use economy_aggregator::core::subscription::{SubscriptionItem, SubscriptionManag
 use economy_aggregator::core::types::{AggregatorCandle, IngestionMode, TimeFrame};
 use economy_aggregator::features::analytics::{
     build_weekly_flow_panel, compute_btc_etf_usd_flows, compute_diebold_yilmaz_spillover,
-    WeeklyPanelInputs,
+    compute_exact_share_flows, WeeklyPanelInputs,
 };
 use economy_aggregator::features::ingestion::liquidity_sync::is_series_fresh;
 use economy_aggregator::features::ingestion::orchestrator::{
@@ -190,6 +190,24 @@ fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
     assert!(report.directional[0].net_pct > 5.0, "A should be net transmitter: {:?}", report.directional);
     assert_eq!(report.directional[0].role, "net_transmitter");
     assert_eq!(report.directional[1].role, "net_receiver");
+    assert!(report.statistically_significant, "Causal system must pass permutation p<0.05 (p={})", report.permutation_p_value);
+    assert!(report.bias_adjusted_tci_pct > 5.0, "Bias-adjusted TCI must exceed noise: {}", report.bias_adjusted_tci_pct);
+
+    // Exact share-creation flow must remain zero when NAV drops (e.g. ex-dividend) with unchanged shares!
+    let d1 = Utc.with_ymd_and_hms(2026, 11, 10, 23, 59, 59).unwrap();
+    let d2 = Utc.with_ymd_and_hms(2026, 11, 11, 23, 59, 59).unwrap();
+    let aum = vec![
+        mk_obs("etf:JNK:aum_usd", "etf_flow", "deleveraging", ObservationFrequency::Daily, d1, d1, 0, 100.0e6, "ssga_xlsx"),
+        mk_obs("etf:JNK:aum_usd", "etf_flow", "deleveraging", ObservationFrequency::Daily, d2, d2, 0, 99.0e6, "ssga_xlsx"),
+    ];
+    let sh = vec![
+        mk_obs("etf:JNK:shares_outstanding", "etf_flow", "deleveraging", ObservationFrequency::Daily, d1, d1, 0, 1.0e6, "ssga_xlsx"),
+        mk_obs("etf:JNK:shares_outstanding", "etf_flow", "deleveraging", ObservationFrequency::Daily, d2, d2, 0, 1.0e6, "ssga_xlsx"),
+    ];
+    let exact = compute_exact_share_flows(&aum, &sh, "JNK", "deleveraging");
+    assert_eq!(exact.len(), 1);
+    assert!(exact[0].implied_net_flow_usd.abs() < 1e-6);
+    assert_eq!(exact[0].price_source, "ssga_nav_exact");
 
     // Fail-fast on insufficient rows
     assert!(compute_diebold_yilmaz_spillover(&cols, &rows[..5], 2, 10).is_err());

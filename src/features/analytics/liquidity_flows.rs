@@ -94,6 +94,65 @@ pub fn compute_implied_net_flows(
     out
 }
 
+/// Computes Exact ETF Creation/Redemption Cash Flows:
+/// F_{i,t} = (Shares_t - Shares_{t-1}) * NAV_t, where NAV_t = AUM_t / Shares_t.
+/// Eliminates LBMA-vs-NYSE clock mismatch (GLD) and unadjusted dividend bias (JNK).
+pub fn compute_exact_share_flows(
+    aum_obs: &[MetricObservation],
+    shares_obs: &[MetricObservation],
+    entity_id: &str,
+    compartment: &str,
+) -> Vec<ImpliedNetFlowPoint> {
+    if aum_obs.len() < 2 || shares_obs.len() < 2 {
+        return Vec::new();
+    }
+    let mut aum_by_day: BTreeMap<chrono::NaiveDate, &MetricObservation> = BTreeMap::new();
+    for o in aum_obs {
+        if o.value.is_finite() && o.value > 0.0 {
+            aum_by_day.insert(o.observation_ts_utc.date_naive(), o);
+        }
+    }
+    let mut sh_by_day: BTreeMap<chrono::NaiveDate, f64> = BTreeMap::new();
+    for o in shares_obs {
+        if o.value.is_finite() && o.value > 0.0 {
+            sh_by_day.insert(o.observation_ts_utc.date_naive(), o.value);
+        }
+    }
+    let aligned: Vec<(&MetricObservation, f64, f64)> = aum_by_day
+        .into_iter()
+        .filter_map(|(d, aum)| {
+            sh_by_day
+                .get(&d)
+                .map(|&s| (aum, s, aum.value / s))
+        })
+        .collect();
+
+    let mut out = Vec::with_capacity(aligned.len().saturating_sub(1));
+    for w in aligned.windows(2) {
+        let (prev_aum, prev_sh, prev_nav) = w[0];
+        let (curr_aum, curr_sh, curr_nav) = w[1];
+        if prev_nav <= 0.0 || !curr_nav.is_finite() {
+            continue;
+        }
+        let nav_ret = (curr_nav / prev_nav) - 1.0;
+        let delta_v = curr_aum.value - prev_aum.value;
+        let exact_flow = (curr_sh - prev_sh) * curr_nav;
+        out.push(ImpliedNetFlowPoint {
+            timestamp_utc: curr_aum.observation_ts_utc,
+            entity_id: entity_id.to_string(),
+            compartment: compartment.to_string(),
+            v_prev_usd: prev_aum.value,
+            v_curr_usd: curr_aum.value,
+            price_return: nav_ret,
+            delta_v_usd: delta_v,
+            implied_net_flow_usd: exact_flow,
+            aum_source: curr_aum.provenance.source.clone(),
+            price_source: "ssga_nav_exact".to_string(),
+        });
+    }
+    out
+}
+
 /// Converts BTC-denominated Spot ETF flows (BGeometrics) into USD using daily BTCUSDT close prices.
 pub fn compute_btc_etf_usd_flows(
     btc_flow_obs: &[MetricObservation],
