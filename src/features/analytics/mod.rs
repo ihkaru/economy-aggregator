@@ -17,6 +17,7 @@ pub mod reconciliation;
 pub mod reconcile_cli;
 pub mod runner;
 pub mod spillover;
+pub mod spillover_diagnostics;
 pub mod synthetic_bond;
 
 pub use bitemporal::{MacroVintageRecord, PointInTimeEngine, VintageStage};
@@ -34,7 +35,11 @@ pub use liquidity_panel::{
     align_to_friday_date, build_weekly_flow_panel, WeeklyFlowPanel, WeeklyFlowRow,
     WeeklyPanelInputs,
 };
-pub use spillover::{compute_diebold_yilmaz_spillover, DirectionalSpillover, SpilloverReport};
+pub use spillover::{
+    compute_diebold_yilmaz_spillover, compute_diebold_yilmaz_spillover_with_options,
+    DirectionalSpillover, SpilloverReport,
+};
+pub use spillover_diagnostics::{EquationBreakStat, StructuralBreakDiagnostics};
 pub use macro_prediction_bridge::{MacroPredictionBridge, MacroPredictionDivergence};
 pub use outlier::HampelFilter;
 pub use portfolio::{PortfolioEngine, PortfolioMetrics, SingleAssetMetrics};

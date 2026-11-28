@@ -1,7 +1,13 @@
 //! Pure-Rust OLS VAR(p) & Generalized FEVD / Diebold-Yilmaz Spillover Engine (Phase 342).
-//! Computes Total Connectedness Index (TCI) and directional FROM/TO/NET liquidity transmission.
+//! Includes 1,000-permutation finite-sample bias adjustment, null z-score effect strength,
+//! midpoint Chow structural-break diagnostics, and explicit methodology warnings.
 
 use serde::{Deserialize, Serialize};
+
+use crate::features::analytics::spillover_diagnostics::{
+    fit_ols_and_rss, mat_mul, run_midpoint_chow_break_test, run_permutation_placebo,
+    StructuralBreakDiagnostics,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectionalSpillover {
@@ -18,22 +24,38 @@ pub struct SpilloverReport {
     pub observations_used: usize,
     pub lags: usize,
     pub horizon: usize,
+    pub permutations_used: usize,
     pub total_connectedness_index_pct: f64,
     pub null_noise_tci_pct: f64,
+    pub null_tci_std_pct: f64,
     pub null_tci_p95_pct: f64,
     pub bias_adjusted_tci_pct: f64,
+    pub tci_z_score: f64,
     pub permutation_p_value: f64,
     pub statistically_significant: bool,
+    pub structural_break: StructuralBreakDiagnostics,
+    pub methodology_warnings: Vec<String>,
     pub connectedness_matrix_pct: Vec<Vec<f64>>,
     pub directional: Vec<DirectionalSpillover>,
 }
 
-/// Estimates standardized OLS VAR(p) and computes Pesaran-Shin / Diebold-Yilmaz Generalized FEVD.
+/// Estimates standardized OLS VAR(p) & Diebold-Yilmaz GFEVD using 1,000 deterministic permutations.
 pub fn compute_diebold_yilmaz_spillover(
     columns: &[String],
     raw_rows: &[Vec<f64>],
     lags: usize,
     horizon: usize,
+) -> Result<SpilloverReport, String> {
+    compute_diebold_yilmaz_spillover_with_options(columns, raw_rows, lags, horizon, 1000)
+}
+
+/// Estimates standardized OLS VAR(p) & Diebold-Yilmaz GFEVD with configurable permutation resolution.
+pub fn compute_diebold_yilmaz_spillover_with_options(
+    columns: &[String],
+    raw_rows: &[Vec<f64>],
+    lags: usize,
+    horizon: usize,
+    permutations: usize,
 ) -> Result<SpilloverReport, String> {
     let n = columns.len();
     let p = lags.clamp(1, 4);
@@ -55,73 +77,62 @@ pub fn compute_diebold_yilmaz_spillover(
         }
     }
 
-    // Standardize each series (z-score) so USD scale differences do not distort variance shares.
     let z_rows = standardize_columns(raw_rows, n)?;
-    let (tci, norm, directional) = estimate_var_gfevd(&z_rows, columns, p, h_steps)?;
+    let (x, y) = build_var_design(&z_rows, n, p);
+    let (tci, norm, directional, rss_pool) = estimate_var_gfevd(&x, &y, columns, p, h_steps)?;
+    let structural_break = run_midpoint_chow_break_test(columns, &x, &y, &rss_pool);
 
-    // Deterministic 200-iteration column-permutation placebo test to quantify finite-sample bias.
-    let n_perm = 200usize;
-    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15 ^ ((t_total as u64) << 16) ^ (n as u64);
-    let mut null_tcis = Vec::with_capacity(n_perm);
-    let mut hits = 0usize;
-    let mut perm_buf = z_rows.clone();
-    for _ in 0..n_perm {
-        for j in 0..n {
-            for i in (1..t_total).rev() {
-                seed ^= seed << 13;
-                seed ^= seed >> 7;
-                seed ^= seed << 17;
-                let swap_idx = (seed as usize) % (i + 1);
-                let tmp = perm_buf[i][j];
-                perm_buf[i][j] = perm_buf[swap_idx][j];
-                perm_buf[swap_idx][j] = tmp;
-            }
-        }
-        if let Ok((nt, _, _)) = estimate_var_gfevd(&perm_buf, columns, p, h_steps) {
-            if nt >= tci {
-                hits += 1;
-            }
-            null_tcis.push(nt);
-        }
+    let null_stats = run_permutation_placebo(&z_rows, n, tci, permutations, |perm_z| {
+        let (px, py) = build_var_design(perm_z, n, p);
+        estimate_var_gfevd(&px, &py, columns, p, h_steps).map(|(nt, _, _, _)| nt)
+    });
+
+    let mut warnings = Vec::new();
+    let has_net_liq = columns.iter().any(|c| c == "fed_net_liquidity");
+    let has_mmf = columns.iter().any(|c| c == "fiat_park_mmf");
+    if has_net_liq && has_mmf {
+        warnings.push(
+            "Accounting-overlap caution: ON RRP inside fed_net_liquidity is a direct counterparty to MMFs (fiat_park_mmf). Directional transmission may partly reflect balance-sheet mechanics; prefer liquidity_mode=ex_rrp (WALCL-TGA)."
+                .to_string(),
+        );
     }
-    null_tcis.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let null_mean = if null_tcis.is_empty() {
-        0.0
-    } else {
-        null_tcis.iter().sum::<f64>() / (null_tcis.len() as f64)
-    };
-    let p95_idx = ((null_tcis.len() as f64) * 0.95).floor() as usize;
-    let null_p95 = null_tcis
-        .get(p95_idx.min(null_tcis.len().saturating_sub(1)))
-        .copied()
-        .unwrap_or(0.0);
-    let p_val = ((hits + 1) as f64) / ((null_tcis.len() + 1) as f64);
+    if structural_break.structural_break_detected {
+        warnings.push(format!(
+            "Structural break detected: midpoint Chow F-test flagged {}/{} equations above 1% critical F ({:.2}, max F={:.2}). Pooled VAR coefficients attenuate regime flips; filter start_date to the active macro regime.",
+            structural_break.equations_with_break,
+            structural_break.equations_tested,
+            structural_break.critical_f_1pct,
+            structural_break.max_chow_f
+        ));
+    }
+    warnings.push(
+        "Epistemic scope: reduced-form GFEVD measures predictive forecast-error variance shares, not structural causal identification."
+            .to_string(),
+    );
 
     Ok(SpilloverReport {
         columns: columns.to_vec(),
         observations_used: t_total - p,
         lags: p,
         horizon: h_steps,
+        permutations_used: null_stats.permutations_used,
         total_connectedness_index_pct: tci,
-        null_noise_tci_pct: null_mean,
-        null_tci_p95_pct: null_p95,
-        bias_adjusted_tci_pct: tci - null_mean,
-        permutation_p_value: p_val,
-        statistically_significant: p_val < 0.05,
+        null_noise_tci_pct: null_stats.null_mean_pct,
+        null_tci_std_pct: null_stats.null_std_pct,
+        null_tci_p95_pct: null_stats.null_p95_pct,
+        bias_adjusted_tci_pct: tci - null_stats.null_mean_pct,
+        tci_z_score: null_stats.tci_z_score,
+        permutation_p_value: null_stats.p_value,
+        statistically_significant: null_stats.p_value < 0.05,
+        structural_break,
+        methodology_warnings: warnings,
         connectedness_matrix_pct: norm,
         directional,
     })
 }
 
-fn estimate_var_gfevd(
-    z_rows: &[Vec<f64>],
-    columns: &[String],
-    p: usize,
-    h_steps: usize,
-) -> Result<(f64, Vec<Vec<f64>>, Vec<DirectionalSpillover>), String> {
+fn build_var_design(z_rows: &[Vec<f64>], n: usize, p: usize) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
     let t_total = z_rows.len();
-    let n = columns.len();
-    // Build OLS design matrix X (T_eff x K) with intercept + p lags, and target Y (T_eff x N).
     let t_eff = t_total - p;
     let k = 1 + n * p;
     let mut x = vec![vec![0.0; k]; t_eff];
@@ -136,27 +147,21 @@ fn estimate_var_gfevd(
         }
         y[r_idx].copy_from_slice(&z_rows[t]);
     }
+    (x, y)
+}
 
-    // Solve (X^T X + ridge*I) B = X^T Y
-    let mut xtx = vec![vec![0.0; k]; k];
-    let mut xty = vec![vec![0.0; n]; k];
-    for r in 0..t_eff {
-        for i in 0..k {
-            let xi = x[r][i];
-            for j in 0..k {
-                xtx[i][j] += xi * x[r][j];
-            }
-            for c in 0..n {
-                xty[i][c] += xi * y[r][c];
-            }
-        }
-    }
-    for i in 0..k {
-        xtx[i][i] += 1e-8;
-    }
-    let b = solve_linear_system_multi(&xtx, &xty)?;
+fn estimate_var_gfevd(
+    x: &[Vec<f64>],
+    y: &[Vec<f64>],
+    columns: &[String],
+    p: usize,
+    h_steps: usize,
+) -> Result<(f64, Vec<Vec<f64>>, Vec<DirectionalSpillover>, Vec<f64>), String> {
+    let t_eff = x.len();
+    let k = x[0].len();
+    let n = columns.len();
+    let (b, rss) = fit_ols_and_rss(x, y)?;
 
-    // Residual covariance Sigma (N x N)
     let dof = (t_eff.saturating_sub(k)).max(1) as f64;
     let mut sigma = vec![vec![0.0; n]; n];
     for r in 0..t_eff {
@@ -183,7 +188,6 @@ fn estimate_var_gfevd(
         }
     }
 
-    // Extract lag matrices A_1 .. A_p (each N x N, where row i, col j is coeff of y_{j,t-l} in eq i)
     let mut a_mats = vec![vec![vec![0.0; n]; n]; p];
     for lag in 0..p {
         let row_offset = 1 + lag * n;
@@ -194,7 +198,6 @@ fn estimate_var_gfevd(
         }
     }
 
-    // Compute VMA impulse matrices Phi_0 .. Phi_{H-1}
     let mut phi = vec![vec![vec![0.0; n]; n]; h_steps];
     for i in 0..n {
         phi[0][i][i] = 1.0;
@@ -211,7 +214,6 @@ fn estimate_var_gfevd(
         }
     }
 
-    // Generalized FEVD: theta_ij = (1/sigma_jj) * sum_h ((Phi_h * Sigma)_ij)^2 / sum_h (Phi_h * Sigma * Phi_h^T)_ii
     let mut raw_theta = vec![vec![0.0; n]; n];
     for i in 0..n {
         let mut denom = 0.0;
@@ -236,7 +238,6 @@ fn estimate_var_gfevd(
         }
     }
 
-    // Row-normalize to 100%
     let mut norm = vec![vec![0.0; n]; n];
     for i in 0..n {
         let row_sum: f64 = raw_theta[i].iter().sum();
@@ -269,7 +270,7 @@ fn estimate_var_gfevd(
         });
     }
 
-    Ok((off_diag_sum / (n as f64), norm, directional))
+    Ok((off_diag_sum / (n as f64), norm, directional, rss))
 }
 
 fn standardize_columns(rows: &[Vec<f64>], n: usize) -> Result<Vec<Vec<f64>>, String> {
@@ -300,63 +301,4 @@ fn standardize_columns(rows: &[Vec<f64>], n: usize) -> Result<Vec<Vec<f64>>, Str
         .iter()
         .map(|r| (0..n).map(|j| (r[j] - means[j]) / stds[j]).collect())
         .collect())
-}
-
-fn mat_mul(a: &[Vec<f64>], b: &[Vec<f64>]) -> Vec<Vec<f64>> {
-    let n = a.len();
-    let mut out = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        for m in 0..n {
-            let aim = a[i][m];
-            for j in 0..n {
-                out[i][j] += aim * b[m][j];
-            }
-        }
-    }
-    out
-}
-
-fn solve_linear_system_multi(a: &[Vec<f64>], b: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, String> {
-    let k = a.len();
-    let m = b[0].len();
-    let mut aug: Vec<Vec<f64>> = (0..k)
-        .map(|i| {
-            let mut row = Vec::with_capacity(k + m);
-            row.extend_from_slice(&a[i]);
-            row.extend_from_slice(&b[i]);
-            row
-        })
-        .collect();
-
-    for col in 0..k {
-        let mut pivot = col;
-        let mut max_val = aug[col][col].abs();
-        for r in (col + 1)..k {
-            if aug[r][col].abs() > max_val {
-                max_val = aug[r][col].abs();
-                pivot = r;
-            }
-        }
-        if max_val < 1e-14 {
-            return Err("Fail-fast: Singular design matrix in VAR OLS estimation".to_string());
-        }
-        aug.swap(col, pivot);
-        let div = aug[col][col];
-        for c in col..(k + m) {
-            aug[col][c] /= div;
-        }
-        for r in 0..k {
-            if r == col {
-                continue;
-            }
-            let factor = aug[r][col];
-            if factor.abs() > 1e-18 {
-                for c in col..(k + m) {
-                    aug[r][c] -= factor * aug[col][c];
-                }
-            }
-        }
-    }
-
-    Ok((0..k).map(|i| aug[i][k..(k + m)].to_vec()).collect())
 }

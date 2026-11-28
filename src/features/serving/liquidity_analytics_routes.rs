@@ -10,9 +10,9 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 use crate::features::analytics::{
-    build_weekly_flow_panel, compute_btc_etf_usd_flows, compute_diebold_yilmaz_spillover,
-    compute_exact_share_flows, compute_fed_net_liquidity, compute_implied_net_flows,
-    WeeklyFlowPanel, WeeklyPanelInputs,
+    build_weekly_flow_panel, compute_btc_etf_usd_flows,
+    compute_diebold_yilmaz_spillover_with_options, compute_exact_share_flows,
+    compute_fed_net_liquidity, compute_implied_net_flows, WeeklyFlowPanel, WeeklyPanelInputs,
 };
 use crate::features::serving::rest::AppState;
 use crate::features::storage::{LakeReader, ObservationFilter, ObservationReader, PartitionResolver};
@@ -23,6 +23,12 @@ pub struct SpilloverQuery {
     pub end_date: Option<String>,
     pub lags: Option<usize>,
     pub horizon: Option<usize>,
+    /// "ex_rrp" (default: WALCL-TGA, avoids RRP<->MMF counterparty overlap) or "net_liquidity" (WALCL-TGA-RRP).
+    pub liquidity_mode: Option<String>,
+    /// Set true to drop fiat_park_mmf from the VAR (7-variable non-MMF system).
+    pub exclude_mmf: Option<bool>,
+    /// Permutation placebo resolution (default 1000, clamped 100..=2000).
+    pub permutations: Option<usize>,
 }
 
 struct LoadedLiquidityData {
@@ -197,20 +203,38 @@ pub async fn query_liquidity_spillover_handler(
     let end = parse_naive_opt(&q.end_date)?;
     let lags = q.lags.unwrap_or(2);
     let horizon = q.horizon.unwrap_or(10);
+    let permutations = q.permutations.unwrap_or(1000).clamp(100, 2000);
+    let exclude_mmf = q.exclude_mmf.unwrap_or(false);
+    let liq_mode = match q.liquidity_mode.as_deref().map(str::trim) {
+        None | Some("") | Some("ex_rrp") => "ex_rrp",
+        Some("net_liquidity") => "net_liquidity",
+        Some(other) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("Invalid liquidity_mode '{}'; expected 'ex_rrp' or 'net_liquidity'", other),
+            ));
+        }
+    };
     let lake_dir = state.config.lake_dir.clone();
 
     let result = tokio::task::spawn_blocking(move || {
         let b = load_liquidity_bundle(&lake_dir, start, end);
-        let candidates: Vec<(&str, fn(&crate::features::analytics::WeeklyFlowRow) -> Option<f64>)> = vec![
+        let mut candidates: Vec<(&str, fn(&crate::features::analytics::WeeklyFlowRow) -> Option<f64>)> = vec![
             ("equities_spy", |r| r.equities_spy_flow_usd),
             ("gold_gld", |r| r.gold_gld_flow_usd),
             ("fiat_park_bil", |r| r.fiat_park_bil_flow_usd),
-            ("fiat_park_mmf", |r| r.delta_retail_mmf_usd),
-            ("credit_jnk", |r| r.credit_jnk_flow_usd),
-            ("crypto_stablecoin", |r| r.delta_stablecoin_mcap_usd),
-            ("crypto_onchain", |r| r.crypto_onchain_netflow_usd),
-            ("fed_net_liquidity", |r| r.delta_fed_net_liquidity_usd),
         ];
+        if !exclude_mmf {
+            candidates.push(("fiat_park_mmf", |r| r.delta_retail_mmf_usd));
+        }
+        candidates.push(("credit_jnk", |r| r.credit_jnk_flow_usd));
+        candidates.push(("crypto_stablecoin", |r| r.delta_stablecoin_mcap_usd));
+        candidates.push(("crypto_onchain", |r| r.crypto_onchain_netflow_usd));
+        if liq_mode == "ex_rrp" {
+            candidates.push(("fed_walcl_minus_tga", |r| r.delta_fed_walcl_minus_tga_usd));
+        } else {
+            candidates.push(("fed_net_liquidity", |r| r.delta_fed_net_liquidity_usd));
+        }
 
         // Keep every compartment with >= 25 valid weekly points in the window so the VAR is well-posed.
         let active: Vec<(&str, fn(&crate::features::analytics::WeeklyFlowRow) -> Option<f64>)> = candidates
@@ -238,7 +262,8 @@ pub async fn query_liquidity_spillover_handler(
                 matrix.push(vals);
             }
         }
-        let report = compute_diebold_yilmaz_spillover(&col_names, &matrix, lags, horizon)?;
+        let report =
+            compute_diebold_yilmaz_spillover_with_options(&col_names, &matrix, lags, horizon, permutations)?;
         Ok::<_, String>((aligned_dates.first().cloned(), aligned_dates.last().cloned(), report))
     })
     .await
@@ -247,6 +272,8 @@ pub async fn query_liquidity_spillover_handler(
     match result {
         Ok((first_w, last_w, report)) => Ok(Json(serde_json::json!({
             "success": true,
+            "liquidity_mode": liq_mode,
+            "exclude_mmf": exclude_mmf,
             "aligned_start_week": first_w,
             "aligned_end_week": last_w,
             "spillover": report

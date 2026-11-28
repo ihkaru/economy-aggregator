@@ -355,6 +355,9 @@ async fn handle_remote_spillover(args: &[String], client: &RemoteClient) -> Resu
     if let Some(v) = flag_val(args, &["--end", "--end-date"]) { q.push(("end_date", v)); }
     if let Some(v) = flag_val(args, &["--lags"]) { q.push(("lags", v)); }
     if let Some(v) = flag_val(args, &["--horizon"]) { q.push(("horizon", v)); }
+    if let Some(v) = flag_val(args, &["--liquidity-mode"]) { q.push(("liquidity_mode", v)); }
+    if let Some(v) = flag_val(args, &["--permutations"]) { q.push(("permutations", v)); }
+    if args.iter().any(|a| a == "--exclude-mmf") { q.push(("exclude_mmf", "true".to_string())); }
     let data = client.get_json("/v1/analytics/liquidity-spillover", &q).await?;
     Ok(wrap_ok(client.base_url(), data, vec!["economy-aggregator liquidity-panel"]))
 }

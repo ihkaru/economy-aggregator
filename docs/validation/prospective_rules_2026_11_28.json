@@ -1,0 +1,90 @@
+{
+  "protocol_version": "1.0.0",
+  "frozen_at_utc": "2026-11-28T05:10:00Z",
+  "purpose": "Pre-registered prospective out-of-sample (OOS) evaluation ledger for Economy Aggregator liquidity indicators. Freezes rule forms, quantile estimation scheme, and global Holm-Bonferroni family BEFORE unseen future weekly observations arrive.",
+  "prospective_window": {
+    "burn_in_end_week": "2026-11-27",
+    "oos_start_week": "2026-12-04",
+    "minimum_oos_weeks_before_verdict": 52,
+    "preferred_oos_weeks": 104,
+    "threshold_estimation_policy": "strictly_expanding_historical_quantiles_no_refit_of_rule_form"
+  },
+  "global_multiple_testing_policy": {
+    "method": "Holm-Bonferroni (FWER <= 0.05) + Benjamini-Hochberg (FDR <= 0.05)",
+    "pre_registered_family_size_M": 8,
+    "ci_method": "block_or_non_overlapping_bootstrap_95pct_CI_for_effect_precision_and_lift",
+    "permutations_minimum": 10000
+  },
+  "frozen_tests": [
+    {
+      "id": "PROSP_D1_BIL_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with SPY weekly return <= -2.0%, BIL exact share-creation flow is higher than during non-crash weeks.",
+      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "SPY:1d"],
+      "metric": "mean_diff_usd_and_exact_lift_for_BIL_gt_expanding_Q85",
+      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI > 0"
+    },
+    {
+      "id": "PROSP_D2_JNK_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with SPY weekly return <= -2.0%, JNK exact share-creation flow is more negative than during non-crash weeks.",
+      "series": ["etf:JNK:aum_usd", "etf:JNK:shares_outstanding", "SPY:1d"],
+      "metric": "mean_diff_usd",
+      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
+    },
+    {
+      "id": "PROSP_D3_BTC_ETF_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with BTCUSDT weekly return <= -5.0%, US BTC Spot ETF USD net flow is lower than during non-crash weeks.",
+      "series": ["etf:BTC_US:bgeometrics_flow_btc", "BTCUSDT:1d"],
+      "metric": "mean_diff_usd",
+      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
+    },
+    {
+      "id": "PROSP_D4_BTC_OI_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with BTCUSDT weekly return <= -5.0%, weekly change in BTC Futures OI is more negative than during non-crash weeks.",
+      "series": ["deriv:BTC:bgeometrics_oi_usd", "BTCUSDT:1d"],
+      "metric": "mean_diff_usd",
+      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
+    },
+    {
+      "id": "PROSP_P1_BIL_GLD_STRESS_LIFT",
+      "class": "probabilistic_contemporaneous_classifier",
+      "hypothesis": "Joint rule (BIL_flow > expanding Q80 AND GLD_flow < expanding Q20) yields prospective Lift > 1.0x for same-week SPY <= -2.0%.",
+      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "etf:GLD:aum_usd", "etf:GLD:shares_outstanding", "SPY:1d"],
+      "metric": "precision_recall_fpr_lift_with_95pct_CI",
+      "null_rejection_criterion": "Lower bound of 95% bootstrap CI for Lift > 1.0x and Holm p < 0.05"
+    },
+    {
+      "id": "PROSP_P2_MOVE_TO_BIL_CONTROLLED",
+      "class": "conditional_association",
+      "hypothesis": "Continuous ^MOVE weekly level remains positively associated with BIL exact flow after controlling for SOFR level, delta-SOFR, and Year FE (Newey-West HAC lag=4).",
+      "series": ["^MOVE:1d", "macro:US:FRED_SOFR_PCT", "etf:BIL:aum_usd", "etf:BIL:shares_outstanding"],
+      "metric": "HAC_t_stat_and_slope_per_25pt_MOVE",
+      "null_rejection_criterion": "HAC two-sided Holm p < 0.05 and positive slope"
+    },
+    {
+      "id": "PROSP_P3_BIL_TO_MMF_NONOVERLAP",
+      "class": "probabilistic_lead_lag_controlled",
+      "hypothesis": "Strict non-overlapping 2-week future WRMFNS change positively responds to BIL_t after controlling for MMF_t, SOFR_t, and SPY_ret_t (HAC lag=2).",
+      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "macro:US:FRED_WRMFNS_USD", "macro:US:FRED_SOFR_PCT", "SPY:1d"],
+      "metric": "non_overlapping_HAC_t_stat_and_lift_95pct_CI",
+      "null_rejection_criterion": "HAC two-sided Holm p < 0.05 (currently NOT supported in 2018-2026 regression; tracked as falsification check)"
+    },
+    {
+      "id": "PROSP_S1_EX_RRP_TCI",
+      "class": "reduced_form_connectedness",
+      "hypothesis": "Default ex-RRP 8-variable VAR(2) H=10 spillover (fed_walcl_minus_tga, avoiding RRP<->MMF overlap) remains statistically above 1,000-permutation null (z > 2.0, p < 0.05) on active post-2022 regime.",
+      "endpoint": "/v1/analytics/liquidity-spillover?liquidity_mode=ex_rrp&start_date=2022-01-01&lags=2&horizon=10&permutations=1000",
+      "metric": "bias_adjusted_tci_pct_and_tci_z_score",
+      "null_rejection_criterion": "permutation_p_value < 0.05 and tci_z_score > 2.0"
+    }
+  ],
+  "explicitly_excluded_unsupported_rules": [
+    "JNK outflow during calm SPY weeks (|r|<=1%) as early warning for future 1w/4w SPY crash (unsupported / low power in historical pseudo-OOS).",
+    "JNK>0 & BIL<=0 during SPY rebound weeks as predictor of 4-week rally continuation (unsupported, Lift ~0.97x in historical pseudo-OOS).",
+    "Standalone GLD weekly flow as crash stress indicator (fails Holm-Bonferroni).",
+    "Total stablecoin market cap delta as discriminator between internal exchange BTC->USDT swap parking vs idle capital (unidentified without exchange stablecoin reserves)."
+  ]
+}

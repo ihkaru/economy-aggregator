@@ -22,6 +22,7 @@ pub struct WeeklyFlowRow {
     pub delta_stablecoin_mcap_usd: Option<f64>,
     pub delta_bank_credit_usd: Option<f64>,
     pub delta_fed_net_liquidity_usd: Option<f64>,
+    pub delta_fed_walcl_minus_tga_usd: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +63,8 @@ pub fn build_weekly_flow_panel(
     let d_mmf = diff_obs_weekly_stock(inputs.retail_mmf_stock);
     let d_stable = diff_obs_weekly_stock(inputs.stablecoin_stock);
     let d_credit = diff_obs_weekly_stock(inputs.bank_credit_stock);
-    let d_nl = diff_fed_nl_weekly(inputs.fed_net_liq_stock);
+    let d_nl = diff_fed_nl_weekly(inputs.fed_net_liq_stock, false);
+    let d_nl_ex_rrp = diff_fed_nl_weekly(inputs.fed_net_liq_stock, true);
 
     let mut weeks: BTreeMap<NaiveDate, ()> = BTreeMap::new();
     for k in spy
@@ -99,6 +101,7 @@ pub fn build_weekly_flow_panel(
             delta_stablecoin_mcap_usd: d_stable.get(&w).copied(),
             delta_bank_credit_usd: d_credit.get(&w).copied(),
             delta_fed_net_liquidity_usd: d_nl.get(&w).copied(),
+            delta_fed_walcl_minus_tga_usd: d_nl_ex_rrp.get(&w).copied(),
         })
         .collect();
 
@@ -158,12 +161,17 @@ fn diff_obs_weekly_stock(obs: &[MetricObservation]) -> BTreeMap<NaiveDate, f64> 
     out
 }
 
-fn diff_fed_nl_weekly(pts: &[FedNetLiquidityPoint]) -> BTreeMap<NaiveDate, f64> {
+fn diff_fed_nl_weekly(pts: &[FedNetLiquidityPoint], exclude_rrp: bool) -> BTreeMap<NaiveDate, f64> {
     let mut last_in_week: BTreeMap<NaiveDate, f64> = BTreeMap::new();
     for p in pts {
-        if p.net_liquidity_usd.is_finite() {
+        let val = if exclude_rrp {
+            p.fed_assets_usd - p.tga_balance_usd
+        } else {
+            p.net_liquidity_usd
+        };
+        if val.is_finite() {
             let w = align_to_friday_date(p.timestamp_utc.date_naive());
-            last_in_week.insert(w, p.net_liquidity_usd);
+            last_in_week.insert(w, val);
         }
     }
     let pairs: Vec<(NaiveDate, f64)> = last_in_week.into_iter().collect();

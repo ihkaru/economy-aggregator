@@ -192,6 +192,42 @@ fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
     assert_eq!(report.directional[1].role, "net_receiver");
     assert!(report.statistically_significant, "Causal system must pass permutation p<0.05 (p={})", report.permutation_p_value);
     assert!(report.bias_adjusted_tci_pct > 5.0, "Bias-adjusted TCI must exceed noise: {}", report.bias_adjusted_tci_pct);
+    assert_eq!(report.permutations_used, 1000);
+    assert!(report.tci_z_score > 3.0, "Expected strong z-score vs null, got {}", report.tci_z_score);
+    assert!(report.structural_break.evaluated);
+    assert!(
+        !report.structural_break.structural_break_detected,
+        "Stationary single-regime VAR must not flag structural break: {:?}",
+        report.structural_break
+    );
+
+    // Midpoint structural break positive test: regime flips from +0.80 to -0.80 at midpoint
+    let mut brk_rows = Vec::with_capacity(140);
+    let (mut ba, mut bb) = (0.0_f64, 0.0_f64);
+    for t in 0..140 {
+        let tf = t as f64;
+        let ea = (tf * 0.41).sin() + 0.5 * (tf * 1.37).cos();
+        let eb = 0.25 * (tf * 0.83).cos() + 0.15 * (tf * 2.11).sin();
+        let coeff = if t < 70 { 0.80 } else { -0.80 };
+        let na = 0.35 * ba + ea;
+        let nb = coeff * ba + 0.2 * bb + eb;
+        brk_rows.push(vec![na, nb]);
+        ba = na;
+        bb = nb;
+    }
+    let brk_cols = vec!["fed_net_liquidity".to_string(), "fiat_park_mmf".to_string()];
+    let brk_rep = compute_diebold_yilmaz_spillover(&brk_cols, &brk_rows, 2, 10).unwrap();
+    assert!(
+        brk_rep.structural_break.structural_break_detected,
+        "Regime-flip VAR must trigger midpoint Chow break: {:?}",
+        brk_rep.structural_break
+    );
+    assert!(brk_rep.methodology_warnings.iter().any(|w| w.contains("Accounting-overlap")));
+    assert!(brk_rep.methodology_warnings.iter().any(|w| w.contains("Structural break")));
+    // ex_rrp column name must NOT trigger RRP<->MMF accounting-overlap warning
+    let clean_cols = vec!["fed_walcl_minus_tga".to_string(), "fiat_park_mmf".to_string()];
+    let clean_rep = compute_diebold_yilmaz_spillover(&clean_cols, &rows, 2, 10).unwrap();
+    assert!(!clean_rep.methodology_warnings.iter().any(|w| w.contains("Accounting-overlap")));
 
     // Exact share-creation flow must remain zero when NAV drops (e.g. ex-dividend) with unchanged shares!
     let d1 = Utc.with_ymd_and_hms(2026, 11, 10, 23, 59, 59).unwrap();
