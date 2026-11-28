@@ -15,5 +15,5 @@ pub use atlas_loader::build_liquidity_atlas;
 pub use continuous_supervisor::ContinuousAnalyticsSupervisor;
 pub use prospective_loader::build_prospective_inputs;
 pub use smh_loader::build_smh_predictive;
-pub use supply_chain_loader::build_supply_chain_analysis;
+pub use supply_chain_loader::{build_supply_chain_analysis, build_supply_chain_leaderboard};
 pub use tree_loader::{build_tree_inputs, compute_lake_watermark_hash};

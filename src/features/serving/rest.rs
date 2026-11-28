@@ -25,7 +25,8 @@ use crate::features::serving::atlas_routes::query_liquidity_atlas_handler;
 use crate::features::serving::smh_routes::query_smh_predictive_handler;
 use crate::features::serving::supply_chain_routes::{
     delete_supply_chain_edge_handler, get_supply_chain_graph_handler,
-    query_supply_chain_analysis_handler, upsert_supply_chain_edge_handler,
+    query_supply_chain_analysis_handler, query_supply_chain_leaderboard_handler,
+    upsert_supply_chain_edge_handler,
 };
 use crate::features::serving::auth_routes::{
     auth_login_handler, auth_logout_handler, auth_session_handler, oidc_callback_handler,
@@ -172,6 +173,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/v1/analytics/liquidity-atlas", get(query_liquidity_atlas_handler))
         .route("/v1/analytics/smh-predictive", get(query_smh_predictive_handler))
         .route("/v1/analytics/supply-chain", get(query_supply_chain_analysis_handler))
+        .route("/v1/analytics/supply-chain/leaderboard", get(query_supply_chain_leaderboard_handler))
         .route("/v1/supply-chain", get(get_supply_chain_graph_handler))
         .route("/v1/supply-chain/edges", axum::routing::post(upsert_supply_chain_edge_handler).delete(delete_supply_chain_edge_handler))
         .route("/v1/analytics/liquidity-spillover", get(query_liquidity_spillover_handler))

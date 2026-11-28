@@ -15,7 +15,7 @@ use serde::Deserialize;
 use crate::core::subscription::SubscriptionItem;
 use crate::core::supply_chain::SupplyChainManager;
 use crate::features::serving::rest::AppState;
-use crate::runtime::build_supply_chain_analysis;
+use crate::runtime::{build_supply_chain_analysis, build_supply_chain_leaderboard};
 
 #[derive(Debug, Deserialize)]
 pub struct UpsertSupplyChainEdgeReq {
@@ -138,4 +138,23 @@ pub async fn query_supply_chain_analysis_handler(
             "Insufficient historical lakehouse data for target or its suppliers".to_string(),
         )),
     }
+}
+
+pub async fn query_supply_chain_leaderboard_handler(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<SupplyChainAnalysisQuery>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let horizon = q.horizon.unwrap_or(21).clamp(5, 21);
+    let as_of = match q.as_of.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        None => Utc::now().date_naive(),
+        Some(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid as_of date".to_string()))?,
+    };
+    let lake_dir = state.config.lake_dir.clone();
+    let lb = tokio::task::spawn_blocking(move || {
+        build_supply_chain_leaderboard(&lake_dir, as_of, horizon)
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(serde_json::json!({ "success": true, "leaderboard": lb })))
 }

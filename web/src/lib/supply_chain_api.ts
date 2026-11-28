@@ -31,6 +31,16 @@ export interface SupplyChainSeriesPoint {
   close: number;
   forecast_price: number | null;
   signal: TradeSignal | null;
+  position: number;
+}
+
+export interface RecentSignalEvent {
+  time: string;
+  action: string;
+  signal: TradeSignal;
+  price: number;
+  forecast_ret_pct: number;
+  position_after: number;
 }
 
 export interface SupplyChainAnalysisResponse {
@@ -39,15 +49,45 @@ export interface SupplyChainAnalysisResponse {
   horizon_days: number;
   latest_price: number;
   signal: TradeSignal;
+  current_position: number;
+  no_pyramiding_enforced: boolean;
   signal_reason: string;
   forecast_ret_pct: number;
   forecast_price: number;
   oos_r2_pct: number;
   directional_accuracy_pct: number;
   baseline_up_rate_pct: number;
+  strategy_sortino: number;
+  buy_hold_sortino: number;
+  strategy_max_dd_pct: number;
+  buy_hold_max_dd_pct: number;
+  total_trades: number;
   survivor_count: number;
   lag_matrix: SupplyChainLagRow[];
+  recent_signals: RecentSignalEvent[];
   history: SupplyChainSeriesPoint[];
+}
+
+export interface SupplyChainLeaderboardRow {
+  target: string;
+  latest_price: number;
+  signal: TradeSignal;
+  current_position: number;
+  forecast_ret_pct: number;
+  strategy_sortino: number;
+  buy_hold_sortino: number;
+  strategy_max_dd_pct: number;
+  oos_r2_pct: number;
+  total_trades: number;
+  last_event_date: string;
+  last_event_action: string;
+}
+
+export interface SupplyChainLeaderboardResponse {
+  horizon_days: number;
+  no_pyramiding_enforced: boolean;
+  top5_by_sortino: string[];
+  rows: SupplyChainLeaderboardRow[];
 }
 
 const API_BASE = typeof window !== 'undefined' ? '' : 'http://127.0.0.1:8080';
@@ -104,4 +144,14 @@ export async function fetchSupplyChainAnalysis(
   if (!res.ok) throw new Error(await res.text());
   const body = await res.json();
   return body.analysis as SupplyChainAnalysisResponse;
+}
+
+export async function fetchSupplyChainLeaderboard(
+  horizon: number = 21
+): Promise<SupplyChainLeaderboardResponse> {
+  const params = new URLSearchParams({ horizon: String(horizon) });
+  const res = await scFetch(`${API_BASE}/v1/analytics/supply-chain/leaderboard?${params.toString()}`);
+  if (!res.ok) throw new Error(await res.text());
+  const body = await res.json();
+  return body.leaderboard as SupplyChainLeaderboardResponse;
 }

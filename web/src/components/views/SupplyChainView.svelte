@@ -17,12 +17,15 @@
     deleteSupplyChainEdge,
     fetchSupplyChainAnalysis,
     fetchSupplyChainGraph,
+    fetchSupplyChainLeaderboard,
     upsertSupplyChainEdge,
     type SupplyChainAnalysisResponse,
     type SupplyChainGraph,
+    type SupplyChainLeaderboardResponse,
   } from '../../lib/supply_chain_api';
 
   let graph: SupplyChainGraph | null = null;
+  let leaderboard: SupplyChainLeaderboardResponse | null = null;
   let analysis: SupplyChainAnalysisResponse | null = null;
   let selectedTarget = 'ADI';
   let horizon = 21;
@@ -127,10 +130,24 @@
     }
   }
 
+  async function loadLeaderboard() {
+    try {
+      leaderboard = await fetchSupplyChainLeaderboard(horizon);
+    } catch {
+      // keep existing leaderboard if transient error
+    }
+  }
+
   onMount(async () => {
     try {
-      graph = await fetchSupplyChainGraph();
-      if (graph.top5_recommended.length > 0) selectedTarget = graph.top5_recommended[0];
+      const [g, lb] = await Promise.all([
+        fetchSupplyChainGraph(),
+        fetchSupplyChainLeaderboard(horizon),
+      ]);
+      graph = g;
+      leaderboard = lb;
+      if (lb.top5_by_sortino.length > 0) selectedTarget = lb.top5_by_sortino[0];
+      else if (g.top5_recommended.length > 0) selectedTarget = g.top5_recommended[0];
     } catch (e: any) {
       errorMsg = e?.message || 'Failed to load supply chain graph';
     }
@@ -154,7 +171,7 @@
     </div>
     <div class="controls">
       <div class="btn-group">
-        {#each (graph?.top5_recommended || ['ADI', 'NXPI', 'INTC', 'AAPL', 'ORCL']) as t}
+        {#each (leaderboard?.top5_by_sortino || graph?.top5_recommended || ['ADI', 'NXPI', 'INTC', 'AAPL', 'ORCL']) as t}
           <button class="ctrl-btn top-btn" class:active={selectedTarget === t} on:click={() => loadAnalysis(t)}>
             ★ {t}
           </button>
@@ -168,8 +185,8 @@
         </select>
       {/if}
       <div class="btn-group">
-        <button class="ctrl-btn" class:active={horizon === 5} on:click={() => { horizon = 5; loadAnalysis(); }}>5D</button>
-        <button class="ctrl-btn" class:active={horizon === 21} on:click={() => { horizon = 21; loadAnalysis(); }}>21D</button>
+        <button class="ctrl-btn" class:active={horizon === 5} on:click={() => { horizon = 5; loadLeaderboard(); loadAnalysis(); }}>5D</button>
+        <button class="ctrl-btn" class:active={horizon === 21} on:click={() => { horizon = 21; loadLeaderboard(); loadAnalysis(); }}>21D</button>
       </div>
       <div class="btn-group">
         {#each ['3m', '6m', '1y', '3y', 'all'] as r}
@@ -188,9 +205,11 @@
       <div class="decision-main">
         <div class="decision-top">
           <span class="price-now">{analysis.target} ${analysis.latest_price.toFixed(2)}</span>
+          <span class="tag">POS: {analysis.current_position > 0.5 ? '1.0x LONG' : '0.0x FLAT'} (NO PYRAMIDING)</span>
+          <span class="tag">SORTINO: {analysis.strategy_sortino.toFixed(2)} (B&amp;H {analysis.buy_hold_sortino.toFixed(2)})</span>
+          <span class="tag">MAX DD: {analysis.strategy_max_dd_pct.toFixed(1)}% (B&amp;H {analysis.buy_hold_max_dd_pct.toFixed(1)}%)</span>
+          <span class="tag">TRADES: {analysis.total_trades}</span>
           <span class="tag">OOS R² {analysis.oos_r2_pct.toFixed(2)}%</span>
-          <span class="tag">DA {analysis.directional_accuracy_pct.toFixed(1)}% (Base {analysis.baseline_up_rate_pct.toFixed(1)}%)</span>
-          <span class="tag">SURVIVORS: {analysis.survivor_count}</span>
         </div>
         <div class="decision-reason">{analysis.signal_reason}</div>
       </div>
@@ -243,6 +262,49 @@
           </table>
         </div>
       </div>
+      <div class="panel-card">
+        <div class="p-title">MOST RECENT SIGNALS — {selectedTarget} (STRICT NO-PYRAMIDING 1.0x)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Action</th><th>Price</th><th>Fcst</th><th>Pos After</th></tr></thead>
+            <tbody>
+              {#each analysis.recent_signals as ev}
+                <tr>
+                  <td>{ev.time}</td>
+                  <td class={ev.action === 'BUY_ENTRY' ? 'st-ok' : 'st-bad'}>{ev.action}</td>
+                  <td>${ev.price.toFixed(2)}</td>
+                  <td>{ev.forecast_ret_pct >= 0 ? '+' : ''}{ev.forecast_ret_pct.toFixed(2)}%</td>
+                  <td>{ev.position_after.toFixed(1)}x</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {#if leaderboard}
+        <div class="panel-card">
+          <div class="p-title">TOP TECH RANKED BY SORTINO RATIO (NO PYRAMIDING, {leaderboard.horizon_days}D)</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Target</th><th>Signal</th><th>Sortino</th><th>B&amp;H Sortino</th><th>MaxDD</th><th>Last Signal</th></tr></thead>
+              <tbody>
+                {#each leaderboard.rows as r, idx}
+                  <tr class="click-row" class:sel-row={r.target === selectedTarget} on:click={() => loadAnalysis(r.target)}>
+                    <td>{idx < 5 ? `★${idx + 1}` : idx + 1}</td>
+                    <td><b>{r.target}</b></td>
+                    <td class={r.signal === 'BUY' ? 'st-ok' : r.signal === 'SELL' ? 'st-bad' : 'st-warn'}>{r.signal}</td>
+                    <td><b>{r.strategy_sortino.toFixed(2)}</b></td>
+                    <td>{r.buy_hold_sortino.toFixed(2)}</td>
+                    <td>{r.strategy_max_dd_pct.toFixed(1)}%</td>
+                    <td>{r.last_event_date} ({r.last_event_action})</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -294,4 +356,7 @@
   .st-ok { color: #34d399; font-weight: 700; }
   .st-bad { color: #fb7185; font-weight: 700; }
   .st-warn { color: #fbbf24; }
+  .click-row { cursor: pointer; }
+  .click-row:hover { background: #1e293b; }
+  .sel-row { background: rgba(56, 189, 248, 0.14); }
 </style>

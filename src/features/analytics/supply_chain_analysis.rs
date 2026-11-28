@@ -28,6 +28,17 @@ pub struct SupplyChainSeriesPoint {
     pub close: f64,
     pub forecast_price: Option<f64>,
     pub signal: Option<TradeSignal>,
+    pub position: f64, // 0.0 (flat) or 1.0 (long 1x, strictly no pyramiding)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentSignalEvent {
+    pub time: String,
+    pub action: String, // "BUY_ENTRY" | "SELL_EXIT" | "HOLD_LONG" | "FLAT"
+    pub signal: TradeSignal,
+    pub price: f64,
+    pub forecast_ret_pct: f64,
+    pub position_after: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,15 +48,52 @@ pub struct SupplyChainAnalysisResponse {
     pub horizon_days: usize,
     pub latest_price: f64,
     pub signal: TradeSignal,
+    pub current_position: f64,
+    pub no_pyramiding_enforced: bool,
     pub signal_reason: String,
     pub forecast_ret_pct: f64,
     pub forecast_price: f64,
     pub oos_r2_pct: f64,
     pub directional_accuracy_pct: f64,
     pub baseline_up_rate_pct: f64,
+    pub strategy_sortino: f64,
+    pub buy_hold_sortino: f64,
+    pub strategy_max_dd_pct: f64,
+    pub buy_hold_max_dd_pct: f64,
+    pub total_trades: usize,
     pub survivor_count: usize,
     pub lag_matrix: Vec<SupplyChainLagRow>,
+    pub recent_signals: Vec<RecentSignalEvent>,
     pub history: Vec<SupplyChainSeriesPoint>,
+}
+
+fn compute_sortino_and_mdd(daily_rets: &[f64]) -> (f64, f64) {
+    if daily_rets.len() < 20 {
+        return (0.0, 0.0);
+    }
+    let n = daily_rets.len() as f64;
+    let mean = daily_rets.iter().sum::<f64>() / n;
+    let downside_sq = daily_rets.iter().map(|&r| r.min(0.0).powi(2)).sum::<f64>() / n;
+    let downside_dev = downside_sq.sqrt();
+    let sortino = if downside_dev > 1e-12 {
+        (mean / downside_dev) * 252.0_f64.sqrt()
+    } else {
+        0.0
+    };
+    let mut eq = 1.0_f64;
+    let mut peak = 1.0_f64;
+    let mut mdd = 0.0_f64;
+    for &r in daily_rets {
+        eq *= 1.0 + r;
+        if eq > peak {
+            peak = eq;
+        }
+        let dd = (eq / peak - 1.0) * 100.0;
+        if dd < mdd {
+            mdd = dd;
+        }
+    }
+    (sortino, mdd)
 }
 
 fn log_ret(arr: &[f64], k: usize) -> Vec<f64> {
@@ -204,17 +252,28 @@ pub fn evaluate_supply_chain_lead_lag(
     let best_x = all_rows.first().map(|r| r.2.clone()).unwrap_or_else(|| vec![f64::NAN; n]);
     let best_row = all_rows.first().map(|r| r.1.clone());
 
-    // Strictly causal expanding univariate OLS/Ridge on best_x
+    // Strictly causal expanding univariate OLS/Ridge + Non-Pyramiding State Machine (pos in {0.0, 1.0})
     let mut pred_ret = vec![None; n];
     let mut pred_px = vec![None; n];
     let mut sigs = vec![None; n];
+    let mut positions = vec![0.0_f64; n];
     let mut oos_p = Vec::new();
     let mut oos_a = Vec::new();
     let mut oos_m = Vec::new();
+    let mut strat_daily_rets = Vec::new();
+    let mut bh_daily_rets = Vec::new();
+    let mut events: Vec<RecentSignalEvent> = Vec::new();
     let mut x_tr = Vec::new();
     let mut y_tr = Vec::new();
+    let mut cur_pos = 0.0_f64;
+    let mut total_trades = 0usize;
 
     for t in 0..n {
+        if t > 0 && cur_pos >= 0.0 && sigs[t - 1].is_some() {
+            let r_day = close[t] / close[t - 1] - 1.0;
+            strat_daily_rets.push(cur_pos * r_day);
+            bh_daily_rets.push(r_day);
+        }
         if t >= h {
             let k = t - h;
             if best_x[k].is_finite() && y[k].is_finite() {
@@ -237,9 +296,35 @@ pub fn evaluate_supply_chain_lead_lag(
             } else {
                 TradeSignal::Hold
             };
+            let prev_pos = cur_pos;
+            // Strict non-pyramiding state transition: max 1.0x position
+            let action = match (prev_pos > 0.5, sig) {
+                (false, TradeSignal::Buy) => {
+                    cur_pos = 1.0;
+                    total_trades += 1;
+                    Some("BUY_ENTRY")
+                }
+                (true, TradeSignal::Sell) => {
+                    cur_pos = 0.0;
+                    total_trades += 1;
+                    Some("SELL_EXIT")
+                }
+                _ => None,
+            };
+            if let Some(act) = action {
+                events.push(RecentSignalEvent {
+                    time: dates[t].format("%Y-%m-%d").to_string(),
+                    action: act.to_string(),
+                    signal: sig,
+                    price: close[t],
+                    forecast_ret_pct: p_pct,
+                    position_after: cur_pos,
+                });
+            }
             pred_ret[t] = Some(p_pct);
             pred_px[t] = Some(close[t] * p_log.exp());
             sigs[t] = Some(sig);
+            positions[t] = cur_pos;
             if y[t].is_finite() {
                 oos_p.push(p_log);
                 oos_a.push(y[t]);
@@ -247,6 +332,10 @@ pub fn evaluate_supply_chain_lead_lag(
             }
         }
     }
+    let (strategy_sortino, strategy_max_dd_pct) = compute_sortino_and_mdd(&strat_daily_rets);
+    let (buy_hold_sortino, buy_hold_max_dd_pct) = compute_sortino_and_mdd(&bh_daily_rets);
+    events.reverse();
+    let recent_signals: Vec<RecentSignalEvent> = events.into_iter().take(12).collect();
 
     let mse_m = oos_p.iter().zip(&oos_a).map(|(p, a)| (a - p).powi(2)).sum::<f64>() / (oos_a.len().max(1) as f64);
     let mse_b = oos_m.iter().zip(&oos_a).map(|(m, a)| (a - m).powi(2)).sum::<f64>() / (oos_a.len().max(1) as f64);
@@ -277,6 +366,7 @@ pub fn evaluate_supply_chain_lead_lag(
             close: close[i],
             forecast_price: pred_px[i],
             signal: sigs[i],
+            position: positions[i],
         })
         .collect();
 
@@ -287,14 +377,22 @@ pub fn evaluate_supply_chain_lead_lag(
         horizon_days: h,
         latest_price: close[last],
         signal: last_sig,
+        current_position: positions[last],
+        no_pyramiding_enforced: true,
         signal_reason: reason,
         forecast_ret_pct: last_ret,
         forecast_price: pred_px[last].unwrap_or(close[last]),
         oos_r2_pct,
         directional_accuracy_pct: da_pct,
         baseline_up_rate_pct: up_pct,
+        strategy_sortino,
+        buy_hold_sortino,
+        strategy_max_dd_pct,
+        buy_hold_max_dd_pct,
+        total_trades,
         survivor_count,
         lag_matrix,
+        recent_signals,
         history,
     })
 }
