@@ -107,16 +107,28 @@ fn test_m18_regime_transition_diff_and_prospective_oos_anti_peeking() {
             gld_exact_flow_usd: Some(-((i as f64) * 20e6)),
         });
     }
+    // Partial future Friday (e.g. Saturday 2026-11-28 crypto candle aligned to 2026-12-04) MUST be excluded on 2026-11-28!
+    let mut rows_with_partial = rows.clone();
+    rows_with_partial.push(ProspectiveWeeklyObs {
+        week_friday: "2026-12-04".to_string(),
+        spy_weekly_return_pct: None,
+        btc_weekly_return_pct: Some(-1.0),
+        btc_etf_flow_usd: None,
+        delta_btc_oi_usd: None,
+        bil_exact_flow_usd: None,
+        jnk_exact_flow_usd: None,
+        gld_exact_flow_usd: None,
+    });
     let pre_rep = evaluate_prospective_scorecard(&ProspectiveScorecardInputs {
         as_of_date: d1,
-        weekly_rows: rows.clone(),
+        weekly_rows: rows_with_partial,
         daily_move_bil_oos_days: 0,
         daily_move_bil_running_corr: None,
         latest_ex_rrp_tci_z: Some(7.15),
         latest_ex_rrp_bias_adj_pct: Some(9.14),
     });
     assert_eq!(pre_rep.protocol_sha256, PROSPECTIVE_PROTOCOL_SHA256);
-    assert_eq!(pre_rep.oos_weeks_collected, 0);
+    assert_eq!(pre_rep.oos_weeks_collected, 0, "incomplete week 2026-12-04 must NOT count on 2026-11-28");
     assert_eq!(pre_rep.overall_readout_status, "PRE_OOS_BURN_IN_COMPLETE");
     assert!(pre_rep.optional_stopping_forbidden);
 

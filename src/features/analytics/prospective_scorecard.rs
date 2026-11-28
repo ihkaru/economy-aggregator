@@ -48,9 +48,16 @@ pub struct ProspectiveScorecardInputs {
 pub fn evaluate_prospective_scorecard(
     inputs: &ProspectiveScorecardInputs,
 ) -> ProspectiveScorecardReport {
-    let mut rows = inputs.weekly_rows.clone();
-    rows.sort_by(|a, b| a.week_friday.cmp(&b.week_friday));
     let as_of_str = inputs.as_of_date.format("%Y-%m-%d").to_string();
+    // Strictly exclude partial in-progress weeks whose Friday EOW has not yet closed on as_of_date
+    // (e.g., Saturday 2026-11-28 24/7 crypto candles aligned forward to Friday 2026-12-04).
+    let mut rows: Vec<ProspectiveWeeklyObs> = inputs
+        .weekly_rows
+        .iter()
+        .filter(|r| r.week_friday.as_str() <= as_of_str.as_str())
+        .cloned()
+        .collect();
+    rows.sort_by(|a, b| a.week_friday.cmp(&b.week_friday));
     let latest_panel_week = rows.last().map(|r| r.week_friday.clone());
 
     let oos_rows: Vec<&ProspectiveWeeklyObs> = rows

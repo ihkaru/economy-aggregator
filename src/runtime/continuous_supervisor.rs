@@ -186,6 +186,17 @@ impl ContinuousAnalyticsSupervisor {
                             last_checksum_sha256: report.tree_checksum_sha256,
                         },
                     );
+                } else if let Some(p) = prev {
+                    cp.windows.entry(w).or_insert(WindowCheckpoint {
+                        window_weeks: w,
+                        last_run_id: p.run_id,
+                        last_as_of_date: p.as_of_date,
+                        last_evaluated_at_utc: p.evaluated_at_utc,
+                        last_protocol_version: p.protocol_version,
+                        last_root_regime: p.root_regime,
+                        last_terminal_leaf_id: p.terminal_leaf_id,
+                        last_checksum_sha256: p.tree_checksum_sha256,
+                    });
                 }
             }
 
