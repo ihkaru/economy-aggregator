@@ -1,12 +1,14 @@
 //! Pure-Rust OLS VAR(p) & Generalized FEVD / Diebold-Yilmaz Spillover Engine (Phase 342).
-//! Includes 1,000-permutation finite-sample bias adjustment, null z-score effect strength,
-//! midpoint Chow structural-break diagnostics, and explicit methodology warnings.
+//! Defaults to autocorrelation-preserving Circular Time-Shift Surrogate null (1,000 draws),
+//! Wild-Rademacher Andrews sup-F structural-break diagnostics, and explicit methodology warnings.
 
 use serde::{Deserialize, Serialize};
 
+use crate::features::analytics::spillover_breaks::{
+    run_wild_andrews_sup_f, StructuralBreakDiagnostics,
+};
 use crate::features::analytics::spillover_diagnostics::{
-    fit_ols_and_rss, mat_mul, run_midpoint_chow_break_test, run_permutation_placebo,
-    StructuralBreakDiagnostics,
+    fit_ols_full, mat_mul, run_surrogate_placebo, NullModel,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +26,7 @@ pub struct SpilloverReport {
     pub observations_used: usize,
     pub lags: usize,
     pub horizon: usize,
+    pub null_model: String,
     pub permutations_used: usize,
     pub total_connectedness_index_pct: f64,
     pub null_noise_tci_pct: f64,
@@ -39,23 +42,52 @@ pub struct SpilloverReport {
     pub directional: Vec<DirectionalSpillover>,
 }
 
-/// Estimates standardized OLS VAR(p) & Diebold-Yilmaz GFEVD using 1,000 deterministic permutations.
+/// Standardized OLS VAR(p) & Diebold-Yilmaz GFEVD with 1,000 circular time-shift surrogates.
 pub fn compute_diebold_yilmaz_spillover(
     columns: &[String],
     raw_rows: &[Vec<f64>],
     lags: usize,
     horizon: usize,
 ) -> Result<SpilloverReport, String> {
-    compute_diebold_yilmaz_spillover_with_options(columns, raw_rows, lags, horizon, 1000)
+    compute_diebold_yilmaz_spillover_full(
+        columns,
+        raw_rows,
+        None,
+        lags,
+        horizon,
+        1000,
+        NullModel::CircularShift,
+    )
 }
 
-/// Estimates standardized OLS VAR(p) & Diebold-Yilmaz GFEVD with configurable permutation resolution.
+/// Backward-compatible wrapper with custom surrogate draw count (circular time-shift default).
 pub fn compute_diebold_yilmaz_spillover_with_options(
     columns: &[String],
     raw_rows: &[Vec<f64>],
     lags: usize,
     horizon: usize,
     permutations: usize,
+) -> Result<SpilloverReport, String> {
+    compute_diebold_yilmaz_spillover_full(
+        columns,
+        raw_rows,
+        None,
+        lags,
+        horizon,
+        permutations,
+        NullModel::CircularShift,
+    )
+}
+
+/// Full configurable VAR(p)/GFEVD engine with date-labeled wild-bootstrap Andrews sup-F & null selector.
+pub fn compute_diebold_yilmaz_spillover_full(
+    columns: &[String],
+    raw_rows: &[Vec<f64>],
+    row_dates: Option<&[String]>,
+    lags: usize,
+    horizon: usize,
+    permutations: usize,
+    null_mode: NullModel,
 ) -> Result<SpilloverReport, String> {
     let n = columns.len();
     let p = lags.clamp(1, 4);
@@ -79,12 +111,13 @@ pub fn compute_diebold_yilmaz_spillover_with_options(
 
     let z_rows = standardize_columns(raw_rows, n)?;
     let (x, y) = build_var_design(&z_rows, n, p);
-    let (tci, norm, directional, rss_pool) = estimate_var_gfevd(&x, &y, columns, p, h_steps)?;
-    let structural_break = run_midpoint_chow_break_test(columns, &x, &y, &rss_pool);
+    let (tci, norm, directional, y_hat, resid) = estimate_var_gfevd(&x, &y, columns, p, h_steps)?;
+    let structural_break =
+        run_wild_andrews_sup_f(columns, row_dates, p, &x, &y, &y_hat, &resid, 250);
 
-    let null_stats = run_permutation_placebo(&z_rows, n, tci, permutations, |perm_z| {
+    let null_stats = run_surrogate_placebo(&z_rows, n, p, tci, permutations, null_mode, |perm_z| {
         let (px, py) = build_var_design(perm_z, n, p);
-        estimate_var_gfevd(&px, &py, columns, p, h_steps).map(|(nt, _, _, _)| nt)
+        estimate_var_gfevd(&px, &py, columns, p, h_steps).map(|(nt, _, _, _, _)| nt)
     });
 
     let mut warnings = Vec::new();
@@ -92,21 +125,27 @@ pub fn compute_diebold_yilmaz_spillover_with_options(
     let has_mmf = columns.iter().any(|c| c == "fiat_park_mmf");
     if has_net_liq && has_mmf {
         warnings.push(
-            "Accounting-overlap caution: ON RRP inside fed_net_liquidity is a direct counterparty to MMFs (fiat_park_mmf). Directional transmission may partly reflect balance-sheet mechanics; prefer liquidity_mode=ex_rrp (WALCL-TGA)."
+            "Accounting-overlap caution: ON RRP inside fed_net_liquidity is a direct counterparty to MMFs (fiat_park_mmf). Directional roles may partly reflect balance-sheet mechanics; prefer liquidity_mode=ex_rrp (WALCL-TGA)."
+                .to_string(),
+        );
+    }
+    if null_mode == NullModel::IidPerm {
+        warnings.push(
+            "Null-model caution: iid_perm destroys per-series autocorrelation and volatility clustering, inflating tci_z_score; prefer null_mode=circular_shift."
                 .to_string(),
         );
     }
     if structural_break.structural_break_detected {
         warnings.push(format!(
-            "Structural break detected: midpoint Chow F-test flagged {}/{} equations above 1% critical F ({:.2}, max F={:.2}). Pooled VAR coefficients attenuate regime flips; filter start_date to the active macro regime.",
+            "Structural break detected: wild-bootstrap Andrews sup-F flagged system p={:.4} ({}/{} equations p<0.05, max sup-F={:.2}). Pooled VAR attenuates regime changes; inspect sub-windows.",
+            structural_break.system_wild_p_value,
             structural_break.equations_with_break,
             structural_break.equations_tested,
-            structural_break.critical_f_1pct,
-            structural_break.max_chow_f
+            structural_break.system_max_sup_f
         ));
     }
     warnings.push(
-        "Epistemic scope: reduced-form GFEVD measures predictive forecast-error variance shares, not structural causal identification."
+        "Epistemic scope: reduced-form GFEVD measures predictive forecast-error variance shares, not structural causal identification; directional roles are specification-sensitive."
             .to_string(),
     );
 
@@ -115,6 +154,7 @@ pub fn compute_diebold_yilmaz_spillover_with_options(
         observations_used: t_total - p,
         lags: p,
         horizon: h_steps,
+        null_model: null_stats.null_model,
         permutations_used: null_stats.permutations_used,
         total_connectedness_index_pct: tci,
         null_noise_tci_pct: null_stats.null_mean_pct,
@@ -156,26 +196,18 @@ fn estimate_var_gfevd(
     columns: &[String],
     p: usize,
     h_steps: usize,
-) -> Result<(f64, Vec<Vec<f64>>, Vec<DirectionalSpillover>, Vec<f64>), String> {
+) -> Result<(f64, Vec<Vec<f64>>, Vec<DirectionalSpillover>, Vec<Vec<f64>>, Vec<Vec<f64>>), String> {
     let t_eff = x.len();
     let k = x[0].len();
     let n = columns.len();
-    let (b, rss) = fit_ols_and_rss(x, y)?;
+    let (b, y_hat, resid) = fit_ols_full(x, y)?;
 
     let dof = (t_eff.saturating_sub(k)).max(1) as f64;
     let mut sigma = vec![vec![0.0; n]; n];
     for r in 0..t_eff {
-        let mut resid = vec![0.0; n];
-        for c in 0..n {
-            let mut pred = 0.0;
-            for i in 0..k {
-                pred += x[r][i] * b[i][c];
-            }
-            resid[c] = y[r][c] - pred;
-        }
         for i in 0..n {
             for j in 0..n {
-                sigma[i][j] += resid[i] * resid[j];
+                sigma[i][j] += resid[r][i] * resid[r][j];
             }
         }
     }
@@ -270,7 +302,7 @@ fn estimate_var_gfevd(
         });
     }
 
-    Ok((off_diag_sum / (n as f64), norm, directional, rss))
+    Ok((off_diag_sum / (n as f64), norm, directional, y_hat, resid))
 }
 
 fn standardize_columns(rows: &[Vec<f64>], n: usize) -> Result<Vec<Vec<f64>>, String> {

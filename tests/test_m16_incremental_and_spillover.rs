@@ -163,14 +163,22 @@ fn test_m16_btc_etf_usd_normalization_and_weekly_flow_panel() {
 
 #[test]
 fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
-    // Construct deterministic 2-variable system where A causally drives B: B_t = 0.75 * A_{t-1} + noise_b
-    let mut rows = Vec::with_capacity(120);
+    // Deterministic Xorshift64 white-noise innovations (not periodic sine waves, which stay phase-locked under circular shift!)
+    let mut rng_state: u64 = 0x517C_C1B7_2722_0A95;
+    let mut next_unit = || -> f64 {
+        rng_state ^= rng_state << 13;
+        rng_state ^= rng_state >> 7;
+        rng_state ^= rng_state << 17;
+        ((rng_state as f64) / (u64::MAX as f64)) * 2.0 - 1.0
+    };
+
+    // Construct stochastic 2-variable AR/VAR where A causally drives B: B_t = 0.75 * A_{t-1} + 0.2 * B_{t-1} + eps_b
+    let mut rows = Vec::with_capacity(140);
     let mut a_prev = 0.0_f64;
     let mut b_prev = 0.0_f64;
-    for t in 0..120 {
-        let tf = t as f64;
-        let eps_a = (tf * 0.37).sin() + 0.4 * (tf * 1.13).cos();
-        let eps_b = 0.25 * (tf * 0.71).cos() + 0.15 * (tf * 1.91).sin();
+    for _ in 0..140 {
+        let eps_a = next_unit() + next_unit();
+        let eps_b = 0.35 * (next_unit() + next_unit());
         let a = 0.45 * a_prev + eps_a;
         let b = 0.75 * a_prev + 0.2 * b_prev + eps_b;
         rows.push(vec![a, b]);
@@ -190,25 +198,27 @@ fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
     assert!(report.directional[0].net_pct > 5.0, "A should be net transmitter: {:?}", report.directional);
     assert_eq!(report.directional[0].role, "net_transmitter");
     assert_eq!(report.directional[1].role, "net_receiver");
-    assert!(report.statistically_significant, "Causal system must pass permutation p<0.05 (p={})", report.permutation_p_value);
+    assert!(report.statistically_significant, "Causal system must pass circular-shift p<0.05 (p={})", report.permutation_p_value);
     assert!(report.bias_adjusted_tci_pct > 5.0, "Bias-adjusted TCI must exceed noise: {}", report.bias_adjusted_tci_pct);
     assert_eq!(report.permutations_used, 1000);
-    assert!(report.tci_z_score > 3.0, "Expected strong z-score vs null, got {}", report.tci_z_score);
+    assert_eq!(report.null_model, "circular_shift");
+    assert!(report.tci_z_score > 3.0, "Expected strong z-score vs circular-shift null, got {}", report.tci_z_score);
+    assert_eq!(report.structural_break.method, "andrews_sup_f_wild_rademacher");
     assert!(report.structural_break.evaluated);
     assert!(
         !report.structural_break.structural_break_detected,
-        "Stationary single-regime VAR must not flag structural break: {:?}",
+        "Stationary single-regime VAR must not flag wild sup-F break: {:?}",
         report.structural_break
     );
+    assert!(report.structural_break.interpretation_note.contains("Fail-to-reject"));
 
-    // Midpoint structural break positive test: regime flips from +0.80 to -0.80 at midpoint
+    // Unknown-breakpoint structural break positive test: regime flips from +0.85 to -0.85 at t=50 (~36%, NOT midpoint!)
     let mut brk_rows = Vec::with_capacity(140);
     let (mut ba, mut bb) = (0.0_f64, 0.0_f64);
     for t in 0..140 {
-        let tf = t as f64;
-        let ea = (tf * 0.41).sin() + 0.5 * (tf * 1.37).cos();
-        let eb = 0.25 * (tf * 0.83).cos() + 0.15 * (tf * 2.11).sin();
-        let coeff = if t < 70 { 0.80 } else { -0.80 };
+        let ea = next_unit() + next_unit();
+        let eb = 0.35 * (next_unit() + next_unit());
+        let coeff = if t < 50 { 0.85 } else { -0.85 };
         let na = 0.35 * ba + ea;
         let nb = coeff * ba + 0.2 * bb + eb;
         brk_rows.push(vec![na, nb]);
@@ -219,7 +229,7 @@ fn test_m16_diebold_yilmaz_var_gfevd_causal_invariants() {
     let brk_rep = compute_diebold_yilmaz_spillover(&brk_cols, &brk_rows, 2, 10).unwrap();
     assert!(
         brk_rep.structural_break.structural_break_detected,
-        "Regime-flip VAR must trigger midpoint Chow break: {:?}",
+        "Off-midpoint regime-flip VAR must trigger wild Andrews sup-F break: {:?}",
         brk_rep.structural_break
     );
     assert!(brk_rep.methodology_warnings.iter().any(|w| w.contains("Accounting-overlap")));

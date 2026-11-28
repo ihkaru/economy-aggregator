@@ -1,90 +1,120 @@
 {
-  "protocol_version": "1.0.0",
-  "frozen_at_utc": "2026-11-28T05:10:00Z",
-  "purpose": "Pre-registered prospective out-of-sample (OOS) evaluation ledger for Economy Aggregator liquidity indicators. Freezes rule forms, quantile estimation scheme, and global Holm-Bonferroni family BEFORE unseen future weekly observations arrive.",
-  "prospective_window": {
+  "protocol_version": "1.1.0",
+  "frozen_at_utc": "2026-11-28T05:35:00Z",
+  "external_anchor": {
+    "repository": "https://github.com/ihkaru/economy-aggregator",
+    "release_tag": "prospective-protocol-v1.1-2026-11-28",
+    "tamper_evidence": "SHA-256 hash of this JSON published immutably in GitHub Release notes upon freeze; any post-freeze edit invalidates the anchor."
+  },
+  "purpose": "Power-sized, pre-registered prospective out-of-sample (OOS) validation protocol separating adequately powered 2-year primary confirmatory tests (M=2) from long-horizon secondary/exploratory trackers (4-8+ years required for 80% power). All historical 2016-2026 results are strictly treated as exploratory/pseudo-OOS.",
+  "stopping_and_evaluation_rules": {
     "burn_in_end_week": "2026-11-27",
     "oos_start_week": "2026-12-04",
-    "minimum_oos_weeks_before_verdict": 52,
-    "preferred_oos_weeks": 104,
-    "threshold_estimation_policy": "strictly_expanding_historical_quantiles_no_refit_of_rule_form"
+    "primary_readout_policy": "SINGLE_FIXED_CALENDAR_READOUT_NO_PEEKING",
+    "primary_readout_week_index": 104,
+    "primary_readout_date_utc": "2028-11-24",
+    "secondary_long_horizon_readout_week_index": 260,
+    "secondary_long_horizon_readout_date_utc": "2031-11-21",
+    "optional_stopping_forbidden": true,
+    "threshold_estimation_policy": "strictly_expanding_historical_quantiles_frozen_rule_form",
+    "multiple_testing_primary": "Holm-Bonferroni across M=2 primary confirmatory tests (alpha_strict=0.025, FWER<=0.05)",
+    "multiple_testing_secondary": "Holm-Bonferroni across M=5 secondary long-horizon tests (reported with 95% CI; no confirmatory claims before readout week 260)"
   },
-  "global_multiple_testing_policy": {
-    "method": "Holm-Bonferroni (FWER <= 0.05) + Benjamini-Hochberg (FDR <= 0.05)",
-    "pre_registered_family_size_M": 8,
-    "ci_method": "block_or_non_overlapping_bootstrap_95pct_CI_for_effect_precision_and_lift",
-    "permutations_minimum": 10000
-  },
-  "frozen_tests": [
+  "primary_confirmatory_family_2yr_M2": [
     {
-      "id": "PROSP_D1_BIL_CRASH",
-      "class": "descriptive_contemporaneous",
-      "hypothesis": "During weeks with SPY weekly return <= -2.0%, BIL exact share-creation flow is higher than during non-crash weeks.",
-      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "SPY:1d"],
-      "metric": "mean_diff_usd_and_exact_lift_for_BIL_gt_expanding_Q85",
-      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI > 0"
-    },
-    {
-      "id": "PROSP_D2_JNK_CRASH",
-      "class": "descriptive_contemporaneous",
-      "hypothesis": "During weeks with SPY weekly return <= -2.0%, JNK exact share-creation flow is more negative than during non-crash weeks.",
-      "series": ["etf:JNK:aum_usd", "etf:JNK:shares_outstanding", "SPY:1d"],
-      "metric": "mean_diff_usd",
-      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
-    },
-    {
-      "id": "PROSP_D3_BTC_ETF_CRASH",
+      "id": "CONF_1_BTC_SPOT_ETF_WEEKLY_CRASH",
       "class": "descriptive_contemporaneous",
       "hypothesis": "During weeks with BTCUSDT weekly return <= -5.0%, US BTC Spot ETF USD net flow is lower than during non-crash weeks.",
       "series": ["etf:BTC_US:bgeometrics_flow_btc", "BTCUSDT:1d"],
-      "metric": "mean_diff_usd",
-      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
+      "power_analysis": {
+        "historical_effect_diff_usd_bn": -1.18,
+        "historical_crash_rate_pct": 15.9,
+        "power_at_52w_holm_M2_pct": 76.0,
+        "power_at_104w_holm_M2_pct": 97.5,
+        "n_weeks_for_80pct_power_holm_M2": 58,
+        "n_weeks_for_80pct_power_holm_M8_ref": 73
+      },
+      "null_rejection_criterion": "Two-sided 10,000-permutation Holm-adjusted p < 0.05 (M=2) and 95% bootstrap CI strictly < 0 at fixed readout Week 104."
     },
     {
-      "id": "PROSP_D4_BTC_OI_CRASH",
-      "class": "descriptive_contemporaneous",
-      "hypothesis": "During weeks with BTCUSDT weekly return <= -5.0%, weekly change in BTC Futures OI is more negative than during non-crash weeks.",
-      "series": ["deriv:BTC:bgeometrics_oi_usd", "BTCUSDT:1d"],
-      "metric": "mean_diff_usd",
-      "null_rejection_criterion": "Holm-adjusted permutation p < 0.05 and 95% CI < 0"
-    },
-    {
-      "id": "PROSP_P1_BIL_GLD_STRESS_LIFT",
-      "class": "probabilistic_contemporaneous_classifier",
-      "hypothesis": "Joint rule (BIL_flow > expanding Q80 AND GLD_flow < expanding Q20) yields prospective Lift > 1.0x for same-week SPY <= -2.0%.",
-      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "etf:GLD:aum_usd", "etf:GLD:shares_outstanding", "SPY:1d"],
-      "metric": "precision_recall_fpr_lift_with_95pct_CI",
-      "null_rejection_criterion": "Lower bound of 95% bootstrap CI for Lift > 1.0x and Holm p < 0.05"
-    },
-    {
-      "id": "PROSP_P2_MOVE_TO_BIL_CONTROLLED",
-      "class": "conditional_association",
-      "hypothesis": "Continuous ^MOVE weekly level remains positively associated with BIL exact flow after controlling for SOFR level, delta-SOFR, and Year FE (Newey-West HAC lag=4).",
-      "series": ["^MOVE:1d", "macro:US:FRED_SOFR_PCT", "etf:BIL:aum_usd", "etf:BIL:shares_outstanding"],
-      "metric": "HAC_t_stat_and_slope_per_25pt_MOVE",
-      "null_rejection_criterion": "HAC two-sided Holm p < 0.05 and positive slope"
-    },
-    {
-      "id": "PROSP_P3_BIL_TO_MMF_NONOVERLAP",
-      "class": "probabilistic_lead_lag_controlled",
-      "hypothesis": "Strict non-overlapping 2-week future WRMFNS change positively responds to BIL_t after controlling for MMF_t, SOFR_t, and SPY_ret_t (HAC lag=2).",
-      "series": ["etf:BIL:aum_usd", "etf:BIL:shares_outstanding", "macro:US:FRED_WRMFNS_USD", "macro:US:FRED_SOFR_PCT", "SPY:1d"],
-      "metric": "non_overlapping_HAC_t_stat_and_lift_95pct_CI",
-      "null_rejection_criterion": "HAC two-sided Holm p < 0.05 (currently NOT supported in 2018-2026 regression; tracked as falsification check)"
-    },
-    {
-      "id": "PROSP_S1_EX_RRP_TCI",
+      "id": "CONF_2_EX_RRP_CIRCULAR_SURROGATE_TCI",
       "class": "reduced_form_connectedness",
-      "hypothesis": "Default ex-RRP 8-variable VAR(2) H=10 spillover (fed_walcl_minus_tga, avoiding RRP<->MMF overlap) remains statistically above 1,000-permutation null (z > 2.0, p < 0.05) on active post-2022 regime.",
-      "endpoint": "/v1/analytics/liquidity-spillover?liquidity_mode=ex_rrp&start_date=2022-01-01&lags=2&horizon=10&permutations=1000",
-      "metric": "bias_adjusted_tci_pct_and_tci_z_score",
-      "null_rejection_criterion": "permutation_p_value < 0.05 and tci_z_score > 2.0"
+      "hypothesis": "Default ex-RRP 8-variable VAR(2) H=10 spillover (fed_walcl_minus_tga, avoiding RRP<->MMF counterparty overlap) exceeds 1,000-draw Circular Time-Shift Surrogate null (preserving 100% per-series autocorrelation & volatility clustering) on the rolling 156-week window ending at Week 104.",
+      "endpoint": "/v1/analytics/liquidity-spillover?liquidity_mode=ex_rrp&null_mode=circular_shift&lags=2&horizon=10&permutations=1000",
+      "power_analysis": {
+        "historical_3yr_circular_z_score": 3.97,
+        "historical_4yr_circular_z_score": 5.25,
+        "expected_power_at_156w_window_pct": ">90% if cross-series coupling persists at >=65% of 2022-2026 magnitude",
+        "caveat": "Tests reduced-form predictive connectedness only; makes no structural causal claim and freezes no single Top-Transmitter identity."
+      },
+      "null_rejection_criterion": "Circular-shift surrogate Holm-adjusted p < 0.05 (M=2) and tci_z_score > 2.0 at fixed readout Week 104."
     }
   ],
-  "explicitly_excluded_unsupported_rules": [
-    "JNK outflow during calm SPY weeks (|r|<=1%) as early warning for future 1w/4w SPY crash (unsupported / low power in historical pseudo-OOS).",
-    "JNK>0 & BIL<=0 during SPY rebound weeks as predictor of 4-week rally continuation (unsupported, Lift ~0.97x in historical pseudo-OOS).",
+  "secondary_long_horizon_registry_M5": [
+    {
+      "id": "SEC_1_DAILY_MOVE_TO_BIL_CONTROLLED",
+      "class": "conditional_association",
+      "hypothesis": "Daily continuous ^MOVE level remains positively associated with daily BIL exact share-creation flow after controlling for SOFR level, delta-SOFR, daily SPY return, and Year FE (Newey-West HAC lag=10).",
+      "series": ["^MOVE:1d", "macro:US:FRED_SOFR_PCT", "SPY:1d", "etf:BIL:aum_usd", "etf:BIL:shares_outstanding"],
+      "power_analysis": {
+        "historical_daily_slope_bn_per_25pt_move": 0.0995,
+        "historical_hac10_t_stat": 4.37,
+        "power_at_1yr_252d_pct": 18.5,
+        "power_at_2yr_504d_pct": 39.0,
+        "n_trading_days_for_80pct_power": 1179,
+        "estimated_years_for_80pct_power": 4.7
+      }
+    },
+    {
+      "id": "SEC_2_BTC_OI_WEEKLY_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with BTCUSDT weekly return <= -5.0%, weekly change in BTC Futures OI is more negative than during non-crash weeks.",
+      "power_analysis": {
+        "power_at_104w_holm_M8_pct": 42.8,
+        "power_at_208w_holm_M8_pct": 81.0,
+        "n_weeks_for_80pct_power_holm": 204
+      }
+    },
+    {
+      "id": "SEC_3_BIL_WEEKLY_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with SPY weekly return <= -2.0%, weekly BIL exact share-creation flow is higher than during non-crash weeks.",
+      "power_analysis": {
+        "power_at_104w_holm_M8_pct": 24.8,
+        "power_at_208w_holm_M8_pct": 56.7,
+        "n_weeks_for_80pct_power_holm": 315
+      }
+    },
+    {
+      "id": "SEC_4_JNK_WEEKLY_CRASH",
+      "class": "descriptive_contemporaneous",
+      "hypothesis": "During weeks with SPY weekly return <= -2.0%, weekly JNK exact share-creation flow is more negative than during non-crash weeks.",
+      "power_analysis": {
+        "power_at_104w_holm_M8_pct": 22.6,
+        "power_at_208w_holm_M8_pct": 52.8,
+        "n_weeks_for_80pct_power_holm": 338
+      }
+    },
+    {
+      "id": "SEC_5_Q2_BIL_GLD_CLASSIFIER_UNDERPOWERED_TRACKER",
+      "class": "probabilistic_contemporaneous_classifier",
+      "hypothesis": "Joint rule (BIL > expanding Q80 AND GLD < expanding Q20) yields Lift > 1.0x for same-week SPY <= -2.0%. Explicitly tracked as severely underpowered over 1-2 years (~9.5 alerts per 104 weeks).",
+      "power_analysis": {
+        "expected_alert_rate_pct": 9.2,
+        "expected_alerts_per_104w": 9.5,
+        "power_at_104w_optimistic_48pct_prec": 34.8,
+        "power_at_104w_shrunk_35pct_prec": 9.5,
+        "power_at_416w_shrunk_35pct_prec": 60.2,
+        "note": "Do NOT declare confirmatory pass/fail before >= 35 triggered alerts accumulate."
+      }
+    }
+  ],
+  "explicitly_excluded_or_downgraded": [
+    "Q6 (JNK outflow during calm SPY weeks |r|<=1% -> future SPY crash): unsupported / low power in historical pseudo-OOS.",
+    "Q9 (JNK>0 & BIL<=0 during SPY rebound -> 4-week rally continuation): unsupported (Lift 0.97x in historical pseudo-OOS).",
+    "Q4a (BIL -> Next-2w WRMFNS): not independently significant after controlling for SOFR and MMF persistence (non-overlapping HAC p=0.2099).",
+    "Q5-WRMFNS (MOVE -> WRMFNS ex-COVID/SVB + Year FE): positive point estimate (+1.51B/25pt) but imprecise (SE=0.84, 95% CI [-0.14, +3.17], p=0.0731).",
     "Standalone GLD weekly flow as crash stress indicator (fails Holm-Bonferroni).",
-    "Total stablecoin market cap delta as discriminator between internal exchange BTC->USDT swap parking vs idle capital (unidentified without exchange stablecoin reserves)."
+    "Total stablecoin market cap delta as discriminator between internal exchange swap parking vs idle capital (unidentified without exchange reserves)."
   ]
 }

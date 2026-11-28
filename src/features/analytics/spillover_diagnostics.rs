@@ -1,28 +1,37 @@
-//! Spillover Statistical Diagnostics: High-Resolution Permutation Placebo,
-//! Standardized Z-Score vs Null, Midpoint Chow Structural-Break Test, and Linear Algebra Helpers.
+//! Spillover Statistical Diagnostics: Autocorrelation-Preserving Surrogate Nulls
+//! (Circular Time-Shift / Block-Shuffle / i.i.d. Perm), Standardized Z-Score, and Linear Algebra.
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EquationBreakStat {
-    pub column: String,
-    pub chow_f: f64,
-    pub break_detected: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NullModel {
+    CircularShift,
+    BlockShuffle,
+    IidPerm,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StructuralBreakDiagnostics {
-    pub evaluated: bool,
-    pub split_midpoint_index: usize,
-    pub equations_tested: usize,
-    pub equations_with_break: usize,
-    pub max_chow_f: f64,
-    pub critical_f_1pct: f64,
-    pub structural_break_detected: bool,
-    pub per_equation: Vec<EquationBreakStat>,
+impl NullModel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CircularShift => "circular_shift",
+            Self::BlockShuffle => "block_shuffle",
+            Self::IidPerm => "iid_perm",
+        }
+    }
+
+    pub fn parse(raw: Option<&str>) -> Result<Self, String> {
+        match raw.map(str::trim) {
+            None | Some("") | Some("circular_shift") => Ok(Self::CircularShift),
+            Some("block_shuffle") => Ok(Self::BlockShuffle),
+            Some("iid_perm") => Ok(Self::IidPerm),
+            Some(other) => Err(format!(
+                "Invalid null_mode '{}'; expected 'circular_shift', 'block_shuffle', or 'iid_perm'",
+                other
+            )),
+        }
+    }
 }
 
-pub struct PermutationNullStats {
+pub struct SurrogateNullStats {
+    pub null_model: String,
     pub permutations_used: usize,
     pub null_mean_pct: f64,
     pub null_std_pct: f64,
@@ -31,16 +40,16 @@ pub struct PermutationNullStats {
     pub p_value: f64,
 }
 
-/// Wilson-Hilferty 1% upper-tail F(df1=k, df2=inf) critical threshold: chi2_0.01(k) / k.
-pub fn wilson_hilferty_f_crit_1pct(k: usize) -> f64 {
-    let kf = (k.max(1)) as f64;
-    let term = 2.0 / (9.0 * kf);
-    let inner = (1.0 - term + 2.326_347_874 * term.sqrt()).max(0.1);
-    inner * inner * inner
+#[inline]
+pub fn xorshift64(seed: &mut u64) -> u64 {
+    *seed ^= *seed << 13;
+    *seed ^= *seed >> 7;
+    *seed ^= *seed << 17;
+    *seed
 }
 
-/// Fits OLS B = (X^T X + ridge*I)^(-1) X^T Y and returns (B, per-column RSS).
-pub fn fit_ols_and_rss(x: &[Vec<f64>], y: &[Vec<f64>]) -> Result<(Vec<Vec<f64>>, Vec<f64>), String> {
+/// Fits OLS B = (X^T X + ridge*I)^(-1) X^T Y and returns (B, Y_hat, residuals E).
+pub fn fit_ols_full(x: &[Vec<f64>], y: &[Vec<f64>]) -> Result<(Vec<Vec<f64>>, Vec<Vec<f64>>, Vec<Vec<f64>>), String> {
     let t_eff = x.len();
     let k = x[0].len();
     let n = y[0].len();
@@ -61,111 +70,43 @@ pub fn fit_ols_and_rss(x: &[Vec<f64>], y: &[Vec<f64>]) -> Result<(Vec<Vec<f64>>,
         xtx[i][i] += 1e-8;
     }
     let b = solve_linear_system_multi(&xtx, &xty)?;
-    let mut rss = vec![0.0; n];
+    let mut y_hat = vec![vec![0.0; n]; t_eff];
+    let mut resid = vec![vec![0.0; n]; t_eff];
     for r in 0..t_eff {
         for c in 0..n {
             let mut pred = 0.0;
             for i in 0..k {
                 pred += x[r][i] * b[i][c];
             }
-            let e = y[r][c] - pred;
-            rss[c] += e * e;
+            y_hat[r][c] = pred;
+            resid[r][c] = y[r][c] - pred;
         }
     }
-    Ok((b, rss))
+    Ok((b, y_hat, resid))
 }
 
-/// Equation-by-equation midpoint Chow F-test for VAR(p) parameter stability.
-pub fn run_midpoint_chow_break_test(
-    columns: &[String],
-    x: &[Vec<f64>],
-    y: &[Vec<f64>],
-    rss_pool: &[f64],
-) -> StructuralBreakDiagnostics {
-    let t_eff = x.len();
-    let k = x[0].len();
-    let n = columns.len();
-    let crit = wilson_hilferty_f_crit_1pct(k);
-    if t_eff < 2 * k + 24 {
-        return StructuralBreakDiagnostics {
-            evaluated: false,
-            split_midpoint_index: t_eff / 2,
-            equations_tested: 0,
-            equations_with_break: 0,
-            max_chow_f: 0.0,
-            critical_f_1pct: crit,
-            structural_break_detected: false,
-            per_equation: Vec::new(),
-        };
+pub fn invert_spd(a: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let k = a.len();
+    let mut reg = a.to_vec();
+    let mut eye = vec![vec![0.0; k]; k];
+    for i in 0..k {
+        reg[i][i] += 1e-8;
+        eye[i][i] = 1.0;
     }
-    let mid = t_eff / 2;
-    let Ok((_, rss1)) = fit_ols_and_rss(&x[..mid], &y[..mid]) else {
-        return StructuralBreakDiagnostics {
-            evaluated: false,
-            split_midpoint_index: mid,
-            equations_tested: 0,
-            equations_with_break: 0,
-            max_chow_f: 0.0,
-            critical_f_1pct: crit,
-            structural_break_detected: false,
-            per_equation: Vec::new(),
-        };
-    };
-    let Ok((_, rss2)) = fit_ols_and_rss(&x[mid..], &y[mid..]) else {
-        return StructuralBreakDiagnostics {
-            evaluated: false,
-            split_midpoint_index: mid,
-            equations_tested: 0,
-            equations_with_break: 0,
-            max_chow_f: 0.0,
-            critical_f_1pct: crit,
-            structural_break_detected: false,
-            per_equation: Vec::new(),
-        };
-    };
-
-    let denom_dof = (t_eff.saturating_sub(2 * k)).max(1) as f64;
-    let mut per_eq = Vec::with_capacity(n);
-    let mut breaks = 0usize;
-    let mut max_f = 0.0f64;
-    for j in 0..n {
-        let rss_u = (rss1[j] + rss2[j]).max(1e-15);
-        let num = ((rss_pool[j] - rss_u).max(0.0)) / (k as f64);
-        let f_stat = num / (rss_u / denom_dof);
-        let is_brk = f_stat > crit;
-        if is_brk {
-            breaks += 1;
-        }
-        if f_stat > max_f {
-            max_f = f_stat;
-        }
-        per_eq.push(EquationBreakStat {
-            column: columns[j].clone(),
-            chow_f: f_stat,
-            break_detected: is_brk,
-        });
-    }
-    let min_breaks_for_system = if n >= 4 { 2 } else { 1 };
-    StructuralBreakDiagnostics {
-        evaluated: true,
-        split_midpoint_index: mid,
-        equations_tested: n,
-        equations_with_break: breaks,
-        max_chow_f: max_f,
-        critical_f_1pct: crit,
-        structural_break_detected: breaks >= min_breaks_for_system,
-        per_equation: per_eq,
-    }
+    solve_linear_system_multi(&reg, &eye).ok()
 }
 
-/// Deterministic Xorshift64 column-permutation placebo loop returning null distribution & z-score.
-pub fn run_permutation_placebo<F>(
+/// Deterministic surrogate null test supporting circular time-shift (default, preserves 100% ACF &
+/// volatility clustering), block-shuffle (L=8), and i.i.d. column permutation.
+pub fn run_surrogate_placebo<F>(
     z_rows: &[Vec<f64>],
     n: usize,
+    lags: usize,
     obs_tci: f64,
     n_perm: usize,
+    mode: NullModel,
     mut eval_tci: F,
-) -> PermutationNullStats
+) -> SurrogateNullStats
 where
     F: FnMut(&[Vec<f64>]) -> Result<f64, String>,
 {
@@ -175,17 +116,62 @@ where
     let mut null_tcis = Vec::with_capacity(clamped);
     let mut hits = 0usize;
     let mut perm_buf = z_rows.to_vec();
+    let min_gap = (t_total / 12).clamp(lags + 2, 12).min(t_total / 3).max(1);
+    let block_len = 8usize.min((t_total / 3).max(2));
 
     for _ in 0..clamped {
-        for j in 0..n {
-            for i in (1..t_total).rev() {
-                seed ^= seed << 13;
-                seed ^= seed >> 7;
-                seed ^= seed << 17;
-                let swap_idx = (seed as usize) % (i + 1);
-                let tmp = perm_buf[i][j];
-                perm_buf[i][j] = perm_buf[swap_idx][j];
-                perm_buf[swap_idx][j] = tmp;
+        match mode {
+            NullModel::CircularShift => {
+                let mut shifts = vec![0usize; n];
+                let span = t_total.saturating_sub(2 * min_gap).max(1);
+                for j in 1..n {
+                    let mut chosen = min_gap + ((xorshift64(&mut seed) as usize) % span);
+                    for _ in 0..8 {
+                        let ok = (0..j).all(|m| {
+                            let d = (chosen + t_total - shifts[m]) % t_total;
+                            d > lags && (t_total - d) > lags
+                        });
+                        if ok {
+                            break;
+                        }
+                        chosen = min_gap + ((xorshift64(&mut seed) as usize) % span);
+                    }
+                    shifts[j] = chosen;
+                }
+                for i in 0..t_total {
+                    for j in 0..n {
+                        perm_buf[i][j] = z_rows[(i + shifts[j]) % t_total][j];
+                    }
+                }
+            }
+            NullModel::BlockShuffle => {
+                let num_blocks = t_total.div_ceil(block_len);
+                let mut order: Vec<usize> = (0..num_blocks).collect();
+                for j in 0..n {
+                    for b in (1..num_blocks).rev() {
+                        let sw = (xorshift64(&mut seed) as usize) % (b + 1);
+                        order.swap(b, sw);
+                    }
+                    let mut dst = 0usize;
+                    for &blk in &order {
+                        let start = blk * block_len;
+                        let end = (start + block_len).min(t_total);
+                        for src in start..end {
+                            perm_buf[dst][j] = z_rows[src][j];
+                            dst += 1;
+                        }
+                    }
+                }
+            }
+            NullModel::IidPerm => {
+                for j in 0..n {
+                    for i in (1..t_total).rev() {
+                        let sw = (xorshift64(&mut seed) as usize) % (i + 1);
+                        let tmp = perm_buf[i][j];
+                        perm_buf[i][j] = perm_buf[sw][j];
+                        perm_buf[sw][j] = tmp;
+                    }
+                }
             }
         }
         if let Ok(nt) = eval_tci(&perm_buf) {
@@ -198,11 +184,7 @@ where
 
     null_tcis.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = null_tcis.len();
-    let mean = if m == 0 {
-        0.0
-    } else {
-        null_tcis.iter().sum::<f64>() / (m as f64)
-    };
+    let mean = if m == 0 { 0.0 } else { null_tcis.iter().sum::<f64>() / (m as f64) };
     let std = if m <= 1 {
         0.0
     } else {
@@ -214,7 +196,8 @@ where
     let z_score = if std > 1e-9 { (obs_tci - mean) / std } else { 0.0 };
     let p_val = ((hits + 1) as f64) / ((m + 1) as f64);
 
-    PermutationNullStats {
+    SurrogateNullStats {
+        null_model: mode.as_str().to_string(),
         permutations_used: m,
         null_mean_pct: mean,
         null_std_pct: std,

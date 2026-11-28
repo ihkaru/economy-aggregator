@@ -10,9 +10,9 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 use crate::features::analytics::{
-    build_weekly_flow_panel, compute_btc_etf_usd_flows,
-    compute_diebold_yilmaz_spillover_with_options, compute_exact_share_flows,
-    compute_fed_net_liquidity, compute_implied_net_flows, WeeklyFlowPanel, WeeklyPanelInputs,
+    build_weekly_flow_panel, compute_btc_etf_usd_flows, compute_diebold_yilmaz_spillover_full,
+    compute_exact_share_flows, compute_fed_net_liquidity, compute_implied_net_flows, NullModel,
+    WeeklyFlowPanel, WeeklyPanelInputs,
 };
 use crate::features::serving::rest::AppState;
 use crate::features::storage::{LakeReader, ObservationFilter, ObservationReader, PartitionResolver};
@@ -27,8 +27,10 @@ pub struct SpilloverQuery {
     pub liquidity_mode: Option<String>,
     /// Set true to drop fiat_park_mmf from the VAR (7-variable non-MMF system).
     pub exclude_mmf: Option<bool>,
-    /// Permutation placebo resolution (default 1000, clamped 100..=2000).
+    /// Surrogate null resolution (default 1000, clamped 100..=2000).
     pub permutations: Option<usize>,
+    /// "circular_shift" (default: preserves 100% ACF & vol clustering), "block_shuffle", or "iid_perm".
+    pub null_mode: Option<String>,
 }
 
 struct LoadedLiquidityData {
@@ -205,6 +207,8 @@ pub async fn query_liquidity_spillover_handler(
     let horizon = q.horizon.unwrap_or(10);
     let permutations = q.permutations.unwrap_or(1000).clamp(100, 2000);
     let exclude_mmf = q.exclude_mmf.unwrap_or(false);
+    let null_mode = NullModel::parse(q.null_mode.as_deref())
+        .map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
     let liq_mode = match q.liquidity_mode.as_deref().map(str::trim) {
         None | Some("") | Some("ex_rrp") => "ex_rrp",
         Some("net_liquidity") => "net_liquidity",
@@ -262,8 +266,15 @@ pub async fn query_liquidity_spillover_handler(
                 matrix.push(vals);
             }
         }
-        let report =
-            compute_diebold_yilmaz_spillover_with_options(&col_names, &matrix, lags, horizon, permutations)?;
+        let report = compute_diebold_yilmaz_spillover_full(
+            &col_names,
+            &matrix,
+            Some(&aligned_dates),
+            lags,
+            horizon,
+            permutations,
+            null_mode,
+        )?;
         Ok::<_, String>((aligned_dates.first().cloned(), aligned_dates.last().cloned(), report))
     })
     .await
